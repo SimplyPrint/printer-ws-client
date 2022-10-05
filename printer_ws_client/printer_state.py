@@ -1,28 +1,32 @@
-from typing import (
-    Optional, 
-    List, 
-    Dict, 
-    Any, 
-    Union, 
-    Tuple, 
-    Callable, 
-    Awaitable,
-    cast,
-)
+from enum import Enum
+from typing import Optional, List
 
-class Intervals:
-    def __init__(self, data: Dict[str, int] = {}):
-        self.job: float = data.get("job", 5000.0) / 1000.0
-        self.temperatures: float = data.get("temps", 5000.0) / 1000.0
-        self.target_temperatures: float = data.get("temps_target", 2500.0) / 1000.0
-        self.cpu: float = data.get("cpu", 30000.0) / 1000.0
-        self.reconnect: float = data.get("reconnect", 0.0) / 1000.0
-        self.ai: float = data.get("ai", 60000.0) / 1000.0
-        self.ready: float = data.get("ready_message", 60000.0) / 1000.0
-        self.ping: float = data.get("ping", 20000.0) / 1000.0
+class Temperature:
+    def __init__(self, actual: float = 0.0, target: Optional[float] = None):
+        self.actual: float = actual
+        self.target: Optional[float] = target
 
-class PrinterState:
+    def to_list(self) -> List[float]:
+        out = [self.actual]
+
+        if not self.target is None:
+            out.append(self.target)
+
+        return out
+
+class PrinterStatus(Enum):
+    OPERATIONAL = "operational"
+    PRINTING = "printing"
+    OFFLINE = "offline"
+    PAUSED = "paused"
+    PAUSING = "pausing"
+    CANCELLING = "cancelling"
+    ERROR = "error"
+
+class Printer:
     def __init__(self): 
         self.connected: bool = False
+        self.status: PrinterStatus = PrinterStatus.OFFLINE
+        self.tool_temperatures: List[Temperature] = []
+        self.bed_temperature: Optional[Temperature] = None
         self.layer: Optional[int] = None
-
