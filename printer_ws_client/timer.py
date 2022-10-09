@@ -1,6 +1,6 @@
 import asyncio
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Dict
 
 class Intervals:
@@ -9,18 +9,18 @@ class Intervals:
         self.temperatures: float = data.get("temps", 5000.0) / 1000.0
         self.target_temperatures: float = data.get("temps_target", 2500.0) / 1000.0
         self.cpu: float = data.get("cpu", 30000.0) / 1000.0
-        self.reconnect: float = data.get("reconnect", 0.0) / 1000.0
+        self.reconnect: float = data.get("reconnect", 1000.0) / 1000.0
         self.ai: float = data.get("ai", 60000.0) / 1000.0
         self.ready: float = data.get("ready_message", 60000.0) / 1000.0
         self.ping: float = data.get("ping", 20000.0) / 1000.0
 
-        self.job_last_update: datetime = datetime.now()
-        self.temperatures_last_update: datetime = datetime.now()
-        self.cpu_last_update: datetime = datetime.now()
-        self.reconnect_last_update: datetime = datetime.now()
-        self.ai_last_update: datetime = datetime.now()
-        self.ready_last_update: datetime = datetime.now()
-        self.ping_last_update: datetime = datetime.now()
+        self.job_last_update: datetime = datetime.now() - timedelta(seconds=self.job)
+        self.temperatures_last_update: datetime = datetime.now() - timedelta(seconds=self.temperatures)
+        self.cpu_last_update: datetime = datetime.now() - timedelta(seconds=self.cpu)
+        self.reconnect_last_update: datetime = datetime.now() - timedelta(seconds=self.reconnect)
+        self.ai_last_update: datetime = datetime.now() - timedelta(seconds=self.ai)
+        self.ready_last_update: datetime = datetime.now() - timedelta(seconds=self.ready)
+        self.ping_last_update: datetime = datetime.now() - timedelta(seconds=self.ping)
 
         self.job_updating: bool = False
         self.temperatures_updating: bool = False
@@ -41,82 +41,105 @@ class Intervals:
         self.ping = other.ping
 
     async def sleep_until_job(self):
-        remaining = (self.job_last_update - datetime.now()).total_seconds() + self.job
+        next_update = self.job_last_update + timedelta(seconds=self.job)
+        if datetime.now() > next_update:
+            self.job_last_update = datetime.now()
+            return
+
+        remaining = (next_update - datetime.now()).total_seconds()
 
         if remaining > 0.0:
-            self.job_updating = True
-            await asyncio.sleep(remaining)
-            self.job_updating = False
+            await asyncio.sleep(remaining) 
 
         self.job_last_update = datetime.now()
 
     async def sleep_until_temperatures(self):
-        remaining = (self.temperatures_last_update - datetime.now()).total_seconds() + self.temperatures
+        next_update = self.temperatures_last_update + timedelta(seconds=self.temperatures)
+        if datetime.now() > next_update:
+            self.temperatures_last_update = datetime.now()
+            return
+
+        remaining = (next_update - datetime.now()).total_seconds()
 
         if remaining > 0.0:
-            self.temperatures_updating = True
-            await asyncio.sleep(remaining)
-            self.temperatures_updating = False
+            await asyncio.sleep(remaining) 
 
         self.temperatures_last_update = datetime.now()
 
     async def sleep_until_target_temperatures(self):
-        remaining = (self.temperatures_last_update - datetime.now()).total_seconds() + self.target_temperatures
+        next_update = self.target_temperatures_last_update + timedelta(seconds=self.target_temperatures)
+        if datetime.now() > next_update:
+            self.target_temperatures_last_update = datetime.now()
+            return
+
+        remaining = (next_update - datetime.now()).total_seconds()
 
         if remaining > 0.0:
-            self.temperatures_updating = True
-            await asyncio.sleep(remaining)
-            self.temperatures_updating = False
+            await asyncio.sleep(remaining) 
 
-        self.temperatures_last_update = datetime.now()
+        self.target_temperatures_last_update = datetime.now()
 
     async def sleep_until_cpu(self):
-        remaining = (self.cpu_last_update - datetime.now()).total_seconds() + self.cpu
+        next_update = self.cpu_last_update + timedelta(seconds=self.cpu)
+        if datetime.now() > next_update:
+            self.cpu_last_update = datetime.now()
+            return
+
+        remaining = (next_update - datetime.now()).total_seconds()
 
         if remaining > 0.0:
-            self.cpu_updating = True
-            await asyncio.sleep(remaining)
-            self.cpu_updating = False
+            await asyncio.sleep(remaining) 
 
         self.cpu_last_update = datetime.now()
 
     async def sleep_until_reconnect(self):
-        remaining = (self.reconnect_last_update - datetime.now()).total_seconds() + self.reconnect
+        next_update = self.reconnect_last_update + timedelta(seconds=self.reconnect)
+        if datetime.now() > next_update:
+            self.reconnect_last_update = datetime.now()
+            return
+
+        remaining = (next_update - datetime.now()).total_seconds()
 
         if remaining > 0.0:
-            self.reconnect_updating = True
-            await asyncio.sleep(remaining)
-            self.reconnect_updating = False
+            await asyncio.sleep(remaining) 
 
         self.reconnect_last_update = datetime.now()
 
     async def sleep_until_ai(self):
-        remaining = (self.ai_last_update - datetime.now()).total_seconds() + self.ai
+        next_update = self.ai_last_update + timedelta(seconds=self.ai)
+        if datetime.now() > next_update:
+            self.ai_last_update = datetime.now()
+            return
+
+        remaining = (next_update - datetime.now()).total_seconds()
 
         if remaining > 0.0:
-            self.ai_updating = True
-            await asyncio.sleep(remaining)
-            self.ai_updating = False
+            await asyncio.sleep(remaining) 
 
         self.ai_last_update = datetime.now()
 
     async def sleep_until_ready(self):
-        remaining = (self.ready_last_update - datetime.now()).total_seconds() + self.ready
+        next_update = self.ready_last_update + timedelta(seconds=self.ready)
+        if datetime.now() > next_update:
+            self.ready_last_update = datetime.now()
+            return
+
+        remaining = (next_update - datetime.now()).total_seconds()
 
         if remaining > 0.0:
-            self.ready_updating = True
-            await asyncio.sleep(remaining)
-            self.ready_updating = False
+            await asyncio.sleep(remaining) 
 
         self.ready_last_update = datetime.now()
 
     async def sleep_until_ping(self):
-        remaining = (self.ping_last_update - datetime.now()).total_seconds() + self.ping
+        next_update = self.ping_last_update + timedelta(seconds=self.ping)
+        if datetime.now() > next_update:
+            self.ping_last_update = datetime.now()
+            return
+
+        remaining = (next_update - datetime.now()).total_seconds()
 
         if remaining > 0.0:
-            self.ping_updating = True
-            await asyncio.sleep(remaining)
-            self.ping_updating = False
+            await asyncio.sleep(remaining) 
 
         self.ping_last_update = datetime.now()
-

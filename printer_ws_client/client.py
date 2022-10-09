@@ -1,5 +1,5 @@
 import asyncio
-import threading
+from concurrent.futures import Future
 import logging
 import json
 
@@ -7,10 +7,10 @@ from .printer_state import Printer, PrinterStatus, Temperature
 from .connection import Connection
 from .event import *
 from .timer import Intervals
+from .async_loop import AsyncLoop
 
-from asyncio import AbstractEventLoop, Task
 from logging import Logger
-from typing import Coroutine, List, Optional
+from typing import List, Optional
 from enum import Enum
 
 class PrinterEvent(Enum):
@@ -37,42 +37,30 @@ class PrinterEvent(Enum):
     FILAMENT_ANALYSIS = "filament_analysis"
     OCTOPRINT_PLUGINS = "octoprint_plugins"
 
-
 class Client:
-    def __init__(self):
-        self.simplyprint_thread = threading.Thread(
-            target=self._run_simplyprint_thread, 
-            daemon=True,
-        )
-
+    def __init__(self): 
         self.logger: Logger = logging.getLogger("simplyprint.client")
 
-        self.should_close: bool = False
         self.callbacks: EventCallbacks = EventCallbacks() 
 
         self.connection: Connection = Connection(self.logger) 
         self.printer: Printer = Printer()
-        self.intervals: Intervals = Intervals()
+        self.intervals: Intervals = Intervals() 
 
-        # async io
-        self._aioloop: AbstractEventLoop = asyncio.new_event_loop()
-        asyncio.set_event_loop(self._aioloop)
+        self.loop: AsyncLoop = AsyncLoop()
+        self.process_task: Optional[Future[None]] = None
+
+    # ---------- control ---------- #
  
     def start(self) -> None:
-        if self.simplyprint_thread.is_alive():
-            return
-        self.simplyprint_thread.start()
+        self.loop.start() 
+        self.process_task = self.loop.spawn(self.process_events())
 
-    def _run_simplyprint_thread(self) -> None: 
-        self._aioloop.run_until_complete(self.process_events())
-
-    # spawn a future on the async io thread
-    # 
-    # NOTE: this might not be optimal
-    def spawn(self, fut: Coroutine) -> Task[None]:
-        return Task(fut, loop=self._aioloop)
+    def stop(self) -> None:
+        self.loop.stop()
 
     # ---------- client events ---------- #
+
     def set_id(self, id: str) -> None:
         self.connection.id = id
 
@@ -99,30 +87,30 @@ class Client:
             "new": status.value,
         })
 
-    def set_temperatures(self, tools: List[Temperature], bed: Optional[Temperature] = None) -> None:
+    def set_temperatures(self, tools: List[Temperature], bed: Optional[Temperature] = None) -> None: 
         self.printer.tool_temperatures = tools
-        self.printer.bed_temperature = bed  
+        self.printer.bed_temperature = bed
 
-        self.spawn(self.send_temperatures())
-
-    async def send_temperatures(self) -> None:
         if self.intervals.temperatures_updating:
             return
-        await self.intervals.sleep_until_temperatures()
 
+        self.intervals.temperatures_updating = True
+        self.loop.spawn(self.send_temperatures())
+
+    async def send_temperatures(self) -> None:
+        await self.intervals.sleep_until_temperatures()
         payload = {}
 
-        if not self.printer.bed_temperature is None:
-            payload["bed"] = self.printer.bed_temperature.to_list()
+        
 
-        for (i, temperature) in enumerate(self.printer.tool_temperatures):
-            payload[f"tool{i}"] = temperature.to_list()
-
+        self.logger.debug(f"Sending temperatures: {payload}")
         await self.send_async(PrinterEvent.TEMPERATURES, payload)
+        self.intervals.temperatures_updating = False
 
     # ---------- io ---------- #
-    def send(self, event: PrinterEvent, data: Any) -> None:
-        self.spawn(self.send_async(event, data))
+
+    def send(self, event: PrinterEvent, data: Any) -> Future[None]:
+        return self.loop.spawn(self.send_async(event, data))
 
     async def send_async(self, event: PrinterEvent, data: Any) -> None:
         message = json.dumps({
@@ -132,32 +120,40 @@ class Client:
         await self.send_message_async(message)
 
     def send_message(self, message: str) -> None:
-        self.spawn(self.send_message_async(message))
+        self.loop.spawn(self.send_message_async(message))
 
-    async def send_message_async(self, message: str) -> None:
-        while True:
-            if not self.connection.is_connected():
-                await self.connection.connect()
+    async def connect(self):
+        while not self.connection.is_connected():
+            if self.intervals.reconnect_updating:
+                await asyncio.sleep(1.0) # TODO: this is a hack
                 continue
 
-            self.logger.debug(f"sending message{message}") 
-            await self.connection.send_message(message)
-            break
+            self.intervals.reconnect_updating = True
+            await self.intervals.sleep_until_reconnect()
+            await self.connection.connect()
+            self.intervals.reconnect_updating = False
+
+    async def send_message_async(self, message: str) -> None:
+        await self.connect()
+        await self.connection.send_message(message)
 
     # ---------- server events ---------- #
+
     async def process_events(self):
-        while not self.should_close:
-            while not self.connection.is_connected():
-                await self.connection.connect()
+        while True:
+            await self.connect()
 
             event = await self.connection.read_event()
 
             if event is None:
+                self.logger.error("invalid event")
                 continue
 
             self.handle_event(event)
 
     def handle_event(self, event: Event) -> None:
+        self.callbacks.on_event(event)
+
         if isinstance(event, NewTokenEvent):
             self.handle_new_token_event(event)
         elif isinstance(event, ConnectEvent):
@@ -210,6 +206,10 @@ class Client:
             self.handle_plugin_uninstall_event(event)
         elif isinstance(event, WebcamSettingsEvent):
             self.handle_webcam_settings_event(event)
+        elif isinstance(event, StreamOnEvent):
+            self.handle_stream_on_event(event)
+        elif isinstance(event, StreamOffEvent):
+            self.handle_stream_off_event(event)
         elif isinstance(event, SetPrinterProfileEvent):
             self.handle_set_printer_profile_event(event)
         elif isinstance(event, GetGcodeScriptBackupsEvent):
@@ -220,30 +220,43 @@ class Client:
             self.handle_psu_control_event(event)
         elif isinstance(event, DisableWebsocketEvent):
             self.handle_disable_websocket_event(event)
-
      
     # ---------- event handlers ---------- #
+
     def handle_error_event(self, event: ErrorEvent) -> None:
         self.logger.error(f"Error: {event.error}")
+
+        self.intervals.reconnect = 30.0
+        self.connection.reconnect_token = None
 
         self.callbacks.on_error(event)
             
     def handle_new_token_event(self, event: NewTokenEvent) -> None:
         self.logger.info(f"Received new token: {event.token} short id: {event.short_id}")
 
+        self.connection.id = event.short_id
         self.connection.token = event.token
+
+        if event.no_exist:
+            self.printer.is_set_up = False
+
         self.callbacks.on_new_token(event)
 
     def handle_connect_event(self, event: ConnectEvent) -> None:
         self.logger.info(f"Connected to server")
 
-        self.connection.reconnect_token = None
         self.intervals.update(event.intervals)
+        self.printer.connected = True
+        self.printer.name = event.name
+        self.connection.reconnect_token = event.reconnect_token
 
         self.callbacks.on_connect(event)
 
     def handle_setup_complete_event(self, event: SetupCompleteEvent) -> None:
         self.logger.info(f"Setup complete")
+
+        self.connection.id = event.printer_id
+        self.printer.is_set_up = True
 
         self.callbacks.on_setup_complete(event)
 
@@ -362,6 +375,16 @@ class Client:
         self.logger.info(f"Webcam settings")
 
         self.callbacks.on_webcam_settings(event)
+
+    def handle_stream_on_event(self, event: StreamOnEvent) -> None:
+        self.logger.info(f"Stream on")
+
+        self.callbacks.on_stream_on(event)
+
+    def handle_stream_off_event(self, event: StreamOffEvent) -> None:
+        self.logger.info(f"Stream off")
+
+        self.callbacks.on_stream_off(event)
 
     def handle_set_printer_profile_event(self, event: SetPrinterProfileEvent) -> None:
         self.logger.info(f"Set printer profile")

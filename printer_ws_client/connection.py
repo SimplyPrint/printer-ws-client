@@ -36,7 +36,7 @@ class Connection:
         url = self.get_url()
 
         if self.reconnect_token is not None:
-            url += f"{url}/{self.reconnect_token}"
+            url = f"{url}/{self.reconnect_token}"
 
         if self.log_connect:
             self.logger.info(f"Connecting to {url}")
@@ -122,7 +122,7 @@ class Connection:
             case "stream_received":
                 return StreamReceivedEvent()
             case "printer_settings":
-                return PrinterSettingsEvent()
+                return PrinterSettingsEvent(data)
             case "demand":                
                 match data.pop("demand"):
                     case "pause":
@@ -140,7 +140,7 @@ class Connection:
                     case "webcam_snapshot":
                         return WebcamSnapshotEvent()
                     case "file":
-                        return FileEvent()
+                        return FileEvent(data)
                     case "start_print":
                         return StartPrintEvent()
                     case "connect_printer":
@@ -162,13 +162,17 @@ class Connection:
                     case "plugin_uninstall":
                         return PluginUninstallEvent()
                     case "webcam_settings_updated":
-                        return WebcamSettingsEvent()
+                        return WebcamSettingsEvent(data)
+                    case "stream_on":
+                        return StreamOnEvent(data)
+                    case "stream_off":
+                        return StreamOffEvent()
                     case "set_printer_profile":
-                        return SetPrinterProfileEvent()
+                        return SetPrinterProfileEvent(data)
                     case "get_gcode_script_backups":
-                        return GetGcodeScriptBackupsEvent()
+                        return GetGcodeScriptBackupsEvent(data)
                     case "has_gcode_changes":
-                        return HasGcodeChangesEvent()
+                        return HasGcodeChangesEvent(data)
                     case "psu_off":
                         return PsuControlEvent(False)
                     case "psu_on":
@@ -176,7 +180,7 @@ class Connection:
                     case "psu_keepalive":
                         return PsuControlEvent(True)
                     case "disable_websocket":
-                        return DisableWebsocketEvent()
+                        return DisableWebsocketEvent(data)
                     case unknown:
                         self.logger.debug(f"Unknown demand: {unknown}, data: {data}")
                         return None

@@ -1,4 +1,5 @@
 from .timer import Intervals
+from .printer_state import PrinterSettings
 
 from typing import (
     Optional,
@@ -10,6 +11,8 @@ from typing import (
 
 class EventCallbacks:
     def __init__(self):
+        self.on_event: Callable[[Event], None] = lambda _: None
+
         self.on_error: Callable[[ErrorEvent], None] = lambda _: None
         self.on_new_token: Callable[[NewTokenEvent], None] = lambda _: None
         self.on_connect: Callable[[ConnectEvent], None] = lambda _: None
@@ -38,6 +41,8 @@ class EventCallbacks:
         self.on_plugin_install: Callable[[PluginInstallEvent], None] = lambda _: None
         self.on_plugin_uninstall: Callable[[PluginUninstallEvent], None] = lambda _: None
         self.on_webcam_settings: Callable[[WebcamSettingsEvent], None] = lambda _: None
+        self.on_stream_on: Callable[[StreamOnEvent], None] = lambda _: None
+        self.on_stream_off: Callable[[StreamOffEvent], None] = lambda _: None
         self.on_set_printer_profile: Callable[[SetPrinterProfileEvent], None] = lambda _: None
         self.on_get_gcode_script_backups: Callable[[GetGcodeScriptBackupsEvent], None] = lambda _: None
         self.on_has_gcode_changes: Callable[[HasGcodeChangesEvent], None] = lambda _: None
@@ -56,11 +61,14 @@ class NewTokenEvent(Event):
     def __init__(self, data: Dict[str, Any]):
         self.short_id: str = data.get("short_id", "")
         self.token: str = data.get("token", "")
+        self.no_exist: bool = data.get("no_exist", False)
 
 class ConnectEvent(Event):
     def __init__(self, data: Dict[str, Any]):
         self.in_set_up: bool = data.get("in_set_up", 0) == 1
         self.intervals: Intervals = Intervals(data.get("interval", {}))
+        self.printer_settings: PrinterSettings = PrinterSettings(data.get("printer_settings", {}))
+        self.short_id: Optional[str] = data.get("short_id")
         self.reconnect_token: Optional[str] = data.get("reconnect_token")
         self.name: Optional[str] = data.get("name")
 
@@ -81,8 +89,8 @@ class StreamReceivedEvent(Event):
         pass
 
 class PrinterSettingsEvent(Event):
-    def __init__(self):
-        pass
+    def __init__(self, data: Dict[str, Any]):
+        self.printer_settings: PrinterSettings = PrinterSettings(data)
 
 class PauseEvent(Event):
     def __init__(self):
@@ -102,7 +110,7 @@ class TerminalEvent(Event):
 
 class GcodeEvent(Event):
     def __init__(self, data: Dict[str, Any]):
-        self.list: List[Any] = data.get("list", [])
+        self.list: List[str] = data.get("list", [])
 
 class WebcamTestEvent(Event):
     def __init__(self):
@@ -113,8 +121,10 @@ class WebcamSnapshotEvent(Event):
         pass
 
 class FileEvent(Event):
-    def __init__(self):
-        pass
+    def __init__(self, data: Dict[str, Any]):
+        self.url: Optional[str] = data.get("url")
+        self.path: Optional[str] = data.get("path")
+        self.auto_start: bool = bool(data.get("auto_start", 0))
 
 class StartPrintEvent(Event):
     def __init__(self):
@@ -157,25 +167,35 @@ class PluginUninstallEvent(Event):
         pass
 
 class WebcamSettingsEvent(Event):
+    def __init__(self, data: Dict[str, Any]):
+        self.webcam_settings = data.get("webcam_settings")
+
+# deprecated
+class StreamOnEvent(Event):
+    def __init__(self, data: Dict[str, Any]):
+        self.interval: float = data.get("interval", 300.0) / 300.0
+
+# deprecated
+class StreamOffEvent(Event):
     def __init__(self):
         pass
 
 class SetPrinterProfileEvent(Event):
-    def __init__(self):
-        pass
+    def __init__(self, data: Dict[str, Any]):
+        self.profile = data.get("printer_profile")
 
 class GetGcodeScriptBackupsEvent(Event):
-    def __init__(self):
-        pass
+    def __init__(self, data: Dict[str, Any]):
+        self.force = data.get("force", False)
 
 class HasGcodeChangesEvent(Event):
-    def __init__(self):
-        pass
+    def __init__(self, data: Dict[str, Any]):
+        self.scripts = data.get("scripts")
 
 class PsuControlEvent(Event):
     def __init__(self, on: bool):
         self.on: bool = on
 
 class DisableWebsocketEvent(Event):
-    def __init__(self):
-        pass
+    def __init__(self, data: Dict[str, Any]):
+        self.websocket_ready: bool = data.get("websocket_ready", False)
