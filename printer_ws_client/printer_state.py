@@ -12,11 +12,11 @@ class Temperature:
 
         return self.actual == other.actual and self.target == other.target
 
-    def to_list(self) -> List[float]:
-        out = [self.actual]
+    def to_list(self) -> List[int]:
+        out = [round(self.actual)]
 
         if not self.target is None:
-            out.append(self.target)
+            out.append(round(self.target))
 
         return out
 
