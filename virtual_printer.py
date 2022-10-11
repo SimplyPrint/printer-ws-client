@@ -58,13 +58,17 @@ class VirtualPrinter(Client):
         self.print_done()
 
     def update(self, dt: float):
-        if self.virtual_bed_temperature.target is not None:
-            self.virtual_bed_temperature.actual = exponential_smoothing(
-                self.virtual_bed_temperature.target, 
-                self.virtual_bed_temperature.actual, 
-                0.05, 
-                dt
-            )
+        if self.virtual_bed_temperature.target is None:
+            target = 20.0
+        else:
+            target = self.virtual_bed_temperature.target
+
+        self.virtual_bed_temperature.actual = exponential_smoothing(
+            target, 
+            self.virtual_bed_temperature.actual, 
+            0.05, 
+            dt
+        )
 
         for tool in self.virtual_tool_temperatures:
             if tool.target is None:
