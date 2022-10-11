@@ -14,7 +14,7 @@ class VirtualPrinter(Client):
 
         self.info.api = "Virtual"
         self.info.api_version = "0.1"
-        self.local_path = "."
+        self.local_path = "virtual_local"
 
         self.virtual_tool_temperatures = [Temperature(20.0)]
         self.virtual_bed_temperature = Temperature(20.0)
