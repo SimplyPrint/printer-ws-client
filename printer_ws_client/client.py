@@ -150,11 +150,10 @@ class Client:
         self.__initialize_connection()
 
         self.process_task = self.loop.spawn(self.process_events())
+        self.loop.spawn(self.send_cpu_loop())
 
     def __initialize_connection(self) -> None:
-        self.status = PrinterStatus.OPERATIONAL
         self.send_firmware()
-        self.send_cpu()
         self.send_machine_data()
 
     def __del__(self):
@@ -230,7 +229,7 @@ class Client:
         self.__logger.debug(f"Sending machine data: {machine_data}")
         self.send(PrinterEvent.MACHINE_DATA, machine_data)
 
-    # ---------- client events ---------- # 
+    # ---------- client events ---------- #  
 
     @property
     def id(self) -> Optional[str]:
@@ -361,6 +360,15 @@ class Client:
     def cancel_print(self, error: str) -> None:
         self.send_job_error(error)
         self.status = PrinterStatus.CANCELLING
+        await self.handle_cancel_event(CancelEvent())
+
+    def print_cancelled(self) -> None:
+        self.status = PrinterStatus.OPERATIONAL
+
+    async def send_cpu_loop(self):
+        while True:
+            await self.intervals.sleep_until_cpu()
+            self.send_cpu()
 
     # ---------- io ---------- #
 
