@@ -194,17 +194,21 @@ class Client:
             temperature = temperatures["cpu_thermal"][0].current
         if "soc_thermal" in temperatures:
             temperature = temperatures["soc_thermal"][0].current
+
+        if temperature is None:
+            temperature = 0
     
         return {
-            "usage": psutil.cpu_percent(),
-            "temp": temperature,
-            "memory": psutil.virtual_memory().percent,
+            "usage": round(psutil.cpu_percent()),
+            "temp": round(temperature),
+            "memory": round(psutil.virtual_memory().percent),
+            "flags": 0,
         }
 
     def send_cpu(self) -> None:
         cpu = self.__get_cpu()
         self.__logger.debug(f"Sending CPU info: {cpu}")
-        self.send(PrinterEvent.CPU_INFO, cpu)
+        self.send(PrinterEvent.CPU, cpu)
 
     def __get_machine_data(self) -> Dict[str, Any]:
         return {

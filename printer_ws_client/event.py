@@ -25,7 +25,7 @@ class PrinterEvent(Enum):
     PLUGIN_INSTALLED = "plugin_installed"
     FILE_PROGRESS = "file_progress"
     PSU_CHANGE = "psu_change"
-    CPU_INFO = "cpu_info"
+    CPU = "cpu"
     MESH_DATA = "mesh_data"
     MACHINE_DATA = "machine_data"
     PRINT_STARTED = "print_started"
