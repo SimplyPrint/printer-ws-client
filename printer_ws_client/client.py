@@ -350,9 +350,15 @@ class Client:
         self.intervals.temperatures_updating = False
 
     def start_print(self):
-        self.status = PrinterStatus.PRINTING
+        self.send(
+            PrinterEvent.JOB_INFO, 
+            {
+                "started": True,     
+            }
+        )
 
-        self.handle_start_print_event(StartPrintEvent())
+        self.status = PrinterStatus.PRINTING
+        await self.handle_start_print_event(StartPrintEvent())
 
     def print_done(self):
         self.status = PrinterStatus.OPERATIONAL
