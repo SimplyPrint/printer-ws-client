@@ -1,53 +1,46 @@
 from .timer import Intervals
 from .printer_state import PrinterSettings
 
+from enum import Enum
 from typing import (
     Optional,
-    Callable, 
     Dict,
     List,
     Any,
 )
 
-class EventCallbacks:
-    def __init__(self):
-        self.on_event: Callable[[Event], None] = lambda _: None
-
-        self.on_error: Callable[[ErrorEvent], None] = lambda _: None
-        self.on_new_token: Callable[[NewTokenEvent], None] = lambda _: None
-        self.on_connect: Callable[[ConnectEvent], None] = lambda _: None
-        self.on_setup_complete: Callable[[SetupCompleteEvent], None] = lambda _: None
-        self.on_interval_change: Callable[[IntervalChangeEvent], None] = lambda _: None
-        self.on_pong: Callable[[PongEvent], None] = lambda _: None
-        self.on_stream_received: Callable[[StreamReceivedEvent], None] = lambda _: None
-        self.on_printer_settings: Callable[[PrinterSettingsEvent], None] = lambda _: None
-        
-        self.on_pause: Callable[[PauseEvent], None] = lambda _: None
-        self.on_resume: Callable[[ResumeEvent], None] = lambda _: None
-        self.on_cancel: Callable[[CancelEvent], None] = lambda _: None
-        self.on_terminal: Callable[[TerminalEvent], None] = lambda _: None
-        self.on_gcode: Callable[[GcodeEvent], None] = lambda _: None
-        self.on_webcam_test: Callable[[WebcamTestEvent], None] = lambda _: None  
-        self.on_webcam_snapshot: Callable[[WebcamSnapshotEvent], None] = lambda _: None
-        self.on_file: Callable[[FileEvent], None] = lambda _: None
-        self.on_start_print: Callable[[StartPrintEvent], None] = lambda _: None
-        self.on_connect_printer: Callable[[ConnectPrinterEvent], None] = lambda _: None
-        self.on_disconnect_printer: Callable[[DisconnectPrinterEvent], None] = lambda _: None
-        self.on_system_restart: Callable[[SystemRestartEvent], None] = lambda _: None
-        self.on_system_shutdown: Callable[[SystemShutdownEvent], None] = lambda _: None
-        self.on_api_restart: Callable[[ApiRestartEvent], None] = lambda _: None
-        self.on_api_shutdown: Callable[[ApiShutdownEvent], None] = lambda _: None
-        self.on_update: Callable[[UpdateEvent], None] = lambda _: None
-        self.on_plugin_install: Callable[[PluginInstallEvent], None] = lambda _: None
-        self.on_plugin_uninstall: Callable[[PluginUninstallEvent], None] = lambda _: None
-        self.on_webcam_settings: Callable[[WebcamSettingsEvent], None] = lambda _: None
-        self.on_stream_on: Callable[[StreamOnEvent], None] = lambda _: None
-        self.on_stream_off: Callable[[StreamOffEvent], None] = lambda _: None
-        self.on_set_printer_profile: Callable[[SetPrinterProfileEvent], None] = lambda _: None
-        self.on_get_gcode_script_backups: Callable[[GetGcodeScriptBackupsEvent], None] = lambda _: None
-        self.on_has_gcode_changes: Callable[[HasGcodeChangesEvent], None] = lambda _: None
-        self.on_psu_control: Callable[[PsuControlEvent], None] = lambda _: None
-        self.on_disable_websocket: Callable[[DisableWebsocketEvent], None] = lambda _: None
+class PrinterEvent(Enum):
+    PING = "ping"
+    DELAY = "delay"
+    TOOL = "tool"
+    STATUS = "state_change"
+    AMBIENT = "ambient"
+    TEMPERATURES = "temps"
+    SHUTDOWN = "shutdown"
+    CONNECTION = "connection"
+    CAMERA_SETTINGS = "camera_settings"
+    GCODE_TERMINAL = "gcode_terminal"
+    JOB_UPDATE = "job_update"
+    JOB_INFO = "job_info"
+    PLUGIN_INSTALLED = "plugin_installed"
+    FILE_PROGRESS = "file_progress"
+    PSU_CHANGE = "psu_change"
+    CPU_INFO = "cpu_info"
+    MESH_DATA = "mesh_data"
+    MACHINE_DATA = "machine_data"
+    PRINT_STARTED = "print_started"
+    PRINT_DONE = "print_done"
+    PRINT_PAUSING = "print_pausing"
+    PRINT_PAUSED = "print_paused"
+    PRINT_CANCELLED = "print_cancelled"
+    PRINT_FALIURE = "print_failure"
+    PRINTER_ERROR = "printer_error"
+    INPUT_REQUIRED = "input_required"
+    UPDATE_STARTED = "update_started"
+    FIRMWARE = "firmware"
+    UNSAFE_FIRMWARE = "unsafe_firmware"
+    FILAMENT_ANALYSIS = "filament_analysis"
+    OCTOPRINT_PLUGINS = "octoprint_plugins"
 
 class Event:
     def __init__(self):        
@@ -173,7 +166,7 @@ class WebcamSettingsEvent(Event):
 # deprecated
 class StreamOnEvent(Event):
     def __init__(self, data: Dict[str, Any]):
-        self.interval: float = data.get("interval", 300.0) / 300.0
+        self.interval: float = data.get("interval", 300.0) / 1000.0
 
 # deprecated
 class StreamOffEvent(Event):

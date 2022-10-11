@@ -2,6 +2,15 @@ import asyncio
 import logging
 import json
 import copy
+import time
+import sentry_sdk
+import platform
+import netifaces
+import socket
+import os
+import psutil
+import subprocess
+import re
 
 from concurrent.futures import Future
 from .printer_state import Printer, PrinterStatus, Temperature
@@ -9,95 +18,274 @@ from .connection import Connection
 from .event import *
 from .timer import Intervals
 from .async_loop import AsyncLoop
+from .config import Config
+from .file import FileHandler
 
 from logging import Logger
 from typing import List, Optional
-from enum import Enum
 
-class PrinterEvent(Enum):
-    STATUS = "state_change"
-    TEMPERATURES = "temps"
-    SHUTDOWN = "shutdown"
-    CONNECTION = "connection"
-    CAMERA_SETTINGS = "camera_settings"
-    GCODE_TERMINAL = "gcode_terminal"
-    JOB_UPDATE = "job_update"
-    PLUGIN_INSTALLED = "plugin_installed"
-    PSU_CHANGE = "psu_change"
-    MESH_DATA = "mesh_data"
-    PRINT_STARTED = "print_started"
-    PRINT_DONE = "print_done"
-    PRINT_PAUSING = "print_pausing"
-    PRINT_PAUSED = "print_paused"
-    PRINT_CANCELLED = "print_cancelled"
-    PRINT_FALIURE = "print_failure"
-    PRINTER_ERROR = "printer_error"
-    INPUT_REQUIRED = "input_required"
-    UPDATE_STARTED = "update_started"
-    UNSAFE_FIRMWARE = "unsafe_firmware"
-    FILAMENT_ANALYSIS = "filament_analysis"
-    OCTOPRINT_PLUGINS = "octoprint_plugins"
+class ClientInfo:
+    ui: Optional[str] = None
+    ui_version: Optional[str] = None
+    api: Optional[str] = None
+    api_version: Optional[str] = None
+    sp_version: Optional[str] = "4.0.0"
+
+    def python_version(self) -> str:
+        return platform.python_version() 
+
+    def __get_cpu_model_linux(self) -> Optional[str]:
+        info_path = "/proc/cpuinfo"
+
+        try:
+            with open(info_path, "r") as f:
+                data = f.read()
+
+            cpu_items = [
+                item.strip() for item in data.split("\n\n") if item.strip()
+            ]
+
+            match = re.search(r"Model\s+:\s+(.+)", cpu_items[-1])
+            if not match is None:
+                return match.group(1)
+
+            for item in cpu_items:
+                match = re.search(r"model name\s+:\s+(.+)", item)
+
+                if not match is None:
+                    return match.group(1).strip()
+        except Exception:
+            pass
+
+    def __get_cpu_model_windows(self) -> Optional[str]:
+        return subprocess.check_output(["wmic", "cpu", "get", "name"]).decode("utf-8").strip()
+
+    def machine(self) -> str:
+        if self.os() == "Linux":
+            model = self.__get_cpu_model_linux()
+
+            if not model is None:
+                return model
+
+        if self.os() == "Windows":
+            model = self.__get_cpu_model_windows()
+
+            if not model is None:
+                return model
+    
+        return platform.machine()
+
+    def os(self) -> str:
+        return platform.system()
+
+    def is_ethernet(self) -> bool:
+        return netifaces.gateways()["default"][netifaces.AF_INET][1].startswith("eth")
+
+    def __ssid_linux(self) -> Optional[str]:
+        return subprocess.check_output(["iwgetid", "-r"]).decode("utf-8").strip()
+
+    def __ssid_windows(self) -> Optional[str]:
+        return subprocess.check_output(["netsh", "wlan", "show", "interfaces"]).decode("utf-8").strip()
+
+    def ssid(self) -> Optional[str]:
+        if self.os() == "Linux":
+            return self.__ssid_linux()
+
+        if self.os() == "Windows":
+            return self.__ssid_windows()
+
+        return None
+
+    def hostname(self) -> str:
+        return socket.gethostname()
+
+    def local_ip(self) -> Optional[str]:
+        interface = netifaces.gateways()["default"][netifaces.AF_INET][1]
+
+        return netifaces.ifaddresses(interface)[netifaces.AF_INET][0]["addr"]
+
+    def core_count(self) -> Optional[int]:
+        return os.cpu_count()
+
+    def total_memory(self) -> int:
+        return os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES")
+        
 
 class Client: 
-    callbacks: EventCallbacks = EventCallbacks() 
     __logger: Logger = logging.getLogger("simplyprint.client")
 
     should_close: bool = False
 
+    config: Config = Config()
+    info: ClientInfo = ClientInfo()
+
+    local_path: Optional[str] = None
+
     connection: Connection = Connection(logging.getLogger("simplyprint.client.connection"))
     printer: Printer = Printer()
     intervals: Intervals = Intervals() 
+    ping_queue: List[float] = []
 
     loop: AsyncLoop = AsyncLoop()
-    process_task: Optional[Future[None]] = None 
+    process_task: Optional[Future[None]] = None  
+
+    file_handler: Optional[FileHandler] = None
+    __selected_file: Optional[str] = None
 
     # ---------- control ---------- # 
     
     def start(self) -> None:
+        # start sentry
+        self.__start_sentry()
+
+        # set up FileHandler
+        if self.local_path is None:
+            raise Exception("local_path not set for Client")
+
+        self.file_handler = FileHandler(self, self.local_path)
+
+        # start AsyncLoop
         self.loop.start() 
+
+        self.__initialize_connection()
+
         self.process_task = self.loop.spawn(self.process_events())
 
+    def __initialize_connection(self) -> None:
+        self.status = PrinterStatus.OPERATIONAL
+        self.send_firmware()
+        self.send_cpu()
+        self.send_machine_data()
+
+    def __del__(self):
+        self.stop()
     
     def stop(self) -> None:
+        self.status = PrinterStatus.OFFLINE
         self.loop.stop() 
+
+    def __start_sentry(self):
+        self.__logger.debug("Initializing Sentry")
+        sentry_sdk.init(
+            dsn="https://c35fae8df2d74707bec50279a0bcd7ae@o1102514.ingest.sentry.io/6611344",
+            traces_sample_rate=0.05,
+        )
+        if self.config.id != "0":
+            sentry_sdk.set_user({"id": self.config.id})
+
+    # ---------- info ---------- #
+
+    def __get_firmware(self) -> Dict[str, Any]:
+        return { "fw": self.printer.firmware.dict() }
+
+    def send_firmware(self) -> None:
+        firmware = self.__get_firmware()
+        self.__logger.debug(f"Sending firmware: {firmware}")
+        self.send(PrinterEvent.FIRMWARE, firmware)
+
+    def __get_cpu(self) -> Dict[str, Any]:
+        temperature: Optional[float] = None
+        temperatures = psutil.sensors_temperatures()
+
+        if "coretemp" in temperatures:
+            temperature = temperatures["coretemp"][0].current
+        if "cpu-thermal" in temperatures:
+            temperature = temperatures["cpu-thermal"][0].current
+        if "cpu_thermal" in temperatures:
+            temperature = temperatures["cpu_thermal"][0].current
+        if "soc_thermal" in temperatures:
+            temperature = temperatures["soc_thermal"][0].current
+    
+        return {
+            "usage": psutil.cpu_percent(),
+            "temp": temperature,
+            "memory": psutil.virtual_memory().percent,
+        }
+
+    def send_cpu(self) -> None:
+        cpu = self.__get_cpu()
+        self.__logger.debug(f"Sending CPU info: {cpu}")
+        self.send(PrinterEvent.CPU_INFO, cpu)
+
+    def __get_machine_data(self) -> Dict[str, Any]:
+        return {
+            "ui": self.info.ui,
+            "ui_version": self.info.ui_version,
+            "api": self.info.api,
+            "api_version": self.info.api_version,
+            "sp_version": self.info.sp_version,
+            "python_version": self.info.python_version(),
+            "machine": self.info.machine(),
+            "os": self.info.os(),
+            "is_ethernet": self.info.is_ethernet(),
+            "ssid": self.info.ssid(),
+            "hostname": self.info.hostname(),
+            "local_ip": self.info.local_ip(),
+            "core_count": self.info.core_count(),
+            "total_memory": self.info.total_memory(),
+        }
+
+    def send_machine_data(self):
+        machine_data = self.__get_machine_data()
+        self.__logger.debug(f"Sending machine data: {machine_data}")
+        self.send(PrinterEvent.MACHINE_DATA, machine_data)
 
     # ---------- client events ---------- # 
 
     @property
     def id(self) -> Optional[str]:
-        return self.connection.id
+        return self.config.id
 
     @id.setter
     def id(self, id: str) -> None:
-        self.connection.id = id
+        self.config.id = id
 
     @property
     def token(self) -> Optional[str]:
-        return self.connection.token
+        return self.config.token
     
     @token.setter
     def token(self, token: str) -> None:
-        self.connection.token = token
+        self.config.token = token
     
     def set_layer(self, layer: int) -> None:
         if self.printer.layer == layer:
             return
 
-        self.printer.layer = layer
+        self.printer.layer = layer 
+
+    @property
+    def status(self) -> PrinterStatus:
+        return self.printer.status
     
-    def set_status(self, status: PrinterStatus) -> None:
+    @status.setter
+    def status(self, status: PrinterStatus) -> None:
         if self.printer.status == status:
             return
 
-        if self.printer.status == PrinterStatus.CANCELLING:
-            # TODO: something with print done!?
-            # NOTE: this can't be right
-            pass
+        self.__logger.debug(f"Status changed from {self.printer.status} to {status}") 
 
         self.printer.status = status
         self.send(PrinterEvent.STATUS, {
             "new": status.value,
         })
+
+    @property
+    def selected_file(self) -> Optional[str]:
+        return self.__selected_file
+
+    @property
+    def ambient_temperature(self) -> Optional[float]:
+        return self.printer.ambient_temperature
+
+    @ambient_temperature.setter
+    def ambient_temperature(self, temperature: float) -> None:
+        self.printer.ambient_temperature = temperature
+
+        if round(self.printer.ambient_temperature) != round(temperature):
+            self.send(PrinterEvent.AMBIENT, {
+                "new": round(temperature),
+            })
 
     @property
     def tool_temperatures(self) -> List[Temperature]:
@@ -125,10 +313,14 @@ class Client:
             return
 
         self.intervals.temperatures_updating = True
-        self.loop.spawn(self.send_temperatures()) 
+        self.loop.spawn(self.send_temperatures())  
     
     async def send_temperatures(self) -> None:
-        await self.intervals.sleep_until_temperatures()
+        if self.printer.is_heating():
+            await self.intervals.sleep_until_target_temperatures()
+        else:
+            await self.intervals.sleep_until_temperatures()
+
         payload = {}
 
         # TODO: this is virtually unreadable, clean it up
@@ -148,7 +340,7 @@ class Client:
                 payload[f"tool{i}"] = self.printer.tool_temperatures[i].to_list()
 
         self.printer.server_bed_temperature = copy.deepcopy(self.printer.bed_temperature)
-        self.printer.server_tool_temperatures = copy.deepcopy(self.printer.tool_temperatures)
+        self.printer.server_tool_temperatures = copy.deepcopy(self.printer.tool_temperatures) 
 
         if payload == {}:
             self.intervals.temperatures_updating = False
@@ -158,16 +350,40 @@ class Client:
         await self.send_async(PrinterEvent.TEMPERATURES, payload)
         self.intervals.temperatures_updating = False
 
+    def start_print(self):
+        self.status = PrinterStatus.PRINTING
+
+        self.handle_start_print_event(StartPrintEvent())
+
+    def print_done(self):
+        self.status = PrinterStatus.OPERATIONAL
+
+    def cancel_print(self, error: str) -> None:
+        self.send_job_error(error)
+        self.status = PrinterStatus.CANCELLING
+
     # ---------- io ---------- #
+
+    def send_job_error(self, error: str) -> None:
+        self.send(
+            PrinterEvent.JOB_INFO, 
+            { "error": error },
+        )
  
     def send(self, event: PrinterEvent, data: Any) -> Future[None]:
         return self.loop.spawn(self.send_async(event, data))
  
     async def send_async(self, event: PrinterEvent, data: Any) -> None:
-        message = json.dumps({
-            "type": event.value,
-            "data": data,
-        })
+        if data is None:
+            message = json.dumps({
+                "type": event.value,
+            })
+        else:
+            message = json.dumps({
+                "type": event.value,
+                "data": data,
+            })
+
         await self.send_message_async(message)
     
     def send_message(self, message: str) -> None:
@@ -181,7 +397,7 @@ class Client:
 
             self.intervals.reconnect_updating = True
             await self.intervals.sleep_until_reconnect()
-            await self.connection.connect()
+            await self.connection.connect(self.config.id, self.config.token)
             self.intervals.reconnect_updating = False
     
     async def send_message_async(self, message: str) -> None:
@@ -189,6 +405,12 @@ class Client:
         await self.connection.send_message(message)
 
     # ---------- server events ---------- #
+
+    async def send_pings(self) -> None:
+        while True:
+            await self.intervals.sleep_until_ping()
+            self.ping_queue.append(time.time() * 1000.0)
+            await self.send_async(PrinterEvent.PING, None)
     
     async def process_events(self):
         while True:
@@ -203,7 +425,7 @@ class Client:
             self.handle_event(event)
     
     def handle_event(self, event: Event) -> None:
-        self.callbacks.on_event(event)
+        self.on_event(event)
 
         if isinstance(event, NewTokenEvent):
             self.handle_new_token_event(event)
@@ -273,6 +495,9 @@ class Client:
             self.handle_disable_websocket_event(event)
      
     # ---------- events ---------- #
+
+    def on_event(self, _: Event) -> None:
+        pass
 
     def on_error(self, _: ErrorEvent) -> None:
         pass
@@ -389,8 +614,9 @@ class Client:
     def handle_new_token_event(self, event: NewTokenEvent) -> None:
         self.__logger.info(f"Received new token: {event.token} short id: {event.short_id}")
 
-        self.connection.id = event.short_id
-        self.connection.token = event.token
+        self.config.token = event.token
+
+        self.config.save()
 
         if event.no_exist:
             self.printer.is_set_up = False
@@ -405,13 +631,18 @@ class Client:
         self.printer.name = event.name
         self.connection.reconnect_token = event.reconnect_token
 
+        if event.in_set_up:
+            self.printer.is_set_up = False
+
         self.on_connect(event)
     
     def handle_setup_complete_event(self, event: SetupCompleteEvent) -> None:
         self.__logger.info(f"Setup complete")
 
-        self.connection.id = event.printer_id
+        self.config.id = event.printer_id
         self.printer.is_set_up = True
+
+        self.config.save()
 
         self.on_setup_complete(event)
     
@@ -423,6 +654,14 @@ class Client:
     
     def handle_pong_event(self, event: PongEvent) -> None:
         self.__logger.info(f"Pong")
+
+        if len(self.ping_queue) > 0:
+            ping = self.ping_queue.pop(0)
+            delay = time.time() * 1000.0 - ping
+            self.send(PrinterEvent.DELAY, delay)
+        else:
+            self.__logger.error(f"Received pong without ping")
+
 
         self.on_pong(event)
     
@@ -473,6 +712,16 @@ class Client:
     
     def handle_file_event(self, event: FileEvent) -> None:
         self.__logger.info(f"File")
+
+        if self.file_handler is None:
+            raise Exception("Client not started")
+
+        if not event.url is None:
+            self.__selected_file = self.file_handler.download(event.url)
+            event.path = self.__selected_file
+
+        if event.auto_start:
+            self.start_print()
 
         self.on_file(event)
     

@@ -16,8 +16,6 @@ class Connection:
         self.ws: Optional[WebSocketClientConnection] = None
 
         self.api_version: str = "0.1"
-        self.id: Optional[str] = None
-        self.token: Optional[str] = None
         self.reconnect_token: Optional[str] = None
 
         self.log_connect: bool = True
@@ -26,14 +24,11 @@ class Connection:
     def is_connected(self) -> bool:
         return self.ws is not None
 
-    def get_url(self) -> str:
-        if self.id is None or self.token is None:
-            return f"wss://testws.simplyprint.io/{self.api_version}/p/0/0"
+    def get_url(self, id: str, token: str) -> str:
+        return f"wss://testws.simplyprint.io/{self.api_version}/p/{id}/{token}"
 
-        return f"wss://testws.simplyprint.io/{self.api_version}/p/{self.id}/{self.token}"
-
-    async def connect(self) -> None:
-        url = self.get_url()
+    async def connect(self, id: str, token: str) -> None:
+        url = self.get_url(id, token)
 
         if self.reconnect_token is not None:
             url = f"{url}/{self.reconnect_token}"

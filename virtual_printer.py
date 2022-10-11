@@ -12,30 +12,53 @@ class VirtualPrinter(Client):
     def __init__(self):
         logging.basicConfig(level=logging.DEBUG)
 
+        self.info.api = "Virtual"
+        self.info.api_version = "0.1"
+        self.local_path = "."
+
         self.virtual_tool_temperatures = [Temperature(20.0)]
         self.virtual_bed_temperature = Temperature(20.0)
         
         self.logger = logging.getLogger("simplyprint.VirtualPrinter")
 
-        self.id = "385"
-        self.token = "804b58-8a9ed5-e83c37-a73306-6dabd7"
+        self.tick_rate: float = 2.0
 
     def on_connect(self, _: ConnectEvent):
         self.logger.info("Connected to server")
 
     def on_gcode(self, event: GcodeEvent):
         self.logger.info("Gcode: %s", event.list)
-        if event.list[0][:4] == "M104":
-            target = float(event.list[0][6:])
 
-            self.logger.info(f"Setting tool temperature to {target}")
-            
-            if target > 0.0:
-                self.virtual_tool_temperatures[0].target = target
-            else:
-                self.virtual_tool_temperatures[0].target = None
+        for gcode in event.list:
+            if gcode[:4] == "M104":
+                target = float(gcode[6:])
+
+                self.logger.info(f"Setting tool temperature to {target}")
+                
+                if target > 0.0:
+                    self.virtual_tool_temperatures[0].target = target
+                else:
+                    self.virtual_tool_temperatures[0].target = None
+
+            if gcode[:4] == "M140":
+                target = float(gcode[6:])
+
+                self.logger.info(f"Setting bed temperature to {target}")
+
+                if target > 0.0:
+                    self.virtual_bed_temperature.target = target
+                else:
+                    self.virtual_bed_temperature.target = None
 
     def update(self, dt: float):
+        if self.virtual_bed_temperature.target is not None:
+            self.virtual_bed_temperature.actual = exponential_smoothing(
+                self.virtual_bed_temperature.target, 
+                self.virtual_bed_temperature.actual, 
+                0.05, 
+                dt
+            )
+
         for tool in self.virtual_tool_temperatures:
             if tool.target is None:
                 target = 20.0
@@ -48,8 +71,10 @@ class VirtualPrinter(Client):
         self.start()
 
         while True: 
-            time.sleep(0.5)  
-            self.update(0.5)
+            dt: float = 1.0 / self.tick_rate
+
+            time.sleep(dt)
+            self.update(dt)
 
             self.tool_temperatures = self.virtual_tool_temperatures
             self.bed_temperature = self.virtual_bed_temperature

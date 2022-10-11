@@ -16,6 +16,7 @@ class Intervals:
 
         self.job_last_update: datetime = datetime.now() - timedelta(seconds=self.job)
         self.temperatures_last_update: datetime = datetime.now() - timedelta(seconds=self.temperatures)
+        self.target_temperatures_last_update: datetime = datetime.now() - timedelta(seconds=self.target_temperatures)
         self.cpu_last_update: datetime = datetime.now() - timedelta(seconds=self.cpu)
         self.reconnect_last_update: datetime = datetime.now() - timedelta(seconds=self.reconnect)
         self.ai_last_update: datetime = datetime.now() - timedelta(seconds=self.ai)
