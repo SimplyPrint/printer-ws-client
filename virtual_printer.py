@@ -1,3 +1,4 @@
+import asyncio
 import time
 import logging
 import math
@@ -53,6 +54,8 @@ class VirtualPrinter(Client):
 
     async def on_start_print(self, _: StartPrintEvent) -> None:
         self.status = PrinterStatus.PRINTING
+        await asyncio.sleep(5.0)
+        self.print_done()
 
     def update(self, dt: float):
         if self.virtual_bed_temperature.target is not None:

@@ -358,15 +358,22 @@ class Client:
         )
 
         self.status = PrinterStatus.PRINTING
-        await self.handle_start_print_event(StartPrintEvent())
+        self.loop.spawn(self.handle_start_print_event(StartPrintEvent()))
 
     def print_done(self):
+        self.send(
+            PrinterEvent.JOB_INFO, 
+            {
+                "finished": True,     
+            }
+        )
+
         self.status = PrinterStatus.OPERATIONAL
 
     def cancel_print(self, error: str) -> None:
         self.send_job_error(error)
         self.status = PrinterStatus.CANCELLING
-        await self.handle_cancel_event(CancelEvent())
+        self.loop.spawn(self.handle_cancel_event(CancelEvent()))
 
     def print_cancelled(self) -> None:
         self.status = PrinterStatus.OPERATIONAL
