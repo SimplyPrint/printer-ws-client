@@ -22,11 +22,12 @@ class VirtualPrinter(Client):
         self.logger = logging.getLogger("simplyprint.VirtualPrinter")
 
         self.tick_rate: float = 2.0
+        self.status = PrinterStatus.OPERATIONAL
 
-    def on_connect(self, _: ConnectEvent):
+    async def on_connect(self, _: ConnectEvent):
         self.logger.info("Connected to server")
 
-    def on_gcode(self, event: GcodeEvent):
+    async def on_gcode(self, event: GcodeEvent):
         self.logger.info("Gcode: %s", event.list)
 
         for gcode in event.list:
@@ -49,6 +50,9 @@ class VirtualPrinter(Client):
                     self.virtual_bed_temperature.target = target
                 else:
                     self.virtual_bed_temperature.target = None
+
+    async def on_start_print(self, _: StartPrintEvent) -> None:
+        self.status = PrinterStatus.PRINTING
 
     def update(self, dt: float):
         if self.virtual_bed_temperature.target is not None:

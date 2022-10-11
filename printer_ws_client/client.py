@@ -436,196 +436,196 @@ class Client:
                 self.__logger.error("invalid event")
                 continue
 
-            self.handle_event(event)
+            self.loop.spawn(self.handle_event(event))
     
-    def handle_event(self, event: Event) -> None:
-        self.on_event(event)
+    async def handle_event(self, event: Event) -> None:
+        await self.on_event(event)
 
         if isinstance(event, NewTokenEvent):
-            self.handle_new_token_event(event)
+            await self.handle_new_token_event(event)
         elif isinstance(event, ConnectEvent):
-            self.handle_connect_event(event)
+            await self.handle_connect_event(event)
         elif isinstance(event, SetupCompleteEvent):
-            self.handle_setup_complete_event(event)
+            await self.handle_setup_complete_event(event)
         elif isinstance(event, IntervalChangeEvent):
-            self.handle_interval_change_event(event)
+            await self.handle_interval_change_event(event)
         elif isinstance(event, PongEvent):
-            self.handle_pong_event(event)
+            await self.handle_pong_event(event)
         elif isinstance(event, StreamReceivedEvent):
-            self.handle_stream_received_event(event)
+            await self.handle_stream_received_event(event)
         elif isinstance(event, PrinterSettingsEvent):
-            self.handle_printer_settings_event(event)
+            await self.handle_printer_settings_event(event)
         elif isinstance(event, PauseEvent):
-            self.handle_pause_event(event)
+            await self.handle_pause_event(event)
         elif isinstance(event, ResumeEvent):
-            self.handle_resume_event(event)
+            await self.handle_resume_event(event)
         elif isinstance(event, CancelEvent):
-            self.handle_cancel_event(event)
+            await self.handle_cancel_event(event)
         elif isinstance(event, TerminalEvent):
-            self.handle_terminal_event(event)
+            await self.handle_terminal_event(event)
         elif isinstance(event, GcodeEvent):
-            self.handle_gcode_event(event)
+            await self.handle_gcode_event(event)
         elif isinstance(event, WebcamTestEvent):
-            self.handle_webcam_test_event(event)
+            await self.handle_webcam_test_event(event)
         elif isinstance(event, WebcamSnapshotEvent):
-            self.handle_webcam_snapshot_event(event)
+            await self.handle_webcam_snapshot_event(event)
         elif isinstance(event, FileEvent):
-            self.handle_file_event(event)
+            await self.handle_file_event(event)
         elif isinstance(event, StartPrintEvent):
-            self.handle_start_print_event(event)
+            await self.handle_start_print_event(event)
         elif isinstance(event, ConnectPrinterEvent):
-            self.handle_connect_printer_event(event)
+            await self.handle_connect_printer_event(event)
         elif isinstance(event, DisconnectPrinterEvent):
-            self.handle_disconnect_printer_event(event)
+            await self.handle_disconnect_printer_event(event)
         elif isinstance(event, SystemRestartEvent):
-            self.handle_system_restart_event(event)
+            await self.handle_system_restart_event(event)
         elif isinstance(event, SystemShutdownEvent):
-            self.handle_system_shutdown_event(event)
+            await self.handle_system_shutdown_event(event)
         elif isinstance(event, ApiRestartEvent):
-            self.handle_api_restart_event(event)
+            await self.handle_api_restart_event(event)
         elif isinstance(event, ApiShutdownEvent):
-            self.handle_api_shutdown_event(event)
+            await self.handle_api_shutdown_event(event)
         elif isinstance(event, UpdateEvent):
-            self.handle_update_event(event)
+            await self.handle_update_event(event)
         elif isinstance(event, PluginInstallEvent):
-            self.handle_plugin_install_event(event)
+            await self.handle_plugin_install_event(event)
         elif isinstance(event, PluginUninstallEvent):
-            self.handle_plugin_uninstall_event(event)
+            await self.handle_plugin_uninstall_event(event)
         elif isinstance(event, WebcamSettingsEvent):
-            self.handle_webcam_settings_event(event)
+            await self.handle_webcam_settings_event(event)
         elif isinstance(event, StreamOnEvent):
-            self.handle_stream_on_event(event)
+            await self.handle_stream_on_event(event)
         elif isinstance(event, StreamOffEvent):
-            self.handle_stream_off_event(event)
+            await self.handle_stream_off_event(event)
         elif isinstance(event, SetPrinterProfileEvent):
-            self.handle_set_printer_profile_event(event)
+            await self.handle_set_printer_profile_event(event)
         elif isinstance(event, GetGcodeScriptBackupsEvent):
-            self.handle_get_gcode_script_backups_event(event)
+            await self.handle_get_gcode_script_backups_event(event)
         elif isinstance(event, HasGcodeChangesEvent):
-            self.handle_has_gcode_changes_event(event)
+            await self.handle_has_gcode_changes_event(event)
         elif isinstance(event, PsuControlEvent):
-            self.handle_psu_control_event(event)
+            await self.handle_psu_control_event(event)
         elif isinstance(event, DisableWebsocketEvent):
-            self.handle_disable_websocket_event(event)
+            await self.handle_disable_websocket_event(event)
      
     # ---------- events ---------- #
 
-    def on_event(self, _: Event) -> None:
+    async def on_event(self, _: Event) -> None:
         pass
 
-    def on_error(self, _: ErrorEvent) -> None:
+    async def on_error(self, _: ErrorEvent) -> None:
         pass
 
-    def on_new_token(self, _: NewTokenEvent) -> None:
+    async def on_new_token(self, _: NewTokenEvent) -> None:
         pass
 
-    def on_connect(self, _: ConnectEvent) -> None:
+    async def on_connect(self, _: ConnectEvent) -> None:
         pass
     
-    def on_setup_complete(self, _: SetupCompleteEvent) -> None:
+    async def on_setup_complete(self, _: SetupCompleteEvent) -> None:
         pass
 
-    def on_interval_change(self, _: IntervalChangeEvent) -> None:
+    async def on_interval_change(self, _: IntervalChangeEvent) -> None:
         pass
 
-    def on_pong(self, _: PongEvent) -> None:
+    async def on_pong(self, _: PongEvent) -> None:
         pass
 
-    def on_stream_received(self, _: StreamReceivedEvent) -> None:
+    async def on_stream_received(self, _: StreamReceivedEvent) -> None:
         pass
 
-    def on_printer_settings(self, _: PrinterSettingsEvent) -> None:
+    async def on_printer_settings(self, _: PrinterSettingsEvent) -> None:
         pass
 
-    def on_pause(self, _: PauseEvent) -> None:
+    async def on_pause(self, _: PauseEvent) -> None:
         pass
 
-    def on_resume(self, _: ResumeEvent) -> None:
+    async def on_resume(self, _: ResumeEvent) -> None:
         pass
 
-    def on_cancel(self, _: CancelEvent) -> None:
+    async def on_cancel(self, _: CancelEvent) -> None:
+        self.print_cancelled()
+
+    async def on_terminal(self, _: TerminalEvent) -> None:
         pass
 
-    def on_terminal(self, _: TerminalEvent) -> None:
+    async def on_gcode(self, _: GcodeEvent) -> None:
         pass
 
-    def on_gcode(self, _: GcodeEvent) -> None:
+    async def on_webcam_test(self, _: WebcamTestEvent) -> None:
         pass
 
-    def on_webcam_test(self, _: WebcamTestEvent) -> None:
+    async def on_webcam_snapshot(self, _: WebcamSnapshotEvent) -> None:
         pass
 
-    def on_webcam_snapshot(self, _: WebcamSnapshotEvent) -> None:
+    async def on_file(self, _: FileEvent) -> None:
         pass
 
-    def on_file(self, _: FileEvent) -> None:
+    async def on_start_print(self, _: StartPrintEvent) -> None:
         pass
 
-    def on_start_print(self, _: StartPrintEvent) -> None:
+    async def on_connect_printer(self, _: ConnectPrinterEvent) -> None:
         pass
 
-    def on_connect_printer(self, _: ConnectPrinterEvent) -> None:
+    async def on_disconnect_printer(self, _: DisconnectPrinterEvent) -> None:
         pass
 
-    def on_disconnect_printer(self, _: DisconnectPrinterEvent) -> None:
+    async def on_system_restart(self, _: SystemRestartEvent) -> None:
         pass
 
-    def on_system_restart(self, _: SystemRestartEvent) -> None:
+    async def on_system_shutdown(self, _: SystemShutdownEvent) -> None:
         pass
 
-    def on_system_shutdown(self, _: SystemShutdownEvent) -> None:
+    async def on_api_restart(self, _: ApiRestartEvent) -> None:
         pass
 
-    def on_api_restart(self, _: ApiRestartEvent) -> None:
+    async def on_api_shutdown(self, _: ApiShutdownEvent) -> None:
         pass
 
-    def on_api_shutdown(self, _: ApiShutdownEvent) -> None:
+    async def on_update(self, _: UpdateEvent) -> None:
         pass
 
-    def on_update(self, _: UpdateEvent) -> None:
+    async def on_plugin_install(self, _: PluginInstallEvent) -> None:
         pass
 
-    def on_plugin_install(self, _: PluginInstallEvent) -> None:
+    async def on_plugin_uninstall(self, _: PluginUninstallEvent) -> None:
         pass
 
-    def on_plugin_uninstall(self, _: PluginUninstallEvent) -> None:
+    async def on_webcam_settings(self, _: WebcamSettingsEvent) -> None:
         pass
 
-    def on_webcam_settings(self, _: WebcamSettingsEvent) -> None:
+    async def on_stream_on(self, _: StreamOnEvent) -> None:
         pass
 
-    def on_stream_on(self, _: StreamOnEvent) -> None:
+    async def on_stream_off(self, _: StreamOffEvent) -> None:
         pass
 
-    def on_stream_off(self, _: StreamOffEvent) -> None:
+    async def on_set_printer_profile(self, _: SetPrinterProfileEvent) -> None:
         pass
 
-    def on_set_printer_profile(self, _: SetPrinterProfileEvent) -> None:
+    async def on_get_gcode_script_backups(self, _: GetGcodeScriptBackupsEvent) -> None:
         pass
 
-    def on_get_gcode_script_backups(self, _: GetGcodeScriptBackupsEvent) -> None:
+    async def on_has_gcode_changes(self, _: HasGcodeChangesEvent) -> None:
         pass
 
-    def on_has_gcode_changes(self, _: HasGcodeChangesEvent) -> None:
+    async def on_psu_control(self, _: PsuControlEvent) -> None:
         pass
 
-    def on_psu_control(self, _: PsuControlEvent) -> None:
-        pass
-
-    def on_disable_websocket(self, _: DisableWebsocketEvent) -> None:
+    async def on_disable_websocket(self, _: DisableWebsocketEvent) -> None:
         pass
 
     # ---------- event handlers ---------- #
     
-    def handle_error_event(self, event: ErrorEvent) -> None:
+    async def handle_error_event(self, event: ErrorEvent) -> None:
         self.__logger.error(f"Error: {event.error}")
 
         self.intervals.reconnect = 30.0
         self.connection.reconnect_token = None
 
-        self.on_error(event)
+        await self.on_error(event)
             
-    def handle_new_token_event(self, event: NewTokenEvent) -> None:
+    async def handle_new_token_event(self, event: NewTokenEvent) -> None:
         self.__logger.info(f"Received new token: {event.token} short id: {event.short_id}")
 
         self.config.token = event.token
@@ -635,9 +635,9 @@ class Client:
         if event.no_exist:
             self.printer.is_set_up = False
 
-        self.on_new_token(event)
+        await self.on_new_token(event)
  
-    def handle_connect_event(self, event: ConnectEvent) -> None:
+    async def handle_connect_event(self, event: ConnectEvent) -> None:
         self.__logger.info(f"Connected to server")
 
         self.intervals.update(event.intervals)
@@ -648,9 +648,9 @@ class Client:
         if event.in_set_up:
             self.printer.is_set_up = False
 
-        self.on_connect(event)
+        await self.on_connect(event)
     
-    def handle_setup_complete_event(self, event: SetupCompleteEvent) -> None:
+    async def handle_setup_complete_event(self, event: SetupCompleteEvent) -> None:
         self.__logger.info(f"Setup complete")
 
         self.config.id = event.printer_id
@@ -658,15 +658,15 @@ class Client:
 
         self.config.save()
 
-        self.on_setup_complete(event)
+        await self.on_setup_complete(event)
     
-    def handle_interval_change_event(self, event: IntervalChangeEvent) -> None:
+    async def handle_interval_change_event(self, event: IntervalChangeEvent) -> None:
         self.__logger.info(f"Interval change")
 
         self.intervals.update(event.intervals)
-        self.on_interval_change(event)
+        await self.on_interval_change(event)
     
-    def handle_pong_event(self, event: PongEvent) -> None:
+    async def handle_pong_event(self, event: PongEvent) -> None:
         self.__logger.info(f"Pong")
 
         if len(self.ping_queue) > 0:
@@ -677,54 +677,56 @@ class Client:
             self.__logger.error(f"Received pong without ping")
 
 
-        self.on_pong(event)
+        await self.on_pong(event)
     
-    def handle_stream_received_event(self, event: StreamReceivedEvent) -> None:
+    async def handle_stream_received_event(self, event: StreamReceivedEvent) -> None:
         self.__logger.info(f"Stream received")
 
-        self.on_stream_received(event)
+        await self.on_stream_received(event)
     
-    def handle_printer_settings_event(self, event: PrinterSettingsEvent) -> None:
+    async def handle_printer_settings_event(self, event: PrinterSettingsEvent) -> None:
         self.__logger.info(f"Printer settings")
 
-        self.on_printer_settings(event)
+        await self.on_printer_settings(event)
     
-    def handle_pause_event(self, event: PauseEvent) -> None:
+    async def handle_pause_event(self, event: PauseEvent) -> None:
         self.__logger.info(f"Pause")
 
-        self.on_pause(event)
+        await self.on_pause(event)
     
-    def handle_resume_event(self, event: ResumeEvent) -> None:
+    async def handle_resume_event(self, event: ResumeEvent) -> None:
         self.__logger.info(f"Resume")
 
-        self.on_resume(event)
+        await self.on_resume(event)
     
-    def handle_cancel_event(self, event: CancelEvent) -> None:
-        self.__logger.info(f"Cancel")
+    async def handle_cancel_event(self, event: CancelEvent) -> None:
+        self.__logger.info(f"Cancel Print")
 
-        self.on_cancel(event)
+        self.status = PrinterStatus.CANCELLING
+
+        await self.on_cancel(event)
     
-    def handle_terminal_event(self, event: TerminalEvent) -> None:
+    async def handle_terminal_event(self, event: TerminalEvent) -> None:
         self.__logger.info(f"Terminal")
 
-        self.on_terminal(event)
+        await self.on_terminal(event)
     
-    def handle_gcode_event(self, event: GcodeEvent) -> None:
+    async def handle_gcode_event(self, event: GcodeEvent) -> None:
         self.__logger.info(f"Gcode")
 
-        self.on_gcode(event)
+        await self.on_gcode(event)
     
-    def handle_webcam_test_event(self, event: WebcamTestEvent) -> None:
+    async def handle_webcam_test_event(self, event: WebcamTestEvent) -> None:
         self.__logger.info(f"Webcam test")
 
-        self.on_webcam_test(event)
+        await self.on_webcam_test(event)
     
-    def handle_webcam_snapshot_event(self, event: WebcamSnapshotEvent) -> None:
+    async def handle_webcam_snapshot_event(self, event: WebcamSnapshotEvent) -> None:
         self.__logger.info(f"Webcam snapshot")
 
-        self.on_webcam_snapshot(event)
+        await self.on_webcam_snapshot(event)
     
-    def handle_file_event(self, event: FileEvent) -> None:
+    async def handle_file_event(self, event: FileEvent) -> None:
         self.__logger.info(f"File")
 
         if self.file_handler is None:
@@ -737,95 +739,95 @@ class Client:
         if event.auto_start:
             self.start_print()
 
-        self.on_file(event)
+        await self.on_file(event)
     
-    def handle_start_print_event(self, event: StartPrintEvent) -> None:
+    async def handle_start_print_event(self, event: StartPrintEvent) -> None:
         self.__logger.info(f"Start print")
 
-        self.on_start_print(event)
+        await self.on_start_print(event)
     
-    def handle_connect_printer_event(self, event: ConnectPrinterEvent) -> None:
+    async def handle_connect_printer_event(self, event: ConnectPrinterEvent) -> None:
         self.__logger.info(f"Connect printer")
 
-        self.on_connect_printer(event)
+        await self.on_connect_printer(event)
     
-    def handle_disconnect_printer_event(self, event: DisconnectPrinterEvent) -> None:
+    async def handle_disconnect_printer_event(self, event: DisconnectPrinterEvent) -> None:
         self.__logger.info(f"Disconnect printer")
 
-        self.on_disconnect_printer(event)
+        await self.on_disconnect_printer(event)
     
-    def handle_system_restart_event(self, event: SystemRestartEvent) -> None:
+    async def handle_system_restart_event(self, event: SystemRestartEvent) -> None:
         self.__logger.info(f"System restart")
 
-        self.on_system_restart(event)
+        await self.on_system_restart(event)
     
-    def handle_system_shutdown_event(self, event: SystemShutdownEvent) -> None:
+    async def handle_system_shutdown_event(self, event: SystemShutdownEvent) -> None:
         self.__logger.info(f"System shutdown")
 
-        self.on_system_shutdown(event)
+        await self.on_system_shutdown(event)
     
-    def handle_api_restart_event(self, event: ApiRestartEvent) -> None:
+    async def handle_api_restart_event(self, event: ApiRestartEvent) -> None:
         self.__logger.info(f"API restart")
 
-        self.on_api_restart(event)
+        await self.on_api_restart(event)
     
-    def handle_api_shutdown_event(self, event: ApiShutdownEvent) -> None:
+    async def handle_api_shutdown_event(self, event: ApiShutdownEvent) -> None:
         self.__logger.info(f"API shutdown")
 
-        self.on_api_shutdown(event)
+        await self.on_api_shutdown(event)
     
-    def handle_update_event(self, event: UpdateEvent) -> None:
+    async def handle_update_event(self, event: UpdateEvent) -> None:
         self.__logger.info(f"Update")
 
-        self.on_update(event)
+        await self.on_update(event)
     
-    def handle_plugin_install_event(self, event: PluginInstallEvent) -> None:
+    async def handle_plugin_install_event(self, event: PluginInstallEvent) -> None:
         self.__logger.info(f"Plugin install")
 
-        self.on_plugin_install(event)
+        await self.on_plugin_install(event)
     
-    def handle_plugin_uninstall_event(self, event: PluginUninstallEvent) -> None:
+    async def handle_plugin_uninstall_event(self, event: PluginUninstallEvent) -> None:
         self.__logger.info(f"Plugin uninstall")
 
-        self.on_plugin_uninstall(event)
+        await self.on_plugin_uninstall(event)
     
-    def handle_webcam_settings_event(self, event: WebcamSettingsEvent) -> None:
+    async def handle_webcam_settings_event(self, event: WebcamSettingsEvent) -> None:
         self.__logger.info(f"Webcam settings")
 
-        self.on_webcam_settings(event)
+        await self.on_webcam_settings(event)
     
-    def handle_stream_on_event(self, event: StreamOnEvent) -> None:
+    async def handle_stream_on_event(self, event: StreamOnEvent) -> None:
         self.__logger.info(f"Stream on")
 
-        self.on_stream_on(event)
+        await self.on_stream_on(event)
     
-    def handle_stream_off_event(self, event: StreamOffEvent) -> None:
+    async def handle_stream_off_event(self, event: StreamOffEvent) -> None:
         self.__logger.info(f"Stream off")
 
-        self.on_stream_off(event)
+        await self.on_stream_off(event)
     
-    def handle_set_printer_profile_event(self, event: SetPrinterProfileEvent) -> None:
+    async def handle_set_printer_profile_event(self, event: SetPrinterProfileEvent) -> None:
         self.__logger.info(f"Set printer profile")
 
-        self.on_set_printer_profile(event)
+        await self.on_set_printer_profile(event)
     
-    def handle_get_gcode_script_backups_event(self, event: GetGcodeScriptBackupsEvent) -> None:
+    async def handle_get_gcode_script_backups_event(self, event: GetGcodeScriptBackupsEvent) -> None:
         self.__logger.info(f"Get gcode script backups")
 
-        self.on_get_gcode_script_backups(event)
+        await self.on_get_gcode_script_backups(event)
     
-    def handle_has_gcode_changes_event(self, event: HasGcodeChangesEvent) -> None:
+    async def handle_has_gcode_changes_event(self, event: HasGcodeChangesEvent) -> None:
         self.__logger.info(f"Has gcode changes")
 
-        self.on_has_gcode_changes(event)
+        await self.on_has_gcode_changes(event)
     
-    def handle_psu_control_event(self, event: PsuControlEvent) -> None:
+    async def handle_psu_control_event(self, event: PsuControlEvent) -> None:
         self.__logger.info(f"PSU control")
 
-        self.on_psu_control(event)
+        await self.on_psu_control(event)
     
-    def handle_disable_websocket_event(self, event: DisableWebsocketEvent) -> None:
+    async def handle_disable_websocket_event(self, event: DisableWebsocketEvent) -> None:
         self.__logger.info(f"Disable websocket")
 
-        self.on_disable_websocket(event)
+        await self.on_disable_websocket(event)
 
