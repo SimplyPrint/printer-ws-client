@@ -108,7 +108,7 @@ class ClientInfo:
         return os.cpu_count()
 
     def total_memory(self) -> int:
-        return os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES")
+        return psutil.virtual_memory().total
         
 
 class Client: 
