@@ -11,6 +11,7 @@ import os
 import psutil
 import subprocess
 import re
+import functools
 
 from concurrent.futures import Future
 from .printer_state import Printer, PrinterStatus, Temperature
@@ -19,7 +20,8 @@ from .event import *
 from .timer import Intervals
 from .async_loop import AsyncLoop
 from .config import Config
-from .file import FileHandler
+from .file import FileHandler, requests
+from .webcam import SNAPSHOT_ENDPOINT, WebcamSnapshot
 
 from logging import Logger
 from typing import List, Optional
@@ -125,6 +127,8 @@ class Client:
     printer: Printer = Printer()
     intervals: Intervals = Intervals() 
     ping_queue: List[float] = []
+
+    snapshot_endpoint: str = SNAPSHOT_ENDPOINT
 
     loop: AsyncLoop = AsyncLoop()
     process_task: Optional[Future[None]] = None  
@@ -411,32 +415,57 @@ class Client:
 
         await self.send_message_async(message)
     
+    # spawns a new task to send the message
     def send_message(self, message: str) -> None:
         self.loop.spawn(self.send_message_async(message))
     
+    # connect to the server, if it fails, will try again every reconnect interval FOR EVER
+    # TODO: this is a bit of a mess, clean it up
     async def connect(self):
         while not self.connection.is_connected():
             if self.intervals.reconnect_updating:
-                await asyncio.sleep(1.0) # TODO: this is a hack
+                # if we're already connecting, we don't need this read to trigger another connection
+                # but we still need to wait until we have connected.
+                # but i honestly can't figure out how to do it better than this
+                # TODO: fix pls
+                await asyncio.sleep(1.0)
                 continue
 
             self.intervals.reconnect_updating = True
             await self.intervals.sleep_until_reconnect()
             await self.connection.connect(self.config.id, self.config.token)
             self.intervals.reconnect_updating = False
-    
+
     async def send_message_async(self, message: str) -> None:
         await self.connect()
         await self.connection.send_message(message)
 
+    # posts a snapshot to the server at self.snapshot_endpoint
+    async def post_snapshot(self, snapshot: WebcamSnapshot) -> None:
+        data = snapshot.to_data()
+        headers = { "User-Agent": "OctoPrint" }
+        await self.loop.aioloop.run_in_executor(
+            None,
+            functools.partial(
+                requests.post, 
+                self.snapshot_endpoint, 
+                data=data, 
+                headers=headers, 
+                timeout=45.0,
+            )
+        )
+
+
     # ---------- server events ---------- #
 
+    # a loop that sends pings to the server
     async def send_pings(self) -> None:
         while True:
             await self.intervals.sleep_until_ping()
             self.ping_queue.append(time.time() * 1000.0)
             await self.send_async(PrinterEvent.PING, None)
     
+    # receives events in a loop and spawns the appropriate handlers
     async def process_events(self):
         while True:
             await self.connect()
@@ -566,8 +595,8 @@ class Client:
     async def on_webcam_test(self, _: WebcamTestEvent) -> None:
         pass
 
-    async def on_webcam_snapshot(self, _: WebcamSnapshotEvent) -> None:
-        pass
+    async def on_webcam_snapshot(self, _: WebcamSnapshotEvent) -> Optional[WebcamSnapshot]:
+        return None
 
     async def on_file(self, _: FileEvent) -> None:
         pass
@@ -735,7 +764,12 @@ class Client:
     async def handle_webcam_snapshot_event(self, event: WebcamSnapshotEvent) -> None:
         self.__logger.info(f"Webcam snapshot")
 
-        await self.on_webcam_snapshot(event)
+        snapshot = await self.on_webcam_snapshot(event)
+
+        if not snapshot is None:
+            await self.post_snapshot(snapshot)
+        else:
+            self.__logger.error(f"Snapshot was requested but None was returned")
     
     async def handle_file_event(self, event: FileEvent) -> None:
         self.__logger.info(f"File")
