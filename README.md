@@ -16,11 +16,11 @@ class MyClient(Client):
 		self.local_path = "path_to_local_files"
 	
 	# define a callback
-	def on_connect(self, event: ConnectEvent):
+	async def on_connect(self, event: ConnectEvent):
 		print(f"Connected, got name: {event.name}")
 
 	# define another callback
-	def on_start_print(self, _: StartPrintEvent):
+	async def on_start_print(self, _: StartPrintEvent):
 		# start the print somehow
 		start_print(self.selected_file)
 
