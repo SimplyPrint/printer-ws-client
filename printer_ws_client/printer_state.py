@@ -79,8 +79,6 @@ class Printer:
     server_tool_temperatures: List[Temperature] = []
     server_bed_temperature: Optional[Temperature] = None
 
-    layer: Optional[int] = None
-
     name: Optional[str] = None
 
     settings: PrinterSettings = PrinterSettings()

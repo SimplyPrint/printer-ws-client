@@ -253,13 +253,7 @@ class Client:
     
     @token.setter
     def token(self, token: str) -> None:
-        self.config.token = token
-    
-    def set_layer(self, layer: int) -> None:
-        if self.printer.layer == layer:
-            return
-
-        self.printer.layer = layer 
+        self.config.token = token 
 
     @property
     def status(self) -> PrinterStatus:
@@ -356,36 +350,35 @@ class Client:
         self.__logger.debug(f"Sending temperatures: {payload}")
         await self.send_async(PrinterEvent.TEMPERATURES, payload)
         self.intervals.temperatures_updating = False
-
-    def start_print(self):
-        self.send(
-            PrinterEvent.JOB_INFO, 
-            {
-                "started": True,     
-            }
-        )
+ 
+    # starts a print, this is usually called internally
+    def start_print(self): 
+        self.send_job_update({"started": True})
 
         self.status = PrinterStatus.PRINTING
         self.loop.spawn(self.handle_start_print_event(StartPrintEvent()))
 
+    # call this when the print is done
     def print_done(self):
-        self.send(
-            PrinterEvent.JOB_INFO, 
-            {
-                "finished": True,     
-            }
-        )
+        self.send_job_update({"finished": True})
 
         self.status = PrinterStatus.OPERATIONAL
 
+    # sends a job update to the server
+    def send_job_update(self, job_info: Dict[str, Any]):
+        self.send(PrinterEvent.JOB_INFO, job_info)
+
+    # call this when the print is starts canceling
     def cancel_print(self, error: str) -> None:
         self.send_job_error(error)
         self.status = PrinterStatus.CANCELLING
         self.loop.spawn(self.handle_cancel_event(CancelEvent()))
 
+    # call this when the print is done canceling
     def print_cancelled(self) -> None:
         self.status = PrinterStatus.OPERATIONAL
 
+    # a loop that sends cpu updates
     async def send_cpu_loop(self):
         while True:
             await self.intervals.sleep_until_cpu()
@@ -399,6 +392,7 @@ class Client:
             { "error": error },
         )
  
+    # sends a PrinterEvent to the server
     def send(self, event: PrinterEvent, data: Any) -> Future[None]:
         return self.loop.spawn(self.send_async(event, data))
  
@@ -478,6 +472,7 @@ class Client:
 
             self.loop.spawn(self.handle_event(event))
     
+    # handles a single event
     async def handle_event(self, event: Event) -> None:
         await self.on_event(event)
 
