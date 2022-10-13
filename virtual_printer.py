@@ -15,6 +15,10 @@ class VirtualPrinter(Client):
 
         self.info.api = "Virtual"
         self.info.api_version = "0.1"
+        self.info.client = "Virtual"
+        self.info.client_version = "0.0.1-alpha"
+        self.info.sentry_dsn = "https://a5aef1defa83433586dd0cf1c1fffe57@o1102514.ingest.sentry.io/6619552"
+        self.info.development = True
         self.local_path = "virtual_local"
 
         self.virtual_tool_temperatures = [Temperature(20.0)]
@@ -54,8 +58,8 @@ class VirtualPrinter(Client):
 
     async def on_start_print(self, _: StartPrintEvent) -> None:
         self.status = PrinterStatus.PRINTING
-        await asyncio.sleep(5.0)
-        self.print_done()
+        await asyncio.sleep(300.0)
+        self.print_done() 
 
     def update(self, dt: float):
         if self.virtual_bed_temperature.target is None:

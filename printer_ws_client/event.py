@@ -11,7 +11,7 @@ from typing import (
 
 class PrinterEvent(Enum):
     PING = "ping"
-    DELAY = "delay"
+    LATENCY = "latency"
     TOOL = "tool"
     STATUS = "state_change"
     AMBIENT = "ambient"
@@ -26,6 +26,7 @@ class PrinterEvent(Enum):
     FILE_PROGRESS = "file_progress"
     PSU_CHANGE = "psu_change"
     CPU = "cpu"
+    STREAM = "stream"
     MESH_DATA = "mesh_data"
     MACHINE_DATA = "machine_data"
     PRINT_STARTED = "print_started"
@@ -38,6 +39,8 @@ class PrinterEvent(Enum):
     INPUT_REQUIRED = "input_required"
     UPDATE_STARTED = "update_started"
     FIRMWARE = "firmware"
+    AI_RESPONSE = "ai_resp"
+    WEBCAM_STATUS = "webcam_status"
     UNSAFE_FIRMWARE = "unsafe_firmware"
     FILAMENT_ANALYSIS = "filament_analysis"
     OCTOPRINT_PLUGINS = "octoprint_plugins"
@@ -101,8 +104,13 @@ class TerminalEvent(Event):
     def __init__(self, data: Dict[str, Any]):
         self.enabled: bool = data.get("enabled", False)
 
+class DisplayMessageEvent(Event):
+    def __init__(self, message: str, short_branding: bool = False):
+        self.message: str = message
+        self.short_branding: bool = short_branding
+
 class GcodeEvent(Event):
-    def __init__(self, data: Dict[str, Any]):
+    def __init__(self, data: Dict[str, Any] = {}):
         self.list: List[str] = data.get("list", [])
 
 class WebcamTestEvent(Event):
@@ -110,8 +118,10 @@ class WebcamTestEvent(Event):
         pass
 
 class WebcamSnapshotEvent(Event):
-    def __init__(self):
-        pass
+    def __init__(self, data: Dict[str, Any]):
+        print(data)
+        self.id: Optional[str] = data.get("id")
+        self.timer: Optional[int] = data.get("timer")
 
 class FileEvent(Event):
     def __init__(self, data: Dict[str, Any]):

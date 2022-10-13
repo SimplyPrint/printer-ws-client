@@ -83,6 +83,7 @@ class Printer:
 
     settings: PrinterSettings = PrinterSettings()
     firmware: PrinterFirmware = PrinterFirmware()
+    current_display_message: Optional[str] = None
 
     def is_heating(self) -> bool:
         for tool in self.tool_temperatures:

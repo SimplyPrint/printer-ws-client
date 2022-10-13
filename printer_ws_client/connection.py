@@ -1,4 +1,5 @@
 import json
+import requests
 
 from tornado.websocket import WebSocketClientConnection, WebSocketClosedError, websocket_connect
 from logging import Logger
@@ -10,6 +11,8 @@ from typing import (
     Dict, 
     Any, 
 )
+
+REACHABLE_URL: str = "http://testws.simplyprint.io"
 
 class Connection:
     def __init__(self, logger: Logger) -> None:
@@ -35,6 +38,11 @@ class Connection:
 
         if self.log_connect:
             self.logger.info(f"Connecting to {url}")
+
+        try:
+            requests.get(REACHABLE_URL, timeout=5.0)
+        except Exception:
+            return
 
         self.ws = await websocket_connect(url, connect_timeout=5.0)
 
@@ -133,7 +141,7 @@ class Connection:
                     case "test_webcam":
                         return WebcamTestEvent()
                     case "webcam_snapshot":
-                        return WebcamSnapshotEvent()
+                        return WebcamSnapshotEvent(data)
                     case "file":
                         return FileEvent(data)
                     case "start_print":

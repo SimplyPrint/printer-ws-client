@@ -12,8 +12,11 @@ import psutil
 import subprocess
 import re
 import functools
+import cv2
+import base64
 
 from concurrent.futures import Future
+from cv2 import VideoCapture
 from .printer_state import Printer, PrinterStatus, Temperature
 from .connection import Connection
 from .event import *
@@ -21,7 +24,10 @@ from .timer import Intervals
 from .async_loop import AsyncLoop
 from .config import Config
 from .file import FileHandler, requests
-from .webcam import SNAPSHOT_ENDPOINT, WebcamSnapshot
+
+SNAPSHOT_ENDPOINT = "https://apirewrite.simplyprint.io/jobs/ReceiveSnapshot"
+AI_ENDPOINT = "https://ai.simplyprint.io/api/v2/infer"
+VERSION = "0.0.1"
 
 from logging import Logger
 from typing import List, Optional
@@ -31,7 +37,11 @@ class ClientInfo:
     ui_version: Optional[str] = None
     api: Optional[str] = None
     api_version: Optional[str] = None
+    client: Optional[str] = None
+    client_version: Optional[str] = None
     sp_version: Optional[str] = "4.0.0"
+    sentry_dsn: Optional[str] = None
+    development: bool = False
 
     def python_version(self) -> str:
         return platform.python_version() 
@@ -81,13 +91,22 @@ class ClientInfo:
         return platform.system()
 
     def is_ethernet(self) -> bool:
-        return netifaces.gateways()["default"][netifaces.AF_INET][1].startswith("eth")
+        try:
+            return netifaces.gateways()["default"][netifaces.AF_INET][1].startswith("eth")
+        except Exception:
+            return False
 
     def __ssid_linux(self) -> Optional[str]:
-        return subprocess.check_output(["iwgetid", "-r"]).decode("utf-8").strip()
+        try:
+            return subprocess.check_output(["iwgetid", "-r"]).decode("utf-8").strip()
+        except Exception:
+            return None
 
     def __ssid_windows(self) -> Optional[str]:
-        return subprocess.check_output(["netsh", "wlan", "show", "interfaces"]).decode("utf-8").strip()
+        try:
+            return subprocess.check_output(["netsh", "wlan", "show", "interfaces"]).decode("utf-8").strip()
+        except Exception:
+            return None
 
     def ssid(self) -> Optional[str]:
         if self.os() == "Linux":
@@ -102,9 +121,12 @@ class ClientInfo:
         return socket.gethostname()
 
     def local_ip(self) -> Optional[str]:
-        interface = netifaces.gateways()["default"][netifaces.AF_INET][1]
+        try:
+            interface = netifaces.gateways()["default"][netifaces.AF_INET][1]
 
-        return netifaces.ifaddresses(interface)[netifaces.AF_INET][0]["addr"]
+            return netifaces.ifaddresses(interface)[netifaces.AF_INET][0]["addr"]
+        except Exception:
+            return None
 
     def core_count(self) -> Optional[int]:
         return os.cpu_count()
@@ -116,12 +138,11 @@ class ClientInfo:
 class Client: 
     __logger: Logger = logging.getLogger("simplyprint.client")
 
-    should_close: bool = False
-
     config: Config = Config()
     info: ClientInfo = ClientInfo()
 
     local_path: Optional[str] = None
+    display_messages_enabled: bool = True
 
     connection: Connection = Connection(logging.getLogger("simplyprint.client.connection"))
     printer: Printer = Printer()
@@ -134,7 +155,12 @@ class Client:
     process_task: Optional[Future[None]] = None  
 
     file_handler: Optional[FileHandler] = None
+    __been_offline: bool = False
     __selected_file: Optional[str] = None
+    __webcam: Optional[VideoCapture] = None
+    __webcam_connected: bool = False
+    __ai_scores: List[float] = []
+    __display_message_loop: Optional[Future[None]] = None
 
     # ---------- control ---------- # 
     
@@ -151,14 +177,21 @@ class Client:
         # start AsyncLoop
         self.loop.start() 
 
+        self.__initialize_webcam()
         self.__initialize_connection()
 
         self.process_task = self.loop.spawn(self.process_events())
         self.loop.spawn(self.send_cpu_loop())
+        self.loop.spawn(self.send_ping_loop())
+
+    def __initialize_webcam(self) -> None:
+        self.__webcam = VideoCapture(0) 
+        self.__webcam_connected = self.__webcam.isOpened()
 
     def __initialize_connection(self) -> None:
         self.send_firmware()
         self.send_machine_data()
+        self.send_webcam_connected()
 
     def __del__(self):
         self.stop()
@@ -168,13 +201,28 @@ class Client:
         self.loop.stop() 
 
     def __start_sentry(self):
+        if self.info.sentry_dsn is None:
+            return
+
         self.__logger.debug("Initializing Sentry")
-        sentry_sdk.init(
-            dsn="https://c35fae8df2d74707bec50279a0bcd7ae@o1102514.ingest.sentry.io/6611344",
-            traces_sample_rate=0.05,
-        )
-        if self.config.id != "0":
-            sentry_sdk.set_user({"id": self.config.id})
+
+        if self.info.development:
+            environment = "development"
+        else:
+            environment = "production"
+
+        try:
+            sentry_sdk.init(
+                dsn=self.info.sentry_dsn,
+                traces_sample_rate=0.05,
+                release=f"{self.info.client}@{self.info.client_version}",
+                environment=environment,
+            )
+            sentry_sdk.set_tag("lib_version", VERSION)
+            if self.config.id != "0":
+                sentry_sdk.set_user({"id": self.config.id})
+        except Exception:
+            self.__logger.debug("Failed to connect to sentry")
 
     # ---------- info ---------- #
 
@@ -264,16 +312,29 @@ class Client:
         if self.printer.status == status:
             return
 
-        self.__logger.debug(f"Status changed from {self.printer.status} to {status}") 
+        self.__logger.debug(f"Status changed from {self.printer.status} to {status}")  
 
         self.printer.status = status
         self.send(PrinterEvent.STATUS, {
             "new": status.value,
         })
+        self.update_display_message()
 
     @property
     def selected_file(self) -> Optional[str]:
         return self.__selected_file
+
+    @property
+    def webcam_connected(self) -> bool:
+        return self.__webcam_connected
+
+    @webcam_connected.setter
+    def webcam_connected(self, connected: bool) -> None:
+        if self.__webcam_connected == connected:
+            return
+
+        self.__webcam_connected = connected
+        self.send_webcam_connected()
 
     @property
     def ambient_temperature(self) -> Optional[float]:
@@ -350,6 +411,12 @@ class Client:
         self.__logger.debug(f"Sending temperatures: {payload}")
         await self.send_async(PrinterEvent.TEMPERATURES, payload)
         self.intervals.temperatures_updating = False
+
+    def send_webcam_connected(self):
+        self.__logger.debug(f"Sending webcam connected: {self.__webcam_connected}")
+        self.send(PrinterEvent.WEBCAM_STATUS, {
+            "connected": self.webcam_connected,
+        })
  
     # starts a print, this is usually called internally
     def start_print(self): 
@@ -384,6 +451,73 @@ class Client:
             await self.intervals.sleep_until_cpu()
             self.send_cpu()
 
+    def get_base64_url(self, url: str) -> Optional[str]:
+        headers = { "Accept": "image/jpeg" }
+        try:
+            response = requests.get(url, headers=headers, verify=False, timeout=2)
+        except Exception:
+            return None
+
+        return base64.b64encode(response.content).decode()
+
+    def set_display_message(self, message: str, short_branding: bool = False, spawn_loop: bool = True) -> None:
+        if not self.display_messages_enabled:
+            return
+
+        if self.printer.current_display_message == message:
+            return
+     
+        self.printer.current_display_message = message
+
+        event = DisplayMessageEvent(message, short_branding)
+        self.loop.spawn(self.handle_display_message_event(event))
+
+        if not spawn_loop:
+            return
+
+        if not self.__display_message_loop is None:
+            self.__display_message_loop.cancel()
+
+        self.__display_message_loop = self.loop.spawn(self.display_message_loop())
+
+    def update_display_message(self, spawn_loop: bool = True) -> None:
+        if not self.connection.is_connected() and not self.is_online():
+            self.set_display_message("No internet", spawn_loop=spawn_loop)
+            return
+
+        if self.status == PrinterStatus.OPERATIONAL:
+            self.set_display_message("Ready", spawn_loop=spawn_loop)
+            return
+
+        if self.status == PrinterStatus.PRINTING:
+            self.set_display_message(f"Printing '{self.selected_file}'", spawn_loop=spawn_loop)
+            return
+
+        if self.status == PrinterStatus.PAUSING:
+            self.set_display_message("Pausing", spawn_loop=spawn_loop)
+            return
+
+        if self.status == PrinterStatus.PAUSED:
+            self.set_display_message("Paused", spawn_loop=spawn_loop)
+            return
+
+        if self.status == PrinterStatus.CANCELLING:
+            self.set_display_message("Cancelling", spawn_loop=spawn_loop)
+            return
+
+    async def display_message_loop(self) -> None:
+        first = True
+        while True:
+            if first:
+                await asyncio.sleep(20.0)
+            else:
+                await asyncio.sleep(60.0)
+
+            if not self.printer.current_display_message is None:
+                self.update_display_message()
+
+            first = False
+
     # ---------- io ---------- #
 
     def send_job_error(self, error: str) -> None:
@@ -412,10 +546,21 @@ class Client:
     # spawns a new task to send the message
     def send_message(self, message: str) -> None:
         self.loop.spawn(self.send_message_async(message))
+
+    def is_online(self) -> bool:
+        try:
+            requests.get("https://www.google.com", timeout=2)
+            return True
+        except Exception:
+            self.__been_offline = True
+            return False
     
     # connect to the server, if it fails, will try again every reconnect interval FOR EVER
     # TODO: this is a bit of a mess, clean it up
     async def connect(self):
+        if not self.connection.is_connected() and not self.intervals.reconnect_updating and self.is_online():
+            self.set_display_message("Connecting...")
+
         while not self.connection.is_connected():
             if self.intervals.reconnect_updating:
                 # if we're already connecting, we don't need this read to trigger another connection
@@ -425,9 +570,27 @@ class Client:
                 await asyncio.sleep(1.0)
                 continue
 
+
             self.intervals.reconnect_updating = True
-            await self.intervals.sleep_until_reconnect()
+
+            if not self.connection.reconnect_token is None:
+                await self.intervals.sleep_until_reconnect()
+            else:
+                await asyncio.sleep(1.0)
+
             await self.connection.connect(self.config.id, self.config.token)
+
+            if self.connection.is_connected():
+                if self.__been_offline:
+                    self.__been_offline = False
+                    self.set_display_message("Back online!")
+                else:
+                    self.set_display_message("Connected")
+            elif not self.is_online():
+                self.set_display_message("No internet")
+            else:
+                self.set_display_message("Can't reach SP")
+
             self.intervals.reconnect_updating = False
 
     async def send_message_async(self, message: str) -> None:
@@ -435,29 +598,97 @@ class Client:
         await self.connection.send_message(message)
 
     # posts a snapshot to the server at self.snapshot_endpoint
-    async def post_snapshot(self, snapshot: WebcamSnapshot) -> None:
-        data = snapshot.to_data()
-        headers = { "User-Agent": "OctoPrint" }
+    async def post_snapshot(self, id: str, data: str) -> None:
+        headers = { "User-Agent": "Mozilla/5.0" }
         await self.loop.aioloop.run_in_executor(
             None,
             functools.partial(
                 requests.post, 
                 self.snapshot_endpoint, 
-                data=data, 
+                data={
+                    "id": id,
+                    "data": data,
+                }, 
                 headers=headers, 
                 timeout=45.0,
             )
         )
 
+    async def stream_snapshot(self, data: str) -> None:
+        self.__logger.debug("Streaming snapshot, sending")
+        await self.send_async(PrinterEvent.STREAM, {"base": data})
+
+    async def __make_ai_request(self, endpoint: str, data: str, headers: Dict[str, str], timeout: float = 10.0):
+        return await self.loop.aioloop.run_in_executor(
+            None,
+            functools.partial(
+                requests.post, endpoint, data=data, headers=headers,
+                timeout=timeout
+            )
+        )
+
+    async def __handle_ai_snapshot(self) -> bool:
+        snapshot = await self.on_webcam_snapshot(WebcamSnapshotEvent({}))
+        if snapshot is None:
+            self.__logger.error("Webcam snapshot was None")
+            return False
+
+        headers = { "User-Agent": "Mozilla/5.0" }
+        data = {
+            "api_key": self.config.token,     
+            "image_array": snapshot,
+            "interval": self.intervals.ai,
+            "printer_id": self.config.id,
+            "settings": {
+                "buffer_percent": 80.0,
+                "confidence": 60.0,
+                "buffer_length": 16.0,
+            },
+            "scores": self.__ai_scores,
+        }
+        json_data = json.dumps(data)
+
+        try:
+            response = await self.__make_ai_request(AI_ENDPOINT, json_data, headers)
+        except Exception:
+            return False
+
+        response_json = response.json()
+        self.__ai_scores = response_json.get("scores", self.__ai_scores)
+        self.send(
+            PrinterEvent.AI_RESPONSE, 
+            {
+                "ai": response_json.get("s1", [0.0, 0.0, 0.0]),
+            }
+        )
+
+        return True
+
+    def __should_run_ai(self) -> bool:
+        return self.intervals.ai > 0.0 and self.webcam_connected and self.status == PrinterStatus.PRINTING
+
+    async def ai_loop(self):
+        failed_ai_attempts = 120.0
+        delay = self.intervals.ai
+
+        while self.__should_run_ai():
+            await asyncio.sleep(delay)
+
+            if await self.__handle_ai_snapshot():
+                failed_ai_attempts = 0.0
+                delay = self.intervals.ai
+            else:
+                failed_ai_attempts += 1.0
+                delay = self.intervals.ai + (failed_ai_attempts * 5.0) if failed_ai_attempts < 10.0 else 120.0
 
     # ---------- server events ---------- #
 
-    # a loop that sends pings to the server
-    async def send_pings(self) -> None:
+    # a loop that sends pings to the server 
+    async def send_ping_loop(self) -> None:
         while True:
             await self.intervals.sleep_until_ping()
-            self.ping_queue.append(time.time() * 1000.0)
             await self.send_async(PrinterEvent.PING, None)
+            self.ping_queue.append(time.time() * 1000.0)
     
     # receives events in a loop and spawns the appropriate handlers
     async def process_events(self):
@@ -584,14 +815,47 @@ class Client:
     async def on_terminal(self, _: TerminalEvent) -> None:
         pass
 
+    async def on_display_message(self, event: DisplayMessageEvent) -> None:
+        message = event.message
+
+        if self.printer.settings.display.branding:
+            if event.short_branding or len(message) > 7:
+                message = f"[SP] {message}"
+            else:
+                message = f"[SimplyPrint] {message}"
+
+        gcode_event = GcodeEvent();
+        gcode_event.list = [f"M117 {event.message}"]
+
+        await self.handle_gcode_event(gcode_event)
+
     async def on_gcode(self, _: GcodeEvent) -> None:
         pass
 
     async def on_webcam_test(self, _: WebcamTestEvent) -> None:
         pass
 
-    async def on_webcam_snapshot(self, _: WebcamSnapshotEvent) -> Optional[WebcamSnapshot]:
-        return None
+    async def on_webcam_snapshot(self, _: WebcamSnapshotEvent) -> Optional[str]:
+        if self.__webcam is None:
+            return None
+
+        MAX_WIDTH = 1280
+        MAX_HEIGHT = 720
+
+        _, frame = self.__webcam.read() 
+        aspect = frame.shape[1] / frame.shape[0]
+
+        if frame.shape[0] > MAX_HEIGHT:
+            frame = cv2.resize(frame, (int(MAX_HEIGHT * aspect), MAX_HEIGHT))
+
+        if frame.shape[1] > MAX_HEIGHT * aspect:
+            frame = cv2.resize(frame, (MAX_WIDTH, int(MAX_HEIGHT / aspect)))
+
+        _, buffer = cv2.imencode(".jpg", frame)
+        img_bytes = buffer.tobytes();
+        data = base64.b64encode(img_bytes).decode()
+
+        return data
 
     async def on_file(self, _: FileEvent) -> None:
         pass
@@ -606,10 +870,16 @@ class Client:
         pass
 
     async def on_system_restart(self, _: SystemRestartEvent) -> None:
-        pass
+        if platform.system() == "Linux":
+            os.system("reboot")
+        elif platform.system() == "Windows":
+            os.system("shutdown /r")
 
     async def on_system_shutdown(self, _: SystemShutdownEvent) -> None:
-        pass
+        if platform.system() == "Linux":
+            os.system("shutdown now")
+        elif platform.system() == "Windows":
+            os.system("shutdown /s")
 
     async def on_api_restart(self, _: ApiRestartEvent) -> None:
         pass
@@ -667,6 +937,8 @@ class Client:
 
         self.config.save()
 
+        self.set_display_message(f"{event.short_id}")
+
         if event.no_exist:
             self.printer.is_set_up = False
 
@@ -691,7 +963,11 @@ class Client:
         self.config.id = event.printer_id
         self.printer.is_set_up = True
 
+        sentry_sdk.set_user({"id": event.printer_id})
+
         self.config.save()
+
+        self.set_display_message("Setup complete")
 
         await self.on_setup_complete(event)
     
@@ -706,8 +982,8 @@ class Client:
 
         if len(self.ping_queue) > 0:
             ping = self.ping_queue.pop(0)
-            delay = time.time() * 1000.0 - ping
-            self.send(PrinterEvent.DELAY, delay)
+            latency = time.time() * 1000.0 - ping
+            self.send(PrinterEvent.LATENCY, {"ms": round(latency)})
         else:
             self.__logger.error(f"Received pong without ping")
 
@@ -745,6 +1021,11 @@ class Client:
         self.__logger.info(f"Terminal")
 
         await self.on_terminal(event)
+
+    async def handle_display_message_event(self, event: DisplayMessageEvent) -> None:
+        self.__logger.info(f"Display message")
+
+        await self.on_display_message(event)
     
     async def handle_gcode_event(self, event: GcodeEvent) -> None:
         self.__logger.info(f"Gcode")
@@ -754,15 +1035,22 @@ class Client:
     async def handle_webcam_test_event(self, event: WebcamTestEvent) -> None:
         self.__logger.info(f"Webcam test")
 
+        self.send_webcam_connected()
         await self.on_webcam_test(event)
     
     async def handle_webcam_snapshot_event(self, event: WebcamSnapshotEvent) -> None:
         self.__logger.info(f"Webcam snapshot")
 
+        if not event.timer is None:
+            await asyncio.sleep(event.timer  / 1000.0)
+        
         snapshot = await self.on_webcam_snapshot(event)
 
         if not snapshot is None:
-            await self.post_snapshot(snapshot)
+            if not event.id is None:
+                await self.post_snapshot(event.id, snapshot)
+            else:
+                await self.stream_snapshot(snapshot)
         else:
             self.__logger.error(f"Snapshot was requested but None was returned")
     
@@ -775,6 +1063,10 @@ class Client:
         if not event.url is None:
             self.__selected_file = self.file_handler.download(event.url)
             event.path = self.__selected_file
+            self.set_display_message("Starting...")
+        
+        if not event.path is None:
+            self.__selected_file = event.path
 
         if event.auto_start:
             self.start_print()
@@ -784,6 +1076,7 @@ class Client:
     async def handle_start_print_event(self, event: StartPrintEvent) -> None:
         self.__logger.info(f"Start print")
 
+        self.loop.spawn(self.ai_loop())
         await self.on_start_print(event)
     
     async def handle_connect_printer_event(self, event: ConnectPrinterEvent) -> None:
