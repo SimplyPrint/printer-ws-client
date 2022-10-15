@@ -12,11 +12,9 @@ import psutil
 import subprocess
 import re
 import functools
-import cv2
 import base64
 
 from concurrent.futures import Future
-from cv2 import VideoCapture
 from .ambient import AmbientCheck
 from .printer_state import Printer, PrinterStatus, Temperature
 from .connection import Connection
@@ -145,6 +143,8 @@ class Client:
     local_path: Optional[str] = None
     display_messages_enabled: bool = True
 
+    use_opencv: bool = False
+
     connection: Connection = Connection(logging.getLogger("simplyprint.client.connection"))
     printer: Printer = Printer()
     intervals: Intervals = Intervals() 
@@ -193,8 +193,12 @@ class Client:
         self.loop.spawn(self.__ambient_check.run_loop(self.printer))
 
     def __initialize_webcam(self) -> None:
-        self.__webcam = VideoCapture(0) 
-        self.__webcam_connected = self.__webcam.isOpened()
+        if self.use_opencv:
+            import cv2
+
+            self.__logger.info("using OpenCV for webcam")
+            self.__webcam = cv2.VideoCapture(0) 
+            self.__webcam_connected = self.__webcam.isOpened()
 
     def __initialize_connection(self) -> None:
         self.send_firmware()
@@ -858,11 +862,18 @@ class Client:
         pass
 
     async def on_webcam_test(self, _: WebcamTestEvent) -> None:
-        pass
+        self.__initialize_webcam()
 
     async def on_webcam_snapshot(self, _: WebcamSnapshotEvent) -> Optional[str]:
-        if self.__webcam is None:
+        if not self.use_opencv:
+            self.__logger.warn("Webcam snapshot requested but OpenCV is not used and event is not overridden")
+
             return None
+
+        if not hasattr(self, "_Client__webcam"):
+            return None
+
+        import cv2
 
         MAX_WIDTH = 1280
         MAX_HEIGHT = 720
@@ -1068,6 +1079,9 @@ class Client:
 
         if not event.timer is None:
             await asyncio.sleep(event.timer  / 1000.0)
+
+        if not self.webcam_connected:
+            return
         
         snapshot = await self.on_webcam_snapshot(event)
 
