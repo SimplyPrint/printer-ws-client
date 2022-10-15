@@ -129,6 +129,9 @@ class FileHandler:
             self.download_error("Network Error")
             return 
 
+        if not pathlib.Path(self.local_path).exists():
+            pathlib.Path(self.local_path).mkdir(parents=True)
+
         shutil.move(tmp_file_path, f"{self.local_path}/{file_name}")
         self.download_complete()
         return file_name

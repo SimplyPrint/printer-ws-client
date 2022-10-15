@@ -3,7 +3,7 @@ import time
 import logging
 import math
 
-from printer_ws_client import * 
+from simplyprint_ws_client import * 
 
 def exponential_smoothing(new_value: float, old_value: float, alpha: float, dt: float) -> float:
     factor = 1 - math.exp(-dt * alpha)
