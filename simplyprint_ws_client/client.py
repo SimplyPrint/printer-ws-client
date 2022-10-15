@@ -69,7 +69,15 @@ class ClientInfo:
             pass
 
     def __get_cpu_model_windows(self) -> Optional[str]:
-        return subprocess.check_output(["wmic", "cpu", "get", "name"]).decode("utf-8").strip()
+        try:
+            name = subprocess.check_output(["wmic", "cpu", "get", "name"]).decode("utf-8").strip()
+
+            if name.startswith("Name"):
+                name = name[4:].strip()
+            
+            return name
+        except Exception:
+            return None
 
     def machine(self) -> str:
         if self.os() == "Linux":
@@ -103,7 +111,15 @@ class ClientInfo:
 
     def __ssid_windows(self) -> Optional[str]:
         try:
-            return subprocess.check_output(["netsh", "wlan", "show", "interfaces"]).decode("utf-8").strip()
+            output = subprocess.check_output(["netsh", "wlan", "show", "interfaces"]).decode("utf-8").strip()
+
+            for line in output.split("\n"):
+                line = line.strip()
+
+                if line.startswith("SSID"):
+                    return line[4:].strip()[1:].strip()
+
+            return None
         except Exception:
             return None
 
