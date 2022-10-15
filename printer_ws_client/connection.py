@@ -107,87 +107,87 @@ class Connection:
         event: str = packet.get("type", "")
         data: Dict[str, Any] = packet.get("data", {})
 
-        match event:
-            case "error":
-                return ErrorEvent(data)
-            case "new_token":
-                return NewTokenEvent(data)
-            case "connected":
-                return ConnectEvent(data)
-            case "pause":
+        if event == "error":
+            return ErrorEvent(data)
+        if event == "new_token":
+            return NewTokenEvent(data)
+        if event == "connected":
+            return ConnectEvent(data)
+        if event == "pause":
+            return PauseEvent()
+        if event == "complete_setup":
+            return SetupCompleteEvent(data)
+        if event == "interval_change":
+            return IntervalChangeEvent(data)
+        if event == "pong":
+            return PongEvent()
+        if event == "stream_received":
+            return StreamReceivedEvent()
+        if event == "printer_settings":
+            return PrinterSettingsEvent(data)
+        if event == "demand":                
+            event = data.pop("demand", "UNDEFINED")
+
+            if event == "pause":
                 return PauseEvent()
-            case "complete_setup":
-                return SetupCompleteEvent(data)
-            case "interval_change":
-                return IntervalChangeEvent(data)
-            case "pong":
-                return PongEvent()
-            case "stream_received":
-                return StreamReceivedEvent()
-            case "printer_settings":
-                return PrinterSettingsEvent(data)
-            case "demand":                
-                match data.pop("demand"):
-                    case "pause":
-                        return PauseEvent()
-                    case "resume":
-                        return ResumeEvent()
-                    case "cancel":
-                        return CancelEvent()
-                    case "terminal":
-                        return TerminalEvent(data)
-                    case "gcode":
-                        return GcodeEvent(data)
-                    case "test_webcam":
-                        return WebcamTestEvent()
-                    case "webcam_snapshot":
-                        return WebcamSnapshotEvent(data)
-                    case "file":
-                        return FileEvent(data)
-                    case "start_print":
-                        return StartPrintEvent()
-                    case "connect_printer":
-                        return ConnectPrinterEvent()
-                    case "disconnect_printer":
-                        return DisconnectPrinterEvent()
-                    case "system_restart":
-                        return SystemRestartEvent()
-                    case "system_shutdown":
-                        return SystemShutdownEvent()
-                    case "api_restart":
-                        return ApiRestartEvent()
-                    case "api_shutdown":
-                        return ApiShutdownEvent()
-                    case "update":
-                        return UpdateEvent()
-                    case "plugin_install":
-                        return PluginInstallEvent()
-                    case "plugin_uninstall":
-                        return PluginUninstallEvent()
-                    case "webcam_settings_updated":
-                        return WebcamSettingsEvent(data)
-                    case "stream_on":
-                        return StreamOnEvent(data)
-                    case "stream_off":
-                        return StreamOffEvent()
-                    case "set_printer_profile":
-                        return SetPrinterProfileEvent(data)
-                    case "get_gcode_script_backups":
-                        return GetGcodeScriptBackupsEvent(data)
-                    case "has_gcode_changes":
-                        return HasGcodeChangesEvent(data)
-                    case "psu_off":
-                        return PsuControlEvent(False)
-                    case "psu_on":
-                        return PsuControlEvent(True)
-                    case "psu_keepalive":
-                        return PsuControlEvent(True)
-                    case "disable_websocket":
-                        return DisableWebsocketEvent(data)
-                    case unknown:
-                        self.logger.debug(f"Unknown demand: {unknown}, data: {data}")
-                        return None
-            case unknown: 
-                self.logger.debug(f"Unknown event: {unknown} data: {data}")
+            if event == "resume":
+                return ResumeEvent()
+            if event == "cancel":
+                return CancelEvent()
+            if event == "terminal":
+                return TerminalEvent(data)
+            if event == "gcode":
+                return GcodeEvent(data)
+            if event == "test_webcam":
+                return WebcamTestEvent()
+            if event == "webcam_snapshot":
+                return WebcamSnapshotEvent(data)
+            if event == "file":
+                return FileEvent(data)
+            if event == "start_print":
+                return StartPrintEvent()
+            if event == "connect_printer":
+                return ConnectPrinterEvent()
+            if event == "disconnect_printer":
+                return DisconnectPrinterEvent()
+            if event == "system_restart":
+                return SystemRestartEvent()
+            if event == "system_shutdown":
+                return SystemShutdownEvent()
+            if event == "api_restart":
+                return ApiRestartEvent()
+            if event == "api_shutdown":
+                return ApiShutdownEvent()
+            if event == "update":
+                return UpdateEvent()
+            if event == "plugin_install":
+                return PluginInstallEvent()
+            if event == "plugin_uninstall":
+                return PluginUninstallEvent()
+            if event == "webcam_settings_updated":
+                return WebcamSettingsEvent(data)
+            if event == "stream_on":
+                return StreamOnEvent(data)
+            if event == "stream_off":
+                return StreamOffEvent()
+            if event == "set_printer_profile":
+                return SetPrinterProfileEvent(data)
+            if event == "get_gcode_script_backups":
+                return GetGcodeScriptBackupsEvent(data)
+            if event == "has_gcode_changes":
+                return HasGcodeChangesEvent(data)
+            if event == "psu_off":
+                return PsuControlEvent(False)
+            if event == "psu_on":
+                return PsuControlEvent(True)
+            if event == "psu_keepalive":
+                return PsuControlEvent(True)
+            if event == "disable_websocket":
+                return DisableWebsocketEvent(data)
+            else:
+                self.logger.debug(f"Unknown demand: {event}, data: {data}")
                 return None
-            
+        else: 
+            self.logger.debug(f"Unknown event: {event} data: {data}")
+            return None
+        

@@ -551,7 +551,7 @@ class Client:
         )
  
     # sends a PrinterEvent to the server
-    def send(self, event: PrinterEvent, data: Any) -> Future[None]:
+    def send(self, event: PrinterEvent, data: Any) -> Future:
         return self.loop.spawn(self.send_async(event, data))
  
     async def send_async(self, event: PrinterEvent, data: Any) -> None:

@@ -30,5 +30,5 @@ class AsyncLoop:
     # spawn a future on the async io thread
     # 
     # NOTE: this might not be optimal
-    def spawn(self, coro: Coroutine) -> Future[None]:
+    def spawn(self, coro: Coroutine) -> Future:
         return asyncio.run_coroutine_threadsafe(coro, self.aioloop)
