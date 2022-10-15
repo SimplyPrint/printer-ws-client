@@ -15,6 +15,8 @@ class AmbientCheck:
     def __init__(self, changed: Callable[[int], None]):
         self.changed = changed
 
+    # detects ambient temperature
+    # uses the algorithm defined in SimplyPrint-OctoPrint
     def detect(self, tools: List[Temperature]):
         if len(tools) == 0:
             self.initial_sample = None
@@ -45,6 +47,8 @@ class AmbientCheck:
                 self.initial_sample = tool0.actual
                 self.update_interval = SAMPLE_CHACK_TIME
 
+    # runs the ambient check in a loop
+    # spawned on start
     async def run_loop(self, printer: Printer):
         while True:
             self.detect(printer.tool_temperatures)

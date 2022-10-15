@@ -153,19 +153,21 @@ class Client:
     snapshot_endpoint: str = SNAPSHOT_ENDPOINT
 
     loop: AsyncLoop = AsyncLoop()
-    process_task: Optional[Future[None]] = None  
+    process_task: Optional[Future] = None  
 
     file_handler: Optional[FileHandler] = None
     __been_offline: bool = False
     __selected_file: Optional[str] = None
-    __webcam: Optional[VideoCapture] = None
     __webcam_connected: bool = False
     __ai_scores: List[float] = []
-    __display_message_loop: Optional[Future[None]] = None
+    __display_message_loop: Optional[Future] = None
     __ambient_check: Optional[AmbientCheck] = None
 
     # ---------- control ---------- # 
     
+    # starts the client
+    # this initializes the connection and starts the event loop
+    # this should be called after the client has been configured
     def start(self) -> None:
         # start sentry
         self.__start_sentry()
@@ -202,6 +204,7 @@ class Client:
     def __del__(self):
         self.stop()
     
+    # sets status to OFFLINE, stops the AsyncLoop
     def stop(self) -> None:
         self.status = PrinterStatus.OFFLINE
         self.loop.stop() 
@@ -235,6 +238,7 @@ class Client:
     def __get_firmware(self) -> Dict[str, Any]:
         return { "fw": self.printer.firmware.dict() }
 
+    # sends firmware to server, this is called at start
     def send_firmware(self) -> None:
         firmware = self.__get_firmware()
         self.__logger.debug(f"Sending firmware: {firmware}")
@@ -263,6 +267,7 @@ class Client:
             "flags": 0,
         }
 
+    # sends cpu to server, this is called at a fixed interval by send_cpu_loop
     def send_cpu(self) -> None:
         cpu = self.__get_cpu()
         self.__logger.debug(f"Sending CPU info: {cpu}")
@@ -286,6 +291,7 @@ class Client:
             "total_memory": self.info.total_memory(),
         }
 
+    # sends machine_data to server, this is called at start
     def send_machine_data(self):
         machine_data = self.__get_machine_data()
         self.__logger.debug(f"Sending machine data: {machine_data}")
@@ -383,6 +389,7 @@ class Client:
         self.intervals.temperatures_updating = True
         self.loop.spawn(self.send_temperatures())  
     
+    # waits for the appropriate interval to pass before sending temperatures
     async def send_temperatures(self) -> None:
         if self.printer.is_heating():
             await self.intervals.sleep_until_target_temperatures()
@@ -418,6 +425,8 @@ class Client:
         await self.send_async(PrinterEvent.TEMPERATURES, payload)
         self.intervals.temperatures_updating = False
 
+    # internal setter for ambient temperature
+    # used as callback for AmbientCheck
     def __set_ambient(self, temperature: int) -> None:
         self.ambient_temperature = float(temperature)
 
@@ -426,6 +435,7 @@ class Client:
             { "new": temperature },
         )
 
+    # send webcam connected status
     def send_webcam_connected(self):
         self.__logger.debug(f"Sending webcam connected: {self.__webcam_connected}")
         self.send(PrinterEvent.WEBCAM_STATUS, {
@@ -628,6 +638,7 @@ class Client:
             )
         )
 
+    # sends a snapshot to the server though the websocket
     async def stream_snapshot(self, data: str) -> None:
         self.__logger.debug("Streaming snapshot, sending")
         await self.send_async(PrinterEvent.STREAM, {"base": data})
