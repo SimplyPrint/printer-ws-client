@@ -4,7 +4,7 @@ from simplyprint_ws_client import VERSION
 setup(
     name="simplyprint-ws-client",
     version=VERSION,
-    description="SimplyPrint Websocket Client",
+    description="SimplyPrint WebSocket Client",
     url="https://github.com/SimplyPrint/printer-ws-client",
     author="SimplyPrint",
     license="AGPLv3",
