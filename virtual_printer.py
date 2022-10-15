@@ -27,7 +27,6 @@ class VirtualPrinter(Client):
         self.logger = logging.getLogger("simplyprint.VirtualPrinter")
 
         self.tick_rate: float = 2.0
-        self.status = PrinterStatus.OPERATIONAL
 
     async def on_connect(self, _: ConnectEvent):
         self.logger.info("Connected to server")

@@ -202,6 +202,8 @@ class Client:
 
         ambient_check = AmbientCheck(self.__set_ambient)
         self.__ambient_check = ambient_check
+        self.printer.status = PrinterStatus.OPERATIONAL
+        self.send_status()
 
         self.process_task = self.loop.spawn(self.process_events())
         self.loop.spawn(self.send_cpu_loop())
@@ -347,9 +349,7 @@ class Client:
         self.__logger.debug(f"Status changed from {self.printer.status} to {status}")  
 
         self.printer.status = status
-        self.send(PrinterEvent.STATUS, {
-            "new": status.value,
-        })
+        
         self.update_display_message()
 
     @property
@@ -460,6 +460,11 @@ class Client:
         self.__logger.debug(f"Sending webcam connected: {self.__webcam_connected}")
         self.send(PrinterEvent.WEBCAM_STATUS, {
             "connected": self.webcam_connected,
+        })
+
+    def send_status(self):
+        self.send(PrinterEvent.STATUS, {
+            "new": self.printer.status.value,
         })
  
     # starts a print, this is usually called internally

@@ -12,7 +12,7 @@ from typing import (
     Any, 
 )
 
-REACHABLE_URL: str = "http://testws.simplyprint.io"
+REACHABLE_URL: str = "https://testws.simplyprint.io"
 
 class Connection:
     def __init__(self, logger: Logger) -> None:
