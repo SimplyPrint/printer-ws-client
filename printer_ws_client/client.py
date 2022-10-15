@@ -17,6 +17,7 @@ import base64
 
 from concurrent.futures import Future
 from cv2 import VideoCapture
+from .ambient import AmbientCheck
 from .printer_state import Printer, PrinterStatus, Temperature
 from .connection import Connection
 from .event import *
@@ -161,6 +162,7 @@ class Client:
     __webcam_connected: bool = False
     __ai_scores: List[float] = []
     __display_message_loop: Optional[Future[None]] = None
+    __ambient_check: Optional[AmbientCheck] = None
 
     # ---------- control ---------- # 
     
@@ -180,9 +182,13 @@ class Client:
         self.__initialize_webcam()
         self.__initialize_connection()
 
+        ambient_check = AmbientCheck(self.__set_ambient)
+        self.__ambient_check = ambient_check
+
         self.process_task = self.loop.spawn(self.process_events())
         self.loop.spawn(self.send_cpu_loop())
         self.loop.spawn(self.send_ping_loop())
+        self.loop.spawn(self.__ambient_check.run_loop(self.printer))
 
     def __initialize_webcam(self) -> None:
         self.__webcam = VideoCapture(0) 
@@ -191,7 +197,7 @@ class Client:
     def __initialize_connection(self) -> None:
         self.send_firmware()
         self.send_machine_data()
-        self.send_webcam_connected()
+        self.send_webcam_connected() 
 
     def __del__(self):
         self.stop()
@@ -345,9 +351,9 @@ class Client:
         self.printer.ambient_temperature = temperature
 
         if round(self.printer.ambient_temperature) != round(temperature):
-            self.send(PrinterEvent.AMBIENT, {
-                "new": round(temperature),
-            })
+            self.send(PrinterEvent.AMBIENT, 
+                { "new": round(temperature) },
+            )
 
     @property
     def tool_temperatures(self) -> List[Temperature]:
@@ -411,6 +417,14 @@ class Client:
         self.__logger.debug(f"Sending temperatures: {payload}")
         await self.send_async(PrinterEvent.TEMPERATURES, payload)
         self.intervals.temperatures_updating = False
+
+    def __set_ambient(self, temperature: int) -> None:
+        self.ambient_temperature = float(temperature)
+
+        self.send(
+            PrinterEvent.AMBIENT, 
+            { "new": temperature },
+        )
 
     def send_webcam_connected(self):
         self.__logger.debug(f"Sending webcam connected: {self.__webcam_connected}")

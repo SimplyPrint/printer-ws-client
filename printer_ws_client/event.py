@@ -119,7 +119,6 @@ class WebcamTestEvent(Event):
 
 class WebcamSnapshotEvent(Event):
     def __init__(self, data: Dict[str, Any]):
-        print(data)
         self.id: Optional[str] = data.get("id")
         self.timer: Optional[int] = data.get("timer")
 
