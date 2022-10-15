@@ -1,8 +1,0 @@
-Metadata-Version: 2.1
-Name: simplyprint-ws-client
-Version: 0.0.1
-Summary: SimplyPrint Websocket Client
-Home-page: https://github.com/SimplyPrint/printer-ws-client
-Author: SimplyPrint
-License: AGPLv3
-License-File: LICENSE
