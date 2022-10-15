@@ -197,7 +197,7 @@ class Client:
             import cv2
 
             self.__logger.info("using OpenCV for webcam")
-            self.__webcam = cv2.VideoCapture(0) 
+            self.__webcam = cv2.VideoCapture(-1) 
             self.__webcam_connected = self.__webcam.isOpened()
 
     def __initialize_connection(self) -> None:
