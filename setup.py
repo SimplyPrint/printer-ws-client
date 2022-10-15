@@ -7,7 +7,7 @@ setup(
     url="https://github.com/SimplyPrint/printer-ws-client",
     author="SimplyPrint",
     license="AGPLv3",
-    packages=["simplyprint-ws-client"],
+    packages=["simplyprint_ws_client"],
     install_requires=[
         "tornado",
         "psutil",
