@@ -351,6 +351,7 @@ class Client:
         self.printer.status = status
         
         self.update_display_message()
+        self.send_status()
 
     @property
     def selected_file(self) -> Optional[str]:
