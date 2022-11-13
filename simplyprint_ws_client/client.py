@@ -26,7 +26,8 @@ from .file import FileHandler, requests
 
 SNAPSHOT_ENDPOINT = "https://apirewrite.simplyprint.io/jobs/ReceiveSnapshot"
 AI_ENDPOINT = "https://ai.simplyprint.io/api/v2/infer"
-VERSION = "0.0.4"
+
+from .version import VERSION
 
 from logging import Logger
 from typing import List, Optional

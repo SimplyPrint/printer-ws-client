@@ -26,7 +26,8 @@ from .file import FileHandler, requests
 
 SNAPSHOT_ENDPOINT = "https://apirewrite.simplyprint.io/jobs/ReceiveSnapshot"
 AI_ENDPOINT = "https://ai.simplyprint.io/api/v2/infer"
-VERSION = "0.0.1"
+
+from .version import VERSION
 
 from logging import Logger
 from typing import List, Optional
@@ -69,7 +70,15 @@ class ClientInfo:
             pass
 
     def __get_cpu_model_windows(self) -> Optional[str]:
-        return subprocess.check_output(["wmic", "cpu", "get", "name"]).decode("utf-8").strip()
+        try:
+            name = subprocess.check_output(["wmic", "cpu", "get", "name"]).decode("utf-8").strip()
+
+            if name.startswith("Name"):
+                name = name[4:].strip()
+            
+            return name
+        except Exception:
+            return None
 
     def machine(self) -> str:
         if self.os() == "Linux":
@@ -103,7 +112,15 @@ class ClientInfo:
 
     def __ssid_windows(self) -> Optional[str]:
         try:
-            return subprocess.check_output(["netsh", "wlan", "show", "interfaces"]).decode("utf-8").strip()
+            output = subprocess.check_output(["netsh", "wlan", "show", "interfaces"]).decode("utf-8").strip()
+
+            for line in output.split("\n"):
+                line = line.strip()
+
+                if line.startswith("SSID"):
+                    return line[4:].strip()[1:].strip()
+
+            return None
         except Exception:
             return None
 
@@ -186,6 +203,8 @@ class Client:
 
         ambient_check = AmbientCheck(self.__set_ambient)
         self.__ambient_check = ambient_check
+        self.printer.status = PrinterStatus.OPERATIONAL
+        self.send_status()
 
         self.process_task = self.loop.spawn(self.process_events())
         self.loop.spawn(self.send_cpu_loop())
@@ -331,10 +350,9 @@ class Client:
         self.__logger.debug(f"Status changed from {self.printer.status} to {status}")  
 
         self.printer.status = status
-        self.send(PrinterEvent.STATUS, {
-            "new": status.value,
-        })
+        
         self.update_display_message()
+        self.send_status()
 
     @property
     def selected_file(self) -> Optional[str]:
@@ -444,6 +462,11 @@ class Client:
         self.__logger.debug(f"Sending webcam connected: {self.__webcam_connected}")
         self.send(PrinterEvent.WEBCAM_STATUS, {
             "connected": self.webcam_connected,
+        })
+
+    def send_status(self):
+        self.send(PrinterEvent.STATUS, {
+            "new": self.printer.status.value,
         })
  
     # starts a print, this is usually called internally

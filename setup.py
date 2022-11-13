@@ -1,5 +1,5 @@
 from setuptools import setup
-from simplyprint_ws_client import VERSION
+from simplyprint_ws_client.version import VERSION
 
 setup(
     name="simplyprint-ws-client",
