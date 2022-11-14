@@ -34,6 +34,7 @@ class PrinterStatus(Enum):
     PAUSING = "pausing"
     CANCELLING = "cancelling"
     ERROR = "error"
+    NOT_READY = "not_ready"
 
 class Display:
     def __init__(self, data: Dict[str, Any]):

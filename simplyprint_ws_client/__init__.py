@@ -1,4 +1,4 @@
-from .client import Client, ClientInfo, PrinterEvent, VERSION
+from .client import Client, ClientInfo, PrinterEvent
 from .event import *
 from .printer_state import Printer, Display, PrinterSettings, PrinterFirmware, PrinterStatus, Temperature
 from .connection import Connection

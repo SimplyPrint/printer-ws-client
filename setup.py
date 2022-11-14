@@ -1,9 +1,19 @@
+import re
 from setuptools import setup
-from simplyprint_ws_client.version import VERSION
+
+VERSIONFILE="simplyprint_ws_client/version.py"
+verstrline = open(VERSIONFILE, "rt").read()
+VSRE = r"^VERSION = ['\"]([^'\"]*)['\"]"
+mo = re.search(VSRE, verstrline, re.M)
+
+if mo:
+    verstr = mo.group(1)
+else:
+    raise RuntimeError("Unable to find version string in %s." % (VERSIONFILE,))
 
 setup(
     name="simplyprint-ws-client",
-    version=VERSION,
+    version=verstr,
     description="SimplyPrint WebSocket Client",
     url="https://github.com/SimplyPrint/printer-ws-client",
     author="SimplyPrint",
