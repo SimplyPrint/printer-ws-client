@@ -12,7 +12,7 @@ from typing import (
     Any, 
 )
 
-REACHABLE_URL: str = "https://testws.simplyprint.io"
+REACHABLE_URL: str = "https://ws.simplyprint.io"
 
 class Connection:
     def __init__(self, logger: Logger) -> None:
@@ -28,7 +28,7 @@ class Connection:
         return self.ws is not None
 
     def get_url(self, id: str, token: str) -> str:
-        return f"wss://testws.simplyprint.io/{self.api_version}/p/{id}/{token}"
+        return f"wss://ws.simplyprint.io/{self.api_version}/p/{id}/{token}"
 
     async def connect(self, id: str, token: str) -> None:
         url = self.get_url(id, token)
