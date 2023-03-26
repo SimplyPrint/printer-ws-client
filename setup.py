@@ -20,10 +20,10 @@ setup(
     license="AGPLv3",
     packages=["simplyprint_ws_client"],
     install_requires=[
-        "tornado",
-        "psutil",
-        "sentry-sdk",
-        "netifaces",
-        "requests",
+        "tornado==6.2",
+        "psutil==5.9.4",
+        "sentry-sdk==1.17.0",
+        "netifaces==0.11.0",
+        "requests==0.11.0",
     ]
 )
