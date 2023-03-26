@@ -1,0 +1,5 @@
+opencv-python==4.7.0.72
+tornado==6.2
+psutil==5.9.4
+sentry_sdk==1.17.0
+netifaces==0.11.0

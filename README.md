@@ -1,6 +1,10 @@
 # Printer WS Client
 A package for easy implementations of SimplyPrint printers.
 
+## Setup
+
+pip3 install -r requirements.txt
+
 ## Usage
 ```python
 from printer_ws_client import *
