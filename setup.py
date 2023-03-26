@@ -24,6 +24,6 @@ setup(
         "psutil==5.9.4",
         "sentry-sdk==1.17.0",
         "netifaces==0.11.0",
-        "requests==0.11.0",
+        "requests==2.28.2",
     ]
 )
