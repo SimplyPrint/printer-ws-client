@@ -15,6 +15,8 @@ import functools
 import base64
 
 from concurrent.futures import Future
+
+from simplyprint_ws_client.const import AI_ENDPOINT, SNAPSHOT_ENDPOINT, VERSION
 from .ambient import AmbientCheck
 from .printer_state import Printer, PrinterStatus, Temperature
 from .connection import Connection
@@ -23,12 +25,6 @@ from .timer import Intervals
 from .async_loop import AsyncLoop
 from .config import Config
 from .file import FileHandler, requests
-
-SNAPSHOT_ENDPOINT = "https://apirewrite.simplyprint.io/jobs/ReceiveSnapshot"
-AI_ENDPOINT = "https://ai.simplyprint.io/api/v2/infer"
-
-from .version import VERSION
-
 from logging import Logger
 from typing import List, Optional
 
@@ -161,6 +157,7 @@ class Client:
     display_messages_enabled: bool = True
 
     use_opencv: bool = False
+    use_ai: bool = False
 
     connection: Connection = Connection(logging.getLogger("simplyprint.client.connection"))
     printer: Printer = Printer()
@@ -216,7 +213,7 @@ class Client:
             import cv2
 
             self.__logger.info("using OpenCV for webcam")
-            self.__webcam = cv2.VideoCapture(-1) 
+            self.__webcam = cv2.VideoCapture(-1)
             self.__webcam_connected = self.__webcam.isOpened()
 
     def __initialize_connection(self) -> None:
@@ -271,17 +268,10 @@ class Client:
         temperature: Optional[float] = None
         temperatures = psutil.sensors_temperatures()
 
-        if "coretemp" in temperatures:
-            temperature = temperatures["coretemp"][0].current
-        if "cpu-thermal" in temperatures:
-            temperature = temperatures["cpu-thermal"][0].current
-        if "cpu_thermal" in temperatures:
-            temperature = temperatures["cpu_thermal"][0].current
-        if "soc_thermal" in temperatures:
-            temperature = temperatures["soc_thermal"][0].current
-
-        if temperature is None:
-            temperature = 0
+        # Find the first temperature sensor that is not None
+        # Priority is given in reverse order
+        temperature_keys = { "coretemp", "cpu-thermal", "cpu_thermal", "soc_thermal" } & set(temperatures.keys())
+        temperature = temperatures[temperature_keys.pop()][0].current if len(temperature_keys) > 0 is not None else 0
     
         return {
             "usage": round(psutil.cpu_percent()),
@@ -759,72 +749,73 @@ class Client:
     async def handle_event(self, event: Event) -> None:
         await self.on_event(event)
 
-        if isinstance(event, NewTokenEvent):
-            await self.handle_new_token_event(event)
-        elif isinstance(event, ConnectEvent):
-            await self.handle_connect_event(event)
-        elif isinstance(event, SetupCompleteEvent):
-            await self.handle_setup_complete_event(event)
-        elif isinstance(event, IntervalChangeEvent):
-            await self.handle_interval_change_event(event)
-        elif isinstance(event, PongEvent):
-            await self.handle_pong_event(event)
-        elif isinstance(event, StreamReceivedEvent):
-            await self.handle_stream_received_event(event)
-        elif isinstance(event, PrinterSettingsEvent):
-            await self.handle_printer_settings_event(event)
-        elif isinstance(event, PauseEvent):
-            await self.handle_pause_event(event)
-        elif isinstance(event, ResumeEvent):
-            await self.handle_resume_event(event)
-        elif isinstance(event, CancelEvent):
-            await self.handle_cancel_event(event)
-        elif isinstance(event, TerminalEvent):
-            await self.handle_terminal_event(event)
-        elif isinstance(event, GcodeEvent):
-            await self.handle_gcode_event(event)
-        elif isinstance(event, WebcamTestEvent):
-            await self.handle_webcam_test_event(event)
-        elif isinstance(event, WebcamSnapshotEvent):
-            await self.handle_webcam_snapshot_event(event)
-        elif isinstance(event, FileEvent):
-            await self.handle_file_event(event)
-        elif isinstance(event, StartPrintEvent):
-            await self.handle_start_print_event(event)
-        elif isinstance(event, ConnectPrinterEvent):
-            await self.handle_connect_printer_event(event)
-        elif isinstance(event, DisconnectPrinterEvent):
-            await self.handle_disconnect_printer_event(event)
-        elif isinstance(event, SystemRestartEvent):
-            await self.handle_system_restart_event(event)
-        elif isinstance(event, SystemShutdownEvent):
-            await self.handle_system_shutdown_event(event)
-        elif isinstance(event, ApiRestartEvent):
-            await self.handle_api_restart_event(event)
-        elif isinstance(event, ApiShutdownEvent):
-            await self.handle_api_shutdown_event(event)
-        elif isinstance(event, UpdateEvent):
-            await self.handle_update_event(event)
-        elif isinstance(event, PluginInstallEvent):
-            await self.handle_plugin_install_event(event)
-        elif isinstance(event, PluginUninstallEvent):
-            await self.handle_plugin_uninstall_event(event)
-        elif isinstance(event, WebcamSettingsEvent):
-            await self.handle_webcam_settings_event(event)
-        elif isinstance(event, StreamOnEvent):
-            await self.handle_stream_on_event(event)
-        elif isinstance(event, StreamOffEvent):
-            await self.handle_stream_off_event(event)
-        elif isinstance(event, SetPrinterProfileEvent):
-            await self.handle_set_printer_profile_event(event)
-        elif isinstance(event, GetGcodeScriptBackupsEvent):
-            await self.handle_get_gcode_script_backups_event(event)
-        elif isinstance(event, HasGcodeChangesEvent):
-            await self.handle_has_gcode_changes_event(event)
-        elif isinstance(event, PsuControlEvent):
-            await self.handle_psu_control_event(event)
-        elif isinstance(event, DisableWebsocketEvent):
-            await self.handle_disable_websocket_event(event)
+        match event:        
+            case NewTokenEvent():
+                await self.handle_new_token_event(event)
+            case ConnectEvent():
+                await self.handle_connect_event(event)
+            case SetupCompleteEvent():
+                await self.handle_setup_complete_event(event)
+            case IntervalChangeEvent():
+                await self.handle_interval_change_event(event)
+            case PongEvent():
+                await self.handle_pong_event(event)
+            case StreamReceivedEvent():
+                await self.handle_stream_received_event(event)
+            case PrinterSettingsEvent():
+                await self.handle_printer_settings_event(event)
+            case PauseEvent():
+                await self.handle_pause_event(event)
+            case ResumeEvent():
+                await self.handle_resume_event(event)
+            case CancelEvent():
+                await self.handle_cancel_event(event)
+            case TerminalEvent():
+                await self.handle_terminal_event(event)
+            case GcodeEvent():
+                await self.handle_gcode_event(event)
+            case WebcamTestEvent():
+                await self.handle_webcam_test_event(event)
+            case WebcamSnapshotEvent():
+                await self.handle_webcam_snapshot_event(event)
+            case FileEvent():
+                await self.handle_file_event(event)
+            case StartPrintEvent():
+                await self.handle_start_print_event(event)
+            case ConnectPrinterEvent():
+                await self.handle_connect_printer_event(event)
+            case DisconnectPrinterEvent():
+                await self.handle_disconnect_printer_event(event)
+            case SystemRestartEvent():
+                await self.handle_system_restart_event(event)
+            case SystemShutdownEvent():
+                await self.handle_system_shutdown_event(event)
+            case ApiRestartEvent():
+                await self.handle_api_restart_event(event)
+            case ApiShutdownEvent():
+                await self.handle_api_shutdown_event(event)
+            case UpdateEvent():
+                await self.handle_update_event(event)
+            case PluginInstallEvent():
+                await self.handle_plugin_install_event(event)
+            case PluginUninstallEvent():
+                await self.handle_plugin_uninstall_event(event)
+            case WebcamSettingsEvent():
+                await self.handle_webcam_settings_event(event)
+            case StreamOnEvent():
+                await self.handle_stream_on_event(event)
+            case StreamOffEvent():
+                await self.handle_stream_off_event(event)
+            case SetPrinterProfileEvent():
+                await self.handle_set_printer_profile_event(event)
+            case GetGcodeScriptBackupsEvent():
+                await self.handle_get_gcode_script_backups_event(event)
+            case HasGcodeChangesEvent():
+                await self.handle_has_gcode_changes_event(event)
+            case PsuControlEvent():
+                await self.handle_psu_control_event(event)
+            case DisableWebsocketEvent():
+                await self.handle_disable_websocket_event(event)
      
     # ---------- events ---------- #
 
@@ -1137,8 +1128,10 @@ class Client:
     
     async def handle_start_print_event(self, event: StartPrintEvent) -> None:
         self.__logger.info(f"Start print")
-
-        self.loop.spawn(self.ai_loop())
+        
+        if self.use_ai:
+            self.loop.spawn(self.ai_loop())
+        
         await self.on_start_print(event)
     
     async def handle_connect_printer_event(self, event: ConnectPrinterEvent) -> None:

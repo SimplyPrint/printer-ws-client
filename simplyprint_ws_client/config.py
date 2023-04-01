@@ -1,7 +1,7 @@
 import json
 import os
 
-CONFIG_FILE_PATH: str = "config.json"
+from simplyprint_ws_client.const import CONFIG_FILE_PATH
 
 class Config:
     id: str
