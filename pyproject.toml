@@ -1,3 +1,4 @@
+[tool.poetry]
 name = "simplyprint-ws-client"
 version = "0.0.6"
 license = "AGPL-3.0-or-later"
@@ -6,8 +7,6 @@ description = "SimplyPrint Websocket Client"
 homepage = "https://simplyprint.io"
 repository = "https://github.com/SimplyPrint/printer-ws-client"
 keywords = ["simplyprint", "websocket", "client"]
-
-[tool.poetry]
 readme = "README.md"
 
 packages = [
