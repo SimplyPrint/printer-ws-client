@@ -58,7 +58,7 @@ class VirtualPrinter(Client):
 
     async def on_start_print(self, _: StartPrintEvent) -> None:
         self.status = PrinterStatus.PRINTING
-        await asyncio.sleep(300.0)
+        await asyncio.sleep(10.0)
         self.print_done() 
 
     def update(self, dt: float):

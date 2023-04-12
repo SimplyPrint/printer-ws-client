@@ -160,3 +160,5 @@ cython_debug/
 #.idea/
 
 config.json
+virtual_local
+Pipfile*

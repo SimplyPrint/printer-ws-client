@@ -5,150 +5,44 @@ import copy
 import time
 import sentry_sdk
 import platform
-import netifaces
-import socket
 import os
 import psutil
-import subprocess
-import re
 import functools
 import base64
 
 from concurrent.futures import Future
+from simplyprint_ws_client.client.info import ClientInfo
 
 from simplyprint_ws_client.const import AI_ENDPOINT, SNAPSHOT_ENDPOINT, VERSION
-from .ambient import AmbientCheck
-from .printer_state import Printer, PrinterStatus, Temperature
-from .connection import Connection
-from .event import *
-from .timer import Intervals
-from .async_loop import AsyncLoop
-from .config import Config
-from .file import FileHandler, requests
+from ..ambient import AmbientCheck
+from ..printer_state import Printer, PrinterStatus, Temperature
+from ..connection import Connection
+from ..event import *
+from ..timer import Intervals
+from ..async_loop import AsyncLoop
+from ..config import Config
+from ..file import FileHandler, requests
 from logging import Logger
-from typing import List, Optional
+from typing import Awaitable, Callable, List, Optional, Type
 
-class ClientInfo:
-    ui: Optional[str] = None
-    ui_version: Optional[str] = None
-    api: Optional[str] = None
-    api_version: Optional[str] = None
-    client: Optional[str] = None
-    client_version: Optional[str] = None
-    sp_version: Optional[str] = "4.0.0"
-    sentry_dsn: Optional[str] = None
-    development: bool = False
-
-    def python_version(self) -> str:
-        return platform.python_version() 
-
-    def __get_cpu_model_linux(self) -> Optional[str]:
-        info_path = "/proc/cpuinfo"
-
-        try:
-            with open(info_path, "r") as f:
-                data = f.read()
-
-            cpu_items = [
-                item.strip() for item in data.split("\n\n") if item.strip()
-            ]
-
-            match = re.search(r"Model\s+:\s+(.+)", cpu_items[-1])
-            if not match is None:
-                return match.group(1)
-
-            for item in cpu_items:
-                match = re.search(r"model name\s+:\s+(.+)", item)
-
-                if not match is None:
-                    return match.group(1).strip()
-        except Exception:
-            pass
-
-    def __get_cpu_model_windows(self) -> Optional[str]:
-        try:
-            name = subprocess.check_output(["wmic", "cpu", "get", "name"]).decode("utf-8").strip()
-
-            if name.startswith("Name"):
-                name = name[4:].strip()
-            
-            return name
-        except Exception:
-            return None
-
-    def machine(self) -> str:
-        if self.os() == "Linux":
-            model = self.__get_cpu_model_linux()
-
-            if not model is None:
-                return model
-
-        if self.os() == "Windows":
-            model = self.__get_cpu_model_windows()
-
-            if not model is None:
-                return model
+# Decorator for registering a handler for an event
+def register_handle(event_type: Type[Event]):
+    def decorator(handler: Callable[[Event], Awaitable[None]]):
+        handler._type = event_type
+        return handler
     
-        return platform.machine()
+    return decorator
 
-    def os(self) -> str:
-        return platform.system()
+def register_class_handle(cls):
+    for _, value in cls.__dict__.items():
+        if hasattr(value, "_type"):
+            cls.handles[value._type] = value
+    return cls
 
-    def is_ethernet(self) -> bool:
-        try:
-            return netifaces.gateways()["default"][netifaces.AF_INET][1].startswith("eth")
-        except Exception:
-            return False
-
-    def __ssid_linux(self) -> Optional[str]:
-        try:
-            return subprocess.check_output(["iwgetid", "-r"]).decode("utf-8").strip()
-        except Exception:
-            return None
-
-    def __ssid_windows(self) -> Optional[str]:
-        try:
-            output = subprocess.check_output(["netsh", "wlan", "show", "interfaces"]).decode("utf-8").strip()
-
-            for line in output.split("\n"):
-                line = line.strip()
-
-                if line.startswith("SSID"):
-                    return line[4:].strip()[1:].strip()
-
-            return None
-        except Exception:
-            return None
-
-    def ssid(self) -> Optional[str]:
-        if self.os() == "Linux":
-            return self.__ssid_linux()
-
-        if self.os() == "Windows":
-            return self.__ssid_windows()
-
-        return None
-
-    def hostname(self) -> str:
-        return socket.gethostname()
-
-    def local_ip(self) -> Optional[str]:
-        try:
-            interface = netifaces.gateways()["default"][netifaces.AF_INET][1]
-
-            return netifaces.ifaddresses(interface)[netifaces.AF_INET][0]["addr"]
-        except Exception:
-            return None
-
-    def core_count(self) -> Optional[int]:
-        return os.cpu_count()
-
-    def total_memory(self) -> int:
-        return psutil.virtual_memory().total
-        
-
+@register_class_handle
 class Client: 
     __logger: Logger = logging.getLogger("simplyprint.client")
+    handles: Dict[Type[Event], Callable[[Event], Awaitable[None]]] = {}
 
     config: Config = Config()
     info: ClientInfo = ClientInfo()
@@ -170,6 +64,7 @@ class Client:
     process_task: Optional[Future] = None  
 
     file_handler: Optional[FileHandler] = None
+
     __been_offline: bool = False
     __selected_file: Optional[str] = None
     __webcam_connected: bool = False
@@ -210,7 +105,12 @@ class Client:
 
     def __initialize_webcam(self) -> None:
         if self.use_opencv:
-            import cv2
+            try:
+                import cv2
+            except ImportError:
+                self.__logger.warning("OpenCV not installed, webcam will not be used")
+                self.use_opencv = False
+                return None
 
             self.__logger.info("using OpenCV for webcam")
             self.__webcam = cv2.VideoCapture(-1)
@@ -744,78 +644,22 @@ class Client:
                 continue
 
             self.loop.spawn(self.handle_event(event))
-    
+
     # handles a single event
     async def handle_event(self, event: Event) -> None:
         await self.on_event(event)
 
-        match event:        
-            case NewTokenEvent():
-                await self.handle_new_token_event(event)
-            case ConnectEvent():
-                await self.handle_connect_event(event)
-            case SetupCompleteEvent():
-                await self.handle_setup_complete_event(event)
-            case IntervalChangeEvent():
-                await self.handle_interval_change_event(event)
-            case PongEvent():
-                await self.handle_pong_event(event)
-            case StreamReceivedEvent():
-                await self.handle_stream_received_event(event)
-            case PrinterSettingsEvent():
-                await self.handle_printer_settings_event(event)
-            case PauseEvent():
-                await self.handle_pause_event(event)
-            case ResumeEvent():
-                await self.handle_resume_event(event)
-            case CancelEvent():
-                await self.handle_cancel_event(event)
-            case TerminalEvent():
-                await self.handle_terminal_event(event)
-            case GcodeEvent():
-                await self.handle_gcode_event(event)
-            case WebcamTestEvent():
-                await self.handle_webcam_test_event(event)
-            case WebcamSnapshotEvent():
-                await self.handle_webcam_snapshot_event(event)
-            case FileEvent():
-                await self.handle_file_event(event)
-            case StartPrintEvent():
-                await self.handle_start_print_event(event)
-            case ConnectPrinterEvent():
-                await self.handle_connect_printer_event(event)
-            case DisconnectPrinterEvent():
-                await self.handle_disconnect_printer_event(event)
-            case SystemRestartEvent():
-                await self.handle_system_restart_event(event)
-            case SystemShutdownEvent():
-                await self.handle_system_shutdown_event(event)
-            case ApiRestartEvent():
-                await self.handle_api_restart_event(event)
-            case ApiShutdownEvent():
-                await self.handle_api_shutdown_event(event)
-            case UpdateEvent():
-                await self.handle_update_event(event)
-            case PluginInstallEvent():
-                await self.handle_plugin_install_event(event)
-            case PluginUninstallEvent():
-                await self.handle_plugin_uninstall_event(event)
-            case WebcamSettingsEvent():
-                await self.handle_webcam_settings_event(event)
-            case StreamOnEvent():
-                await self.handle_stream_on_event(event)
-            case StreamOffEvent():
-                await self.handle_stream_off_event(event)
-            case SetPrinterProfileEvent():
-                await self.handle_set_printer_profile_event(event)
-            case GetGcodeScriptBackupsEvent():
-                await self.handle_get_gcode_script_backups_event(event)
-            case HasGcodeChangesEvent():
-                await self.handle_has_gcode_changes_event(event)
-            case PsuControlEvent():
-                await self.handle_psu_control_event(event)
-            case DisableWebsocketEvent():
-                await self.handle_disable_websocket_event(event)
+        handler = self.handles.get(type(event), None)
+
+        if handler is None:
+            self.__logger.error(f"no handler for event {event}")
+            return
+        
+        try:
+            await handler(self, event)
+        except Exception as e:
+            self.__logger.error(f"error handling event {event}: {e}")
+            await self.on_error(ErrorEvent(e))
      
     # ---------- events ---------- #
 
@@ -887,7 +731,11 @@ class Client:
         if not hasattr(self, "_Client__webcam"):
             return None
 
-        import cv2
+        try:
+            import cv2
+        except ImportError:
+            self.__logger.warn("OpenCV is not installed but is required for webcam snapshots")
+            return None
 
         MAX_WIDTH = 1280
         MAX_HEIGHT = 720
@@ -972,6 +820,7 @@ class Client:
 
     # ---------- event handlers ---------- #
     
+    @register_handle(ErrorEvent)
     async def handle_error_event(self, event: ErrorEvent) -> None:
         self.__logger.error(f"Error: {event.error}")
 
@@ -979,7 +828,8 @@ class Client:
         self.connection.reconnect_token = None
 
         await self.on_error(event)
-            
+    
+    @register_handle(NewTokenEvent)
     async def handle_new_token_event(self, event: NewTokenEvent) -> None:
         self.__logger.info(f"Received new token: {event.token} short id: {event.short_id}")
 
@@ -993,7 +843,8 @@ class Client:
             self.printer.is_set_up = False
 
         await self.on_new_token(event)
- 
+    
+    @register_handle(ConnectEvent)
     async def handle_connect_event(self, event: ConnectEvent) -> None:
         self.__logger.info(f"Connected to server")
 
@@ -1007,6 +858,7 @@ class Client:
 
         await self.on_connect(event)
     
+    @register_handle(SetupCompleteEvent)
     async def handle_setup_complete_event(self, event: SetupCompleteEvent) -> None:
         self.__logger.info(f"Setup complete")
 
@@ -1021,12 +873,14 @@ class Client:
 
         await self.on_setup_complete(event)
     
+    @register_handle(IntervalChangeEvent)
     async def handle_interval_change_event(self, event: IntervalChangeEvent) -> None:
         self.__logger.info(f"Interval change")
 
         self.intervals.update(event.intervals)
         await self.on_interval_change(event)
     
+    @register_handle(PongEvent)
     async def handle_pong_event(self, event: PongEvent) -> None:
         self.__logger.info(f"Pong")
 
@@ -1040,26 +894,31 @@ class Client:
 
         await self.on_pong(event)
     
+    @register_handle(StreamReceivedEvent)
     async def handle_stream_received_event(self, event: StreamReceivedEvent) -> None:
         self.__logger.info(f"Stream received")
 
         await self.on_stream_received(event)
     
+    @register_handle(PrinterSettingsEvent)
     async def handle_printer_settings_event(self, event: PrinterSettingsEvent) -> None:
         self.__logger.info(f"Printer settings")
 
         await self.on_printer_settings(event)
     
+    @register_handle(PauseEvent)
     async def handle_pause_event(self, event: PauseEvent) -> None:
         self.__logger.info(f"Pause")
 
         await self.on_pause(event)
     
+    @register_handle(ResumeEvent)
     async def handle_resume_event(self, event: ResumeEvent) -> None:
         self.__logger.info(f"Resume")
 
         await self.on_resume(event)
     
+    @register_handle(CancelEvent)
     async def handle_cancel_event(self, event: CancelEvent) -> None:
         self.__logger.info(f"Cancel Print")
 
@@ -1067,27 +926,32 @@ class Client:
 
         await self.on_cancel(event)
     
+    @register_handle(TerminalEvent)
     async def handle_terminal_event(self, event: TerminalEvent) -> None:
         self.__logger.info(f"Terminal")
 
         await self.on_terminal(event)
 
+    @register_handle(DisplayMessageEvent)
     async def handle_display_message_event(self, event: DisplayMessageEvent) -> None:
         self.__logger.info(f"Display message")
 
         await self.on_display_message(event)
     
+    @register_handle(GcodeEvent)
     async def handle_gcode_event(self, event: GcodeEvent) -> None:
         self.__logger.info(f"Gcode")
 
         await self.on_gcode(event)
     
+    @register_handle(WebcamTestEvent)
     async def handle_webcam_test_event(self, event: WebcamTestEvent) -> None:
         self.__logger.info(f"Webcam test")
 
         self.send_webcam_connected()
         await self.on_webcam_test(event)
     
+    @register_handle(WebcamSnapshotEvent)
     async def handle_webcam_snapshot_event(self, event: WebcamSnapshotEvent) -> None:
         self.__logger.info(f"Webcam snapshot")
 
@@ -1107,6 +971,7 @@ class Client:
         else:
             self.__logger.error(f"Snapshot was requested but None was returned")
     
+    @register_handle(FileEvent)
     async def handle_file_event(self, event: FileEvent) -> None:
         self.__logger.info(f"File")
 
@@ -1126,6 +991,7 @@ class Client:
 
         await self.on_file(event)
     
+    @register_handle(StartPrintEvent)
     async def handle_start_print_event(self, event: StartPrintEvent) -> None:
         self.__logger.info(f"Start print")
         
@@ -1134,86 +1000,103 @@ class Client:
         
         await self.on_start_print(event)
     
+    @register_handle(ConnectPrinterEvent)
     async def handle_connect_printer_event(self, event: ConnectPrinterEvent) -> None:
         self.__logger.info(f"Connect printer")
 
         await self.on_connect_printer(event)
     
+    @register_handle(DisconnectPrinterEvent)
     async def handle_disconnect_printer_event(self, event: DisconnectPrinterEvent) -> None:
         self.__logger.info(f"Disconnect printer")
 
         await self.on_disconnect_printer(event)
     
+    @register_handle(SystemRestartEvent)
     async def handle_system_restart_event(self, event: SystemRestartEvent) -> None:
         self.__logger.info(f"System restart")
 
         await self.on_system_restart(event)
     
+    @register_handle(SystemShutdownEvent)
     async def handle_system_shutdown_event(self, event: SystemShutdownEvent) -> None:
         self.__logger.info(f"System shutdown")
 
         await self.on_system_shutdown(event)
-    
+
+    @register_handle(ApiRestartEvent)
     async def handle_api_restart_event(self, event: ApiRestartEvent) -> None:
         self.__logger.info(f"API restart")
 
         await self.on_api_restart(event)
     
+    @register_handle(ApiShutdownEvent)
     async def handle_api_shutdown_event(self, event: ApiShutdownEvent) -> None:
         self.__logger.info(f"API shutdown")
 
         await self.on_api_shutdown(event)
     
+    @register_handle(UpdateEvent)
     async def handle_update_event(self, event: UpdateEvent) -> None:
         self.__logger.info(f"Update")
 
         await self.on_update(event)
-    
+
+    @register_handle(PluginInstallEvent)    
     async def handle_plugin_install_event(self, event: PluginInstallEvent) -> None:
         self.__logger.info(f"Plugin install")
 
         await self.on_plugin_install(event)
     
+    @register_handle(PluginUninstallEvent)
     async def handle_plugin_uninstall_event(self, event: PluginUninstallEvent) -> None:
         self.__logger.info(f"Plugin uninstall")
 
         await self.on_plugin_uninstall(event)
     
+    @register_handle(WebcamSettingsEvent)
     async def handle_webcam_settings_event(self, event: WebcamSettingsEvent) -> None:
         self.__logger.info(f"Webcam settings")
 
         await self.on_webcam_settings(event)
     
+    @register_handle(StreamOnEvent)
     async def handle_stream_on_event(self, event: StreamOnEvent) -> None:
         self.__logger.info(f"Stream on")
 
         await self.on_stream_on(event)
     
+    @register_handle(StreamOffEvent)
     async def handle_stream_off_event(self, event: StreamOffEvent) -> None:
         self.__logger.info(f"Stream off")
 
         await self.on_stream_off(event)
     
+    @register_handle(SetPrinterProfileEvent)
     async def handle_set_printer_profile_event(self, event: SetPrinterProfileEvent) -> None:
         self.__logger.info(f"Set printer profile")
 
         await self.on_set_printer_profile(event)
     
+    @register_handle(GetGcodeScriptBackupsEvent)
     async def handle_get_gcode_script_backups_event(self, event: GetGcodeScriptBackupsEvent) -> None:
         self.__logger.info(f"Get gcode script backups")
 
         await self.on_get_gcode_script_backups(event)
     
+    @register_handle(HasGcodeChangesEvent)
     async def handle_has_gcode_changes_event(self, event: HasGcodeChangesEvent) -> None:
         self.__logger.info(f"Has gcode changes")
 
         await self.on_has_gcode_changes(event)
     
+    @register_handle(PsuControlEvent)
     async def handle_psu_control_event(self, event: PsuControlEvent) -> None:
         self.__logger.info(f"PSU control")
 
         await self.on_psu_control(event)
     
+    @register_handle(DisableWebsocketEvent)
     async def handle_disable_websocket_event(self, event: DisableWebsocketEvent) -> None:
         self.__logger.info(f"Disable websocket")
 
