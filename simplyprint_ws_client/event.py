@@ -8,6 +8,7 @@ from typing import (
     Dict,
     List,
     Any,
+    Type,
     Union,
 )
 
@@ -46,12 +47,28 @@ class PrinterEvent(Enum):
     FILAMENT_ANALYSIS = "filament_analysis"
     OCTOPRINT_PLUGINS = "octoprint_plugins"
 
-class Event:
+class EventTraits:
+    def __str__(cls):
+        return cls.name
+    
+    def __eq__(cls, other: object) -> bool:
+        if isinstance(other, str): return cls.name == other
+        if isinstance(other, Event): return cls.name == other.name
+        return False
+    
+    def __hash__(cls) -> int:
+        return hash(cls.name)
+
+class EventType(type, EventTraits):
+    def __repr__(cls) -> str:
+        return f"<Event {cls.name}>"
+
+class Event(EventTraits, metaclass=EventType):
     name: str = ""
     data: Dict[str, Any] = {}
     
     # Generic event data
-    def __init__(self, name: str, data: Dict[str, Any] = {}, *args, **kwargs):
+    def __init__(self, name: str, data: Dict[str, Any] = {}):
         self.name = self.name or self.__class__.__name__
         self.data = data
 
@@ -67,8 +84,7 @@ class Event:
         """
         pass
 
-    def __str__(self):
-        return self.name
+
 
 class ErrorEvent(Event):
     name = "error"
@@ -119,14 +135,30 @@ class PrinterSettingsEvent(Event):
     def on_event(self):
         self.printer_settings = PrinterSettings(self.data)
 
-class DemandEvent(Event):
+class DemandEventTraits(EventTraits):
+    def __str__(cls):
+        return cls.demand or cls.name
+
+    def __eq__(cls, other: object) -> bool:
+        if isinstance(other, str): return (cls.demand or cls.name) == other
+        if isinstance(other, DemandEvent): return (cls.demand or cls.name) == (other.demand or other.name)
+        return False
+
+    def __hash__(cls) -> int:
+        return hash(cls.demand or cls.name)
+
+class DemandEventType(EventType, DemandEventTraits):
+    def __repr__(cls) -> str:
+        return f"<DemandEvent {cls.demand}>"
+
+class DemandEvent(Event, DemandEventTraits, metaclass=DemandEventType):
     name = "demand"
     demand: Union[str, List[str]] = ""
 
     def __init__(self, name: str, demand: str, data: Dict[str, Any] = {}):
         super().__init__(name, data)
 
-        if self.demand not in self.demand:
+        if demand not in self.demand:
             raise ValueError(f"Demand type {name} does not match demand {self.demand}")
 
         self.demand = demand
@@ -254,5 +286,5 @@ class DisableWebsocketEvent(DemandEvent):
 
 
 # Construct hashmap of events (sub-hashmap for demands)
-events: Dict[str, Union[Event, Dict[str, Event]]] = { event.name: event for event in Event.__subclasses__() if event.name != "demand" }
-events["demand"] = { demand: event for event in DemandEvent.__subclasses__() for demand in (event.demand if isinstance(event.demand, list) else [event.demand]) }
+events: Dict[str, Union[Type[Event], Dict[str, Type[DemandEvent]]]] = { event.name: event for event in Event.__subclasses__() if event.name != DemandEvent }
+events[DemandEvent]: Dict[str, Type[DemandEvent]] = { demand: event for event in DemandEvent.__subclasses__() for demand in (event.demand if isinstance(event.demand, list) else [event.demand]) }

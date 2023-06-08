@@ -162,3 +162,4 @@ cython_debug/
 config.json
 virtual_local
 Pipfile*
+config.db

@@ -6,12 +6,13 @@ from logging import Logger
 
 from .const import REACHABLE_URL, WEBSOCKET_URL
 
-from .event import events, Event
+from .event import DemandEvent, events, Event
 
 from typing import (
     Optional,
     Dict,
     Any,
+    Type,
     Union,
 )
 
@@ -95,9 +96,7 @@ class Connection:
 
     async def read_event(self) -> Optional[Event]:
         message = await self.read_message()
-
-        if message is None:
-            return None
+        if message is None: return None
 
         try:
             packet: Dict[str, Any] = json.loads(message)
@@ -106,16 +105,14 @@ class Connection:
             return None
 
         name: str = packet.get("type", "")
-        demand = packet.get("demand", "")
         data: Dict[str, Any] = packet.get("data", {})
 
-        event: Union[Event, Dict[str, Event]] = events.get(name, None)
+        try:
+            demand: str = packet.get("demand", "")
+            event = events["demand"][demand] if name == DemandEvent else events[name]
+            return event(**{ **{"name": name, "data": data }, **( { "demand": demand } if name == DemandEvent else {} ) })
 
-        if isinstance(event, dict) and event is not None:
-            event: Event = event.get(demand, None)
-
-        if event is None:
-            self.logger.debug(f"Invalid event '{name}' or demand '{demand}'")
+        except KeyError as e:
+            self.logger.debug(f"Invalid event or demand '{e.args[0]}'")   
             return None
 
-        return event(name=name, demand=demand, data=data)

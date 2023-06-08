@@ -95,6 +95,19 @@ class VirtualPrinter(Client):
 
             self.tool_temperatures = self.virtual_tool_temperatures
             self.bed_temperature = self.virtual_bed_temperature
+    
+    def state_changer(func):
+        async def wrapper(self, data: Any):
+            await func(self, data)
+            await self.send_state()
+        return wrapper
+
+    # Integration specific
+    @state_updater
+    async def handle_telemetry(self, data: Any):
+        if data.get("bed_temp"):
+            self.state.bed_temp = "hej"
+        pass
 
 if __name__ == "__main__":
     printer = VirtualPrinter()

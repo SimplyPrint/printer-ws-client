@@ -528,11 +528,7 @@ class Client:
             elif not self.is_online():
                 self.set_display_message("No internet")
             else:
-                self.set_display_message("Can't reach SP")
-
-            self.intervals.reconnect_updating = False
-
-    async def send_message_async(self, message: str) -> None:
+                self.set_display_messagTYPE_CHECKING message: str) -> None:
         await self.connect()
         await self.connection.send_message(message)
 
