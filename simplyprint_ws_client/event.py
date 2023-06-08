@@ -1,3 +1,4 @@
+from abc import abstractmethod
 from .timer import Intervals
 from .printer_state import PrinterSettings
 
@@ -7,6 +8,7 @@ from typing import (
     Dict,
     List,
     Any,
+    Union,
 )
 
 class PrinterEvent(Enum):
@@ -39,165 +41,218 @@ class PrinterEvent(Enum):
     INPUT_REQUIRED = "input_required"
     UPDATE_STARTED = "update_started"
     FIRMWARE = "firmware"
-    AI_RESPONSE = "ai_resp"
     WEBCAM_STATUS = "webcam_status"
     UNSAFE_FIRMWARE = "unsafe_firmware"
     FILAMENT_ANALYSIS = "filament_analysis"
     OCTOPRINT_PLUGINS = "octoprint_plugins"
 
 class Event:
-    def __init__(self):        
+    name: str = ""
+    data: Dict[str, Any] = {}
+    
+    # Generic event data
+    def __init__(self, name: str, data: Dict[str, Any] = {}, *args, **kwargs):
+        self.name = self.name or self.__class__.__name__
+        self.data = data
+
+        if self.name != name:
+            raise ValueError(f"Event type {type} does not match event name {self.name}")
+        
+        self.on_event()
+
+    @abstractmethod
+    def on_event(self):
+        """
+        Secondary constructor for events, useful for when the event is received to avoid super calls
+        """
         pass
+
+    def __str__(self):
+        return self.name
 
 class ErrorEvent(Event):
-    def __init__(self, data: Dict[str, Any]):
-        self.error: str = data.get("error", "")
+    name = "error"
+
+    def on_event(self):
+        self.error: str = self.data.get("error", "")
 
 class NewTokenEvent(Event):
-    def __init__(self, data: Dict[str, Any]):
-        self.short_id: str = data.get("short_id", "")
-        self.token: str = data.get("token", "")
-        self.no_exist: bool = data.get("no_exist", False)
+    name = "new_token"
+
+    def on_event(self):
+        self.short_id: str = self.data.get("short_id", "")
+        self.token: str = self.data.get("token", "")
+        self.no_exist: bool = self.data.get("no_exist", False)
 
 class ConnectEvent(Event):
-    def __init__(self, data: Dict[str, Any]):
-        self.in_set_up: bool = data.get("in_set_up", 0) == 1
-        self.intervals: Intervals = Intervals(data.get("interval", {}))
-        self.printer_settings: PrinterSettings = PrinterSettings(data.get("printer_settings", {}))
-        self.short_id: Optional[str] = data.get("short_id")
-        self.reconnect_token: Optional[str] = data.get("reconnect_token")
-        self.name: Optional[str] = data.get("name")
+    name = "connected"
+
+    def on_event(self):
+        self.in_set_up: bool = self.data.get("in_set_up", 0) == 1
+        self.intervals: Intervals = Intervals(self.data.get("interval", {}))
+        self.printer_settings: PrinterSettings = PrinterSettings(self.data.get("printer_settings", {}))
+        self.short_id: Optional[str] = self.data.get("short_id")
+        self.reconnect_token: Optional[str] = self.data.get("reconnect_token")
+        self.name: Optional[str] = self.data.get("name")
 
 class SetupCompleteEvent(Event):
-    def __init__(self, data: Dict[str, Any]):
-        self.printer_id: str = data.get("printer_id", "")
+    name = "complete_setup"
+
+    def on_event(self):
+        self.printer_id: str = self.data.get("printer_id", "")
 
 class IntervalChangeEvent(Event):
-    def __init__(self, data: Dict[str, Any]):
-        self.intervals: Intervals = Intervals(data)
+    name = "interval_change"
+
+    def on_event(self):
+        self.intervals: Intervals = Intervals(self.data)
 
 class PongEvent(Event):
-    def __init__(self):
-        pass
+    name = "pong"
 
 class StreamReceivedEvent(Event):
-    def __init__(self):
-        pass
+    name = "stream_received"
 
 class PrinterSettingsEvent(Event):
-    def __init__(self, data: Dict[str, Any]):
-        self.printer_settings: PrinterSettings = PrinterSettings(data)
+    name = "printer_settings"
 
-class PauseEvent(Event):
-    def __init__(self):
-        pass
+    def on_event(self):
+        self.printer_settings = PrinterSettings(self.data)
 
-class ResumeEvent(Event):
-    def __init__(self):
-        pass
+class DemandEvent(Event):
+    name = "demand"
+    demand: Union[str, List[str]] = ""
 
-class CancelEvent(Event):
-    def __init__(self):
-        pass
+    def __init__(self, name: str, demand: str, data: Dict[str, Any] = {}):
+        super().__init__(name, data)
 
-class TerminalEvent(Event):
-    def __init__(self, data: Dict[str, Any]):
-        self.enabled: bool = data.get("enabled", False)
+        if self.demand not in self.demand:
+            raise ValueError(f"Demand type {name} does not match demand {self.demand}")
 
-class DisplayMessageEvent(Event):
+        self.demand = demand
+
+class PauseEvent(DemandEvent):
+    demand = "pause"
+
+class ResumeEvent(DemandEvent):
+    demand = "resume"
+
+class CancelEvent(DemandEvent):
+    demand = "cancel"
+
+class TerminalEvent(DemandEvent):
+    demand = "terminal"
+
+    def on_event(self):
+        self.enabled: bool = self.data.get("enabled", False)
+
+# TODO; Fix
+class DisplayMessageEvent(DemandEvent):
     def __init__(self, message: str, short_branding: bool = False):
         self.message: str = message
         self.short_branding: bool = short_branding
 
-class GcodeEvent(Event):
-    def __init__(self, data: Dict[str, Any] = {}):
-        self.list: List[str] = data.get("list", [])
+class GcodeEvent(DemandEvent):
+    demand = "gcode"
 
-class WebcamTestEvent(Event):
-    def __init__(self):
-        pass
+    def on_event(self):
+        self.list: List[str] = self.data.get("list", [])
 
-class WebcamSnapshotEvent(Event):
-    def __init__(self, data: Dict[str, Any]):
-        self.id: Optional[str] = data.get("id")
-        self.timer: Optional[int] = data.get("timer")
+class WebcamTestEvent(DemandEvent):
+    demand = "webcam_test"
 
-class FileEvent(Event):
-    def __init__(self, data: Dict[str, Any]):
-        self.url: Optional[str] = data.get("url")
-        self.path: Optional[str] = data.get("path")
-        self.auto_start: bool = bool(data.get("auto_start", 0))
+class WebcamSnapshotEvent(DemandEvent):
+    demand = "webcam_snapshot"
+    
+    def on_event(self):
+        self.id: Optional[str] = self.data.get("id")
+        self.timer: Optional[int] = self.data.get("timer")
 
-class StartPrintEvent(Event):
-    def __init__(self):
-        pass
+class FileEvent(DemandEvent):
+    demand = "file"
 
-class ConnectPrinterEvent(Event):
-    def __init__(self):
-        pass
+    def on_event(self):
+        self.url: Optional[str] = self.data.get("url")
+        self.path: Optional[str] = self.data.get("path")
+        self.auto_start: bool = bool(self.data.get("auto_start", 0))
 
-class DisconnectPrinterEvent(Event):
-    def __init__(self):
-        pass
+class StartPrintEvent(DemandEvent):
+    demand = "start_print"
 
-class SystemRestartEvent(Event):
-    def __init__(self):
-        pass
+class ConnectPrinterEvent(DemandEvent):
+    demand = "connect_printer"
 
-class SystemShutdownEvent(Event):
-    def __init__(self):
-        pass
+class DisconnectPrinterEvent(DemandEvent):
+    demand = "disconnect_printer"
 
-class ApiRestartEvent(Event):
-    def __init__(self):
-        pass
+class SystemRestartEvent(DemandEvent):
+    demand = "system_restart"
 
-class ApiShutdownEvent(Event):
-    def __init__(self):
-        pass
+class SystemShutdownEvent(DemandEvent):
+    demand = "system_shutdown"
 
-class UpdateEvent(Event):
-    def __init__(self):
-        pass
+class ApiRestartEvent(DemandEvent):
+    demand = "api_restart"
 
-class PluginInstallEvent(Event):
-    def __init__(self):
-        pass
+class ApiShutdownEvent(DemandEvent):
+    demand = "api_shutdown"
 
-class PluginUninstallEvent(Event):
-    def __init__(self):
-        pass
+class UpdateEvent(DemandEvent):
+    demand = "update"
 
-class WebcamSettingsEvent(Event):
-    def __init__(self, data: Dict[str, Any]):
-        self.webcam_settings = data.get("webcam_settings")
+class PluginInstallEvent(DemandEvent):
+    demand = "plugin_install"
+
+class PluginUninstallEvent(DemandEvent):
+    demand = "plugin_uninstall"
+
+class WebcamSettingsEvent(DemandEvent):
+    demand = "webcam_settings_updated"
+    def on_event(self):
+        self.webcam_settings = self.data.get("webcam_settings")
 
 # deprecated
-class StreamOnEvent(Event):
-    def __init__(self, data: Dict[str, Any]):
-        self.interval: float = data.get("interval", 300.0) / 1000.0
+class StreamOnEvent(DemandEvent):
+    demand = "stream_on"
+
+    def on_event(self):
+        self.interval: float = self.data.get("interval", 300.0) / 1000.0
 
 # deprecated
-class StreamOffEvent(Event):
-    def __init__(self):
-        pass
+class StreamOffEvent(DemandEvent):
+    demand = "stream_off"
 
-class SetPrinterProfileEvent(Event):
-    def __init__(self, data: Dict[str, Any]):
-        self.profile = data.get("printer_profile")
+class SetPrinterProfileEvent(DemandEvent):
+    demand = "set_printer_profile"
 
-class GetGcodeScriptBackupsEvent(Event):
-    def __init__(self, data: Dict[str, Any]):
-        self.force = data.get("force", False)
+    def on_event(self):
+        self.profile = self.data.get("printer_profile")
 
-class HasGcodeChangesEvent(Event):
-    def __init__(self, data: Dict[str, Any]):
-        self.scripts = data.get("scripts")
+class GetGcodeScriptBackupsEvent(DemandEvent):
+    demand = "get_gcode_script_backups"
 
-class PsuControlEvent(Event):
-    def __init__(self, on: bool):
-        self.on: bool = on
+    def on_event(self):
+        self.force = self.data.get("force", False)
 
-class DisableWebsocketEvent(Event):
-    def __init__(self, data: Dict[str, Any]):
-        self.websocket_ready: bool = data.get("websocket_ready", False)
+class HasGcodeChangesEvent(DemandEvent):
+    demand = "has_gcode_changes"
+
+    def on_event(self):
+        self.scripts = self.data.get("scripts")
+
+class PsuControlEvent(DemandEvent):
+    demand = ["psu_on", "psu_off", "psu_keepalive"]
+
+    def on_event(self):
+        self.on: bool = self.demand != "psu_off"
+
+class DisableWebsocketEvent(DemandEvent):
+    demand = "disable_websocket"
+
+    def on_event(self):
+        self.websocket_ready: bool = self.data.get("websocket_ready", False)
+
+
+# Construct hashmap of events (sub-hashmap for demands)
+events: Dict[str, Union[Event, Dict[str, Event]]] = { event.name: event for event in Event.__subclasses__() if event.name != "demand" }
+events["demand"] = { demand: event for event in DemandEvent.__subclasses__() for demand in (event.demand if isinstance(event.demand, list) else [event.demand]) }

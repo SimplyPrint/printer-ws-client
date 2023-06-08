@@ -10,7 +10,6 @@ class Intervals:
         self.target_temperatures: float = data.get("temps_target", 2500.0) / 1000.0
         self.cpu: float = data.get("cpu", 30000.0) / 1000.0
         self.reconnect: float = data.get("reconnect", 1000.0) / 1000.0
-        self.ai: float = data.get("ai", 60000.0) / 1000.0
         self.ready: float = data.get("ready_message", 60000.0) / 1000.0
         self.ping: float = data.get("ping", 20000.0) / 1000.0
 
@@ -19,7 +18,6 @@ class Intervals:
         self.target_temperatures_last_update: datetime = datetime.now() - timedelta(seconds=self.target_temperatures)
         self.cpu_last_update: datetime = datetime.now() - timedelta(seconds=self.cpu)
         self.reconnect_last_update: datetime = datetime.now() - timedelta(seconds=self.reconnect)
-        self.ai_last_update: datetime = datetime.now() - timedelta(seconds=self.ai)
         self.ready_last_update: datetime = datetime.now() - timedelta(seconds=self.ready)
         self.ping_last_update: datetime = datetime.now() - timedelta(seconds=self.ping)
 
@@ -27,7 +25,6 @@ class Intervals:
         self.temperatures_updating: bool = False
         self.cpu_updating: bool = False
         self.reconnect_updating: bool = False
-        self.ai_updating: bool = False
         self.ready_updating: bool = False
         self.ping_updating: bool = False
 
@@ -37,7 +34,6 @@ class Intervals:
         self.target_temperatures = other.target_temperatures
         self.cpu = other.cpu
         self.reconnect = other.reconnect
-        self.ai = other.ai
         self.ready = other.ready
         self.ping = other.ping
 
@@ -105,19 +101,6 @@ class Intervals:
             await asyncio.sleep(remaining) 
 
         self.reconnect_last_update = datetime.now()
-
-    async def sleep_until_ai(self):
-        next_update = self.ai_last_update + timedelta(seconds=self.ai)
-        if datetime.now() > next_update:
-            self.ai_last_update = datetime.now()
-            return
-
-        remaining = (next_update - datetime.now()).total_seconds()
-
-        if remaining > 0.0:
-            await asyncio.sleep(remaining) 
-
-        self.ai_last_update = datetime.now()
 
     async def sleep_until_ready(self):
         next_update = self.ready_last_update + timedelta(seconds=self.ready)

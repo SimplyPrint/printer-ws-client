@@ -4,14 +4,16 @@ import logging
 import math
 
 from simplyprint_ws_client import * 
+from simplyprint_ws_client.multiconnection import Client
 
 def exponential_smoothing(new_value: float, old_value: float, alpha: float, dt: float) -> float:
     factor = 1 - math.exp(-dt * alpha)
     return old_value + factor * (new_value - old_value)
 
 class VirtualPrinter(Client):
-    def __init__(self):
-        logging.basicConfig(level=logging.DEBUG)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args)
+        logging.basicConfig(level=kwargs.get("log_level", logging.INFO))
 
         self.info.api = "Virtual"
         self.info.api_version = "0.1"
@@ -82,7 +84,7 @@ class VirtualPrinter(Client):
 
             tool.actual = exponential_smoothing(target, tool.actual, 0.1, dt) 
     
-    def run(self):
+    async def run(self):
         self.start()
 
         while True: 
@@ -96,4 +98,4 @@ class VirtualPrinter(Client):
 
 if __name__ == "__main__":
     printer = VirtualPrinter()
-    printer.run()
+    asyncio.run(printer.run())

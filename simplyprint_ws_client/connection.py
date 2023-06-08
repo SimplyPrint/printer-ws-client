@@ -4,15 +4,17 @@ import requests
 from tornado.websocket import WebSocketClientConnection, WebSocketClosedError, websocket_connect
 from logging import Logger
 
-from simplyprint_ws_client.const import REACHABLE_URL, WEBSOCKET_URL
+from .const import REACHABLE_URL, WEBSOCKET_URL
 
-from .event import *
+from .event import events, Event
 
 from typing import (
-    Optional, 
-    Dict, 
-    Any, 
+    Optional,
+    Dict,
+    Any,
+    Union,
 )
+
 
 class Connection:
     def __init__(self, logger: Logger) -> None:
@@ -55,7 +57,7 @@ class Connection:
 
         msg = (
             f"SimplyPrint Disconnected - Code: {code} Reason: {reason}"
-        ) 
+        )
 
         self.logger.info(msg)
 
@@ -64,7 +66,7 @@ class Connection:
             raise Exception("not connected")
 
         try:
-            fut = self.ws.write_message(message);
+            fut = self.ws.write_message(message)
         except WebSocketClosedError:
             self._log_disconnect()
 
@@ -73,14 +75,13 @@ class Connection:
 
         await fut
 
-    
     async def read_message(self) -> Optional[str]:
         if self.ws is None:
             raise Exception("not connected")
 
         message = await self.ws.read_message()
 
-        if message is None: 
+        if message is None:
             self._log_disconnect()
 
             # remove websocket
@@ -104,53 +105,17 @@ class Connection:
             self.logger.debug(f"Invalid message, not JSON: {message}")
             return None
 
-        event: str = packet.get("type", "")
+        name: str = packet.get("type", "")
+        demand = packet.get("demand", "")
         data: Dict[str, Any] = packet.get("data", {})
 
-        if event == "demand":
-            demand = data.get("demand", "UNDEFINED")
-            
-            if demand == "pause": return PauseEvent()
-            elif demand == "resume": return ResumeEvent()
-            elif demand == "cancel": return CancelEvent()
-            elif demand == "terminal": return TerminalEvent(data)
-            elif demand == "gcode": return GcodeEvent(data)
-            elif demand == "test_webcam": return WebcamTestEvent()
-            elif demand == "webcam_snapshot": return WebcamSnapshotEvent(data)
-            elif demand == "file": return FileEvent(data)
-            elif demand == "start_print": return StartPrintEvent()
-            elif demand == "connect_printer": return ConnectPrinterEvent()
-            elif demand == "disconnect_printer": return DisconnectPrinterEvent()
-            elif demand == "system_restart": return SystemRestartEvent()
-            elif demand == "system_shutdown": return SystemShutdownEvent()
-            elif demand == "api_restart": return ApiRestartEvent()
-            elif demand == "api_shutdown": return ApiShutdownEvent()
-            elif demand == "update": return UpdateEvent()
-            elif demand == "plugin_install": return PluginInstallEvent()
-            elif demand == "plugin_uninstall": return PluginUninstallEvent()
-            elif demand == "webcam_settings_updated": return WebcamSettingsEvent(data)
-            elif demand == "stream_on": return StreamOnEvent(data)
-            elif demand == "stream_off": return StreamOffEvent()
-            elif demand == "set_printer_profile": return SetPrinterProfileEvent(data)
-            elif demand == "get_gcode_script_backups": return GetGcodeScriptBackupsEvent(data)
-            elif demand == "has_gcode_changes": return HasGcodeChangesEvent(data)
-            elif demand == "psu_off": return PsuControlEvent(False)
-            elif demand == "psu_on": return PsuControlEvent(True)
-            elif demand == "psu_keepalive": return PsuControlEvent(True)
-            elif demand == "disable_websocket": return DisableWebsocketEvent(data)
-            else:
-                # Return what ever
-                self.logger.debug(f"Unknown demand: {demand} data: {data}")
-                return None
-        elif event == "error": return ErrorEvent(data)
-        elif event == "new_token": return NewTokenEvent(data)
-        elif event == "connected": return ConnectEvent(data)
-        elif event == "pause": return PauseEvent()
-        elif event == "complete_setup": return SetupCompleteEvent(data)
-        elif event == "interval_change": return IntervalChangeEvent(data)
-        elif event == "pong": return PongEvent()
-        elif event == "stream_received": return StreamReceivedEvent()
-        elif event == "printer_settings": return PrinterSettingsEvent(data)
-        else:
-            self.logger.debug(f"Unknown event: {event} data: {data}")
+        event: Union[Event, Dict[str, Event]] = events.get(name, None)
+
+        if isinstance(event, dict) and event is not None:
+            event: Event = event.get(demand, None)
+
+        if event is None:
+            self.logger.debug(f"Invalid event '{name}' or demand '{demand}'")
             return None
+
+        return event(name=name, demand=demand, data=data)
