@@ -61,7 +61,7 @@ class PrinterMachineData(ClientState):
     sp_version = Unicode()
     python_version = Unicode()
     is_ethernet = Bool()
-    ssid = Unicode()
+    ssid = Unicode(allow_none=True)
     local_ip = Unicode()
     hostname = Unicode()
     core_count = Int()
@@ -71,6 +71,7 @@ class PrinterMachineData(ClientState):
     event_map = {
         DEFAULT_EVENT: MachineDataEvent,
     }
+        
 
 class PrinterDisplaySettings(ClientState):
     enabled: bool = Bool()
@@ -187,8 +188,6 @@ class PrinterState(RootState):
     status: PrinterStatus = TraitletsEnum(PrinterStatus)
     current_display_message: Optional[str] = Unicode()
 
-    ambient_temperature = Float()
-
     bed_temperature: Temperature = Instance(Temperature)
     tool_temperatures = TraitletsList(Instance(Temperature))
 
@@ -209,6 +208,29 @@ class PrinterState(RootState):
         PrinterFileProgressState)
     filament_sensor: PrinterFilamentSensorState = Instance(
         PrinterFilamentSensorState)
+    
+    def __init__(self, extruder_count: int=1) -> None:
+        super().__init__(
+            name="printer",
+            connected=False,
+            in_setup=False,
+            status=PrinterStatus.OFFLINE,
+            bed_temperature=Temperature(),
+            tool_temperatures=[Temperature() for _ in range(extruder_count)],
+            ambient_temperature=AmbientTemperatureState(),
+            machine_data=PrinterMachineData(),
+            settings=PrinterSettings(),
+            display_settings=PrinterDisplaySettings(),
+            firmware=PrinterFirmware(),
+            cpu_info=CpuInfoState(),
+            webcam_info=WebcamState(),
+            webcam_settings=WebcamSettings(),
+            job_info=JobInfoState(),
+            psu_info=PrinterPSUState(),
+            ping_pong=PingPongState(),
+            file_progress=PrinterFileProgressState(),
+            filament_sensor=PrinterFilamentSensorState()
+        )
 
     event_map = {
         "status": StateChangeEvent,

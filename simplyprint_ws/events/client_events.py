@@ -1,7 +1,9 @@
 from abc import abstractmethod
 from typing import TYPE_CHECKING, Dict, Generator, Tuple, Optional, Set, Any
+from toml import TomlDecoder
 
 from traitlets import HasTraits
+
 from ..const import VERSION
 
 from enum import Enum
@@ -46,35 +48,37 @@ class PrinterEvent(Enum):
 class ClientEvent:
     event_type: str
     
-    state: Optional["PrinterState"]
+    state: Any
+    forClient: Optional[int]
     data: Optional[Dict[str, Any]]
-    changed_fields: Optional[Dict[int, Set[str]]]
 
-    def __init__(self, state: Optional["PrinterState"] = None, changed_fields: Optional[Dict[str, str]] = None, data: Optional[Dict[str, Any]] = None) -> None:
+    def __init__(self, state = None, forClient: Optional[int] = None, data: Optional[Dict[str, Any]] = None) -> None:
         """
         state (PrinterState): The state of the printer at the time of the event.
-        changed_fields (Dict[str, str]): In combination with the state, this is used to determine which fields have changed since the last event.
+        forClient (int): Id of client event belongs to
         data (Optional[Dict[str, Any]], optional): Custom data to send with the event. Defaults to None.
         """
         self.state = state
+        self.forClient = forClient
         self.data = data
-        self.changed_fields = changed_fields or {}
 
     @abstractmethod
     def generate_data(self) -> Optional[Generator[Tuple, None, None]]:
         pass
 
-    def generate(self) -> Dict:
-        # Walrus operator is available in Python 3.8 and above
-        if self.data or (data_generator := self.generate_data()):
-            data = self.data or dict(data_generator)
+    def generate(self) -> Generator[Tuple, None, None]:
+        yield "type", self.event_type
 
-            return {
-                "type": self.event_type,
-                "data": data,
-            }
+        if not self.forClient is None and self.forClient != 0:
+            yield "for", self.forClient
 
-        return { "type": self.event_type }
+        if self.data is not None:
+            yield "data", self.data
+        elif (data_generator := self.generate_data()) is not None:
+            yield "data", dict(data_generator)
+
+    def as_dict(self) -> Dict[str, Any]:
+        return dict(self.generate())
 
 class GcodeScriptsEvent(ClientEvent):
     event_type = "gcode_scripts"
@@ -84,7 +88,7 @@ class MachineDataEvent(ClientEvent):
     
     def generate_data(self) -> Generator[Tuple, None, None]:
         for key, value in self.state.machine_data.trait_values().items():
-            if key in self.changed_fields[id(self.state.machine_data)]:
+            if self.state.has_changed(self.state.machine_data, key):
                 yield key, value
     
 class WebcamStatusEvent(ClientEvent):
@@ -98,7 +102,7 @@ class WebcamEvent(ClientEvent):
 
     def generate_data(self) -> Generator[Tuple, None, None]:
         for key, value in self.state.webcam_settings.trait_values().items():
-            if key in self.changed_fields[id(self.state.webcam_settings)]:
+            if self.state.has_changed(self.state.webcam_settings, key):
                 yield key, value
 
 class InstalledPluginsEvent(ClientEvent):
@@ -112,7 +116,7 @@ class FirmwareEvent(ClientEvent):
 
     def generate_data(self) -> Generator[Tuple, None, None]:
         for key, value in self.state.firmware.trait_values().items():
-            if key in self.changed_fields[id(self.state.firmware)]:
+            if self.state.has_changed(self.state.firmware, key):
                 yield f"firmware_{key}", value
 
 class FirmwareWarningEvent(ClientEvent):
@@ -132,11 +136,11 @@ class TemperatureEvent(ClientEvent):
     event_type = PrinterEvent.TEMPERATURES.value
 
     def generate_data(self) -> Generator[Tuple, None, None]:
-        if len(self.changed_fields[id(self.state.bed_temperature)]) > 0:
+        if self.state.has_changed(self.state.bed_temperature):
             yield "bed", self.state.bed_temperature.to_list()
 
         for i, tool in enumerate(self.state.tool_temperatures):
-            if len(self.changed_fields[id(tool)]) > 0:
+            if self.state.has_changed(TomlDecoder):
                 yield f"tool{i}", tool.to_list()
 
 class AmbientTemperatureEvent(ClientEvent):
@@ -159,7 +163,7 @@ class JobInfoEvent(ClientEvent):
 
     def generate_data(self) -> Generator[Tuple, None, None]:
         for key, value in self.state.job_info.trait_values().items():
-            if key in self.changed_fields[id(self.state.job_info)]:
+            if self.state.has_changed(self.state.job_info, key):
                 yield key, value
 
 # TODO in the future
@@ -196,7 +200,7 @@ class FileProgressEvent(ClientEvent):
 
         for key, value in self.state.file_progress.trait_values().items():
             if key == "state": continue
-            if key in self.changed_fields[id(self.state.file_progress)]:
+            if self.state.has_changed(self.state.file_progress, key):
                 yield key, value
 
 class FilamentSensorEvent(ClientEvent):
@@ -216,7 +220,7 @@ class CpuInfoEvent(ClientEvent):
 
     def generate_data(self) -> Generator[Tuple, None, None]:
         for key, value in vars(self.state.cpu_info).get("_trait_values", dict()).items():
-            if key in self.changed_fields[id(self.state.cpu_info)]:
+            if self.state.has_changed(self.state.cpu_info, key):
                 yield key, value
 
 class MeshDataEvent(ClientEvent):

@@ -4,12 +4,12 @@ import asyncio
 from typing import Coroutine, Type, Dict, Callable, List
 
 from simplyprint_ws.config import Config
-from .info import ClientInfo
+from .sentry import Sentry
 from .machine import Machine
 from ..config import Config, ConfigManager
 from ..events import Events, Demands, ClientEvent
 from ..printer import PrinterState
-from ..helpers.timer import Intervals
+from ..helpers.ratelimit import Intervals
 
 class Client:
     """
@@ -21,7 +21,7 @@ class Client:
 
     config: Config
     printer: PrinterState
-    info: ClientInfo
+    sentry: Sentry
     machine: Machine
     intervals: Intervals
     handles: Dict[Events.ServerEvent, List[Callable[[Events.ServerEvent], Coroutine]]] = {}
@@ -30,8 +30,7 @@ class Client:
     def __init__(self, config: Config):
         self.config = config
         self.printer = PrinterState()
-
-        self.info = ClientInfo()
+        self.sentry = Sentry()
         self.machine = Machine()
         self.intervals = Intervals()
         
@@ -58,6 +57,8 @@ class Client:
 
         if before is not None:
             event = await before(event)
+
+        print(event.data)
 
         if handle is not None:
             await handle(event)
@@ -103,13 +104,13 @@ class DefaultClient(Client):
         return event
     
     @Events.NewTokenEvent.before
-    async def on_new_token(self, event: Events.NewTokenEvent) -> Events.NewTokenEvent:
+    async def before_new_token(self, event: Events.NewTokenEvent) -> Events.NewTokenEvent:
         self.config.token = event.token
         ConfigManager.persist_config(self.config)
         return event
     
     @Events.ConnectEvent.before
-    async def on_connect(self, event: Events.ConnectEvent) -> Events.ConnectEvent:
+    async def before_connect(self, event: Events.ConnectEvent) -> Events.ConnectEvent:
         self.intervals.update(event.intervals)
         self.printer.connected = True
         self.printer.name = event.printer_name
@@ -118,10 +119,11 @@ class DefaultClient(Client):
 
         if self.printer.in_setup:
             self.printer.current_display_message = "In setup with Code: " + event.short_id
+
         return event
     
     @Events.SetupCompleteEvent.before
-    async def on_setup_complete(self, event: Events.SetupCompleteEvent) -> Events.SetupCompleteEvent:
+    async def before_setup_complete(self, event: Events.SetupCompleteEvent) -> Events.SetupCompleteEvent:
         self.config.id = event.printer_id
         self.printer.in_setup = False
         ConfigManager.persist_config(self.config)
@@ -129,22 +131,22 @@ class DefaultClient(Client):
         return event
     
     @Events.IntervalChangeEvent.before
-    async def on_interval_change(self, event: Events.IntervalChangeEvent) -> Events.IntervalChangeEvent:
+    async def before_interval_change(self, event: Events.IntervalChangeEvent) -> Events.IntervalChangeEvent:
         self.intervals.update(event.intervals)
         return event
     
     @Events.PongEvent.before
-    async def on_pong(self, event: Events.PongEvent) -> Events.PongEvent:
+    async def before_pong(self, event: Events.PongEvent) -> Events.PongEvent:
         self.printer.ping_pong.pong = time.time()
         return event
     
     @Events.StreamReceivedEvent.before
-    async def on_stream_received(self, event: Events.StreamReceivedEvent) -> Events.StreamReceivedEvent:
+    async def before_stream_received(self, event: Events.StreamReceivedEvent) -> Events.StreamReceivedEvent:
         # TODO
         return event
     
     @Events.PrinterSettingsEvent.before
-    async def on_printer_settings(self, event: Events.PrinterSettingsEvent) -> Events.PrinterSettingsEvent:
+    async def before_printer_settings(self, event: Events.PrinterSettingsEvent) -> Events.PrinterSettingsEvent:
         self.printer.settings.has_psu = event.printer_settings.has_psu
         self.printer.settings.has_filament_sensor = event.printer_settings.has_filament_sensor
         self.printer.display_settings.branding = event.display_settings.branding
@@ -154,5 +156,5 @@ class DefaultClient(Client):
         return event
     
     @Demands.PauseEvent.before
-    async def on_pause(self, event: Demands.PauseEvent) -> Demands.PauseEvent:
+    async def before_pause(self, event: Demands.PauseEvent) -> Demands.PauseEvent:
         return event

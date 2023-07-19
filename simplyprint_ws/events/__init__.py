@@ -22,18 +22,3 @@ def get_event(name: str, demand: Optional[str] = None, data: Dict[str, any] = {}
         return events[name](name, data)
     else:
         return events[DemandEvent][demand](name, demand, data)
-    
-def parse_event_dict(event: Dict[str, any]) -> ServerEvent:
-    name: str = event.get("type", "")
-    data: Dict[str, Any] = event.get("data", {})
-    demand: Optional[str] = data.get("demand", None)
-
-    try:
-        return get_event(name, demand, data)
-    except KeyError as e:
-        # Unknown event type e.args[0]
-        # Logging here
-
-        logging.getLogger("events").error(f"Unknown event type {e.args[0]}")
-
-        return None

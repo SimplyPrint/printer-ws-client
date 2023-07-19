@@ -6,7 +6,6 @@ import subprocess
 import socket
 import netifaces
 
-from .info import ClientInfo
 from typing import Optional
 
 class Machine:
@@ -36,13 +35,8 @@ class Machine:
             "flags": 0,
         }
 
-    def get_machine_data(self, info: ClientInfo):
+    def get_machine_data(self):
         return {
-            "ui": info.ui,
-            "ui_version": info.ui_version,
-            "api": info.api,
-            "api_version": info.api_version,
-            "sp_version": info.sp_version,
             "python_version": self.python_version(),
             "machine": self.machine(),
             "os": self.os(),

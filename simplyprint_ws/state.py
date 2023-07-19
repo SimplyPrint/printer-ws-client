@@ -1,5 +1,8 @@
-from typing import Set, List, Dict, Any
+from typing import Optional, Set, List, Dict, Any, Type
+from numpy import isin
 from traitlets import HasTraits
+
+from simplyprint_ws.events.client_events import ClientEvent
 
 DEFAULT_EVENT = "__default__"
 
@@ -14,7 +17,7 @@ class ClientState(HasTraits):
     event_map: Dict[str, Any]
 
 class RootState(HasTraits):
-    _dirty: Set
+    _dirty: Set[Type[ClientEvent]]
     _changed_fields: Dict[int, Set[str]]
     event_map: Dict[str, Any]
 
@@ -45,24 +48,41 @@ class RootState(HasTraits):
         owner = change['owner']
         self._changed_fields[id(owner)].add(change['name'])
 
+        # If the change from old to new is an object, replace the id() in _changed_fields
+        # and add all its fields to it, so to mark the entire object as "changed"
+        #if isinstance(change["old"], HasTraits) and isinstance(change["new"], HasTraits):
+        #    self._changed_fields[id(change["new"])] = change["new"].trait_names()
+        #    del self._changed_fields[id(change["old"])]
+
         if not hasattr(owner, 'event_map'):
             return
 
-        event = owner.event_map.get(change['name'], owner.event_map.get(DEFAULT_EVENT, self.event_map.get(change['name'], None)))
+        event = owner.event_map.get(change['name']) or owner.event_map.get(DEFAULT_EVENT) or self.event_map.get(change['name'])
 
         if event is None:
             return
                 
         self._dirty.add(event)
 
-    def _build_events(self):
+    def _build_events(self, forClient: Optional[int] = None):
         """Generator - creates :class:`ClientEvent` instances from dirty"""
 
         while self._dirty:
             client_event = self._dirty.pop()
-            yield client_event(self, self._changed_fields)
+            yield client_event(state=self, forClient=forClient)
         
-        self._changed_fields = {
-            key: set() for key in self._changed_fields.keys()
-        }
+    
+    def has_changed(self, obj: HasTraits, name: Optional[str] = None):
+        """Check if a field has changed since last update"""
+        if name is None:
+            predicate = len(self._changed_fields[id(obj)]) > 0
+            if predicate:
+                self._changed_fields[id(obj)].clear()
+            return predicate
 
+        predicate = name in self._changed_fields[id(obj)]
+        
+        if predicate:
+            self._changed_fields[id(obj)].remove(name)
+
+        return predicate

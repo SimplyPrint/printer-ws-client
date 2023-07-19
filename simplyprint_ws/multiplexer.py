@@ -1,20 +1,15 @@
-from enum import Enum
-import time
-import json
 import logging
 import asyncio
 import threading
 
-from tornado import httpclient
-from tornado.websocket import WebSocketClientConnection, websocket_connect
+from enum import Enum
+from typing import Dict, List, Optional
 
-from .events import ClientEvent, ServerEvent, parse_event_dict, get_event, events
+from .websocket import SimplyPrintWebSocket
+from .events import ClientEvent, ServerEvent
 from .config import Config
 from .const import WEBSOCKET_URL, API_VERSION
 from .client.client import Client
-
-from abc import abstractmethod
-from typing import Any,Dict, Optional, Tuple
 
 class MultiplexerAddPrinterEvent(ClientEvent):
     event_type = "add_connection"
@@ -35,16 +30,12 @@ class Multiplexer:
     mode: MultiplexerMode = MultiplexerMode.SINGLE
     connect_timeout: Optional[float]
 
-    websocket: Optional[WebSocketClientConnection] = None
+    ws: Optional[SimplyPrintWebSocket] = None
     clients: Dict[Config, Client] = {}
 
-    write_queue = asyncio.Queue(maxsize=10000000)
-
-    event_producer_loop: Optional[asyncio.Task] = None
-    write_consumer_loop: Optional[asyncio.Task] = None
-    write_producer_loop: Optional[asyncio.Task] = None
-
-    client_tasks = []
+    tasks_handles = []
+    tasks_updates = []
+    threads: List[threading.Thread] = []
 
     logger: logging.Logger = logging.getLogger("multiplexer")
 
@@ -57,41 +48,6 @@ class Multiplexer:
     def get_url(self, config: Optional[Config] = None):
         return f"{WEBSOCKET_URL}/{API_VERSION}/{self.mode.value}" + (f"/{config.id}/{config.token}" if config.id is not None and config.id != 0 else "/0/0")
 
-    async def connect(self):
-        if self.websocket is not None:
-            self.logger.warn("Already connected to websocket")
-            return
-
-        self.websocket = await websocket_connect(self.url, connect_timeout=self.connect_timeout)
-
-        if self.websocket is None:
-            self.logger.critical("Failed to connect to websocket")
-            raise Exception("Failed to connect to websocket")
-        
-        self.logger.info(f"Connected to websocket {self.url}")
-        
-    async def reconnect(self):
-        self.logger.info("Attempting to reconnect to websocket")
-        while self.websocket is None:
-            try:
-                await self.connect()
-            except Exception as e:
-                self.logger.error("Failed to connect to websocket with error: " + str(e) + ". Retrying in 1 second")
-                await asyncio.sleep(1)
-        
-        self.logger.info("Reconnected to websocket")
-
-    async def on_disconnect(self):
-        self.logger.warn(f"Websocket disconnected with code {self.websocket.close_code if self.websocket else None} and reason {self.websocket.close_reason if self.websocket else None}")
-        
-        for client in self.clients.values():
-            client.is_connected = False
-
-        if self.websocket is not None:
-            self.websocket.close()
-            self.websocket = None
-
-        await self.reconnect()
 
     def add_client(self, config: Config, client: Client):
         def send_handle(event: ClientEvent):
@@ -101,16 +57,16 @@ class Multiplexer:
 
         self.clients[config] = client
 
-        if self.websocket is None:
+        if self.ws is None:
             # If the websocket is already closed, we can't connect
-            self.clients[config].is_connected = False
+            self.clients[config].printer.connected = False
             return
 
     def remove_client(self, config: Config):
         if not config in self.clients:
             return
         
-        if self.clients[config].is_connected:
+        if self.clients[config].printer.connected:
             # TODO disconnect from websocket
             pass
 
@@ -118,143 +74,85 @@ class Multiplexer:
 
     
     def client_send_handle(self, event: ClientEvent, config: Config):
-        try:
-            self.write_queue.put_nowait((event, config))
-        except asyncio.QueueFull:
-            self.logger.error("Write queue full")
+        event.forClient = config.id
+        self.tasks_handles.append(self.ws.send_event(event))
+
+    def on_event(self, event: ServerEvent):
+        if self.mode == MultiplexerMode.SINGLE:
+            assert len(self.clients) == 1
+            client = list(self.clients.values())[0]
+            self.tasks_handles.append(client.handle_event(event))
             return
-        
-    async def client_tasks_loop(self):
+
+        forClient: Optional[int] = event.pop("for")
+
+        if event is None:
+            self.logger.error("Received invalid event from websocket")
+            return
+
+        if not forClient in self.clients:
+            self.logger.error(f"Received event for unknown client {forClient}")
+            return
+
+        self.tasks_handles.append(self.clients[forClient].handle_event(event))
+
+    async def poll_events(self):
+        """
+        Poll events from the websocket and send them to the clients.
+        """
         while True:
-            popped_tasks = self.client_tasks.copy()
-            self.client_tasks.clear()
+            await self.ws.poll_event()
+
+    async def task_consumer_handles(self):
+        while True:
+            popped_tasks = self.tasks_handles.copy()
             await asyncio.gather(*popped_tasks)
 
-    async def send_item(self, item: Tuple[ClientEvent, Config]):
-        event, config = item
-        message = event.generate()
-
-        if self.mode == MultiplexerMode.MULTIPRINTER:
-            message["for"] = config.id
-
-        try:
-            await self.websocket.write_message(json.dumps(message))
-        except Exception:
-            self.logger.error("Failed to write to websocket")
-            await self.on_disconnect()
-
-    async def write_queue_consumer(self):
-        """
-        This loop is responsible for writing to the websocket 
-        from the write queue and sending it to the server
-        """
-        self.logger.info("Starting write queue consumer loop")
-
+            for task in popped_tasks:
+                self.tasks_handles.remove(task)
+    
+    async def task_consumer_updates(self):
         while True:
-            if self.websocket is None:
-                continue
+            popped_tasks = self.tasks_updates.copy()
+            await asyncio.gather(*popped_tasks)
 
-            try:
-                item: Tuple[ClientEvent, Config] = await self.write_queue.get()
-            except asyncio.QueueEmpty:
-                continue
+            for task in popped_tasks:
+                self.tasks_updates.remove(task)
 
-            await self.send_item(item)
-            self.write_queue.task_done()
-
-    async def write_queue_producer(self):
-        """ 
-        Compile dirty state into events from clients and put into write queue
-        """
-        self.logger.info("Starting write queue producer loop")
-
-        while True:
-            for config, client in self.clients.items():
-                if not client.is_connected:
-                    continue
-                    
-                for event in client.printer._build_events():
-                    await self.write_queue.put((event, config))
-
-    async def event_queue_producer(self):
+    def task_producer(self):
         self.logger.info("Starting event queue producer loop")
 
         while True:
-            if self.websocket is None:
-                await self.on_disconnect()
-
-            message = await self.websocket.read_message()
-
-            if message is None:
-                await self.on_disconnect()
-                continue
-            
-            if message is bytes:
-                self.logger.error("Received bytes from websocket")
-                continue
-            
-            try:
-                event: Dict[str, Any] = json.loads(message)
-            except json.JSONDecodeError:
-                self.logger.error("Received invalid JSON from websocket")
-                continue
-            
-            event: Optional[ServerEvent] = parse_event_dict(event)
-
-            if self.mode == MultiplexerMode.SINGLE:
-                assert len(self.clients) == 1
-                client = list(self.clients.values())[0]
-                self.client_tasks.append(client.handle_event(event))
-                continue
-
-            forClient: Optional[int] = event.pop("for", None)
-
-            if event is None:
-                self.logger.error("Received invalid event from websocket")
-                continue
-
-            if not forClient in self.clients:
-                self.logger.error(f"Received event for unknown client {forClient}")
-                continue
-
-            self.client_tasks.append(self.clients[forClient].handle_event(event))
+            for config, client in self.clients.items():
+                if not client.printer.connected:
+                    continue
+                    
+                for event in client.printer._build_events(config.id):
+                    self.tasks_updates.append(self.ws.send_event(event))
 
     async def start(self):
         """
         Do connection and read/write loops.
         """
-        await self.reconnect()
-        
-        self.write_consumer_loop = asyncio.create_task(self.write_queue_consumer())
-        self.event_producer_loop = asyncio.create_task(self.event_queue_producer())
-        self.write_producer_loop = asyncio.create_task(self.write_queue_producer())
+        self.ws = await SimplyPrintWebSocket.from_url(self.url, self.on_event, asyncio.get_running_loop(), self.connect_timeout)
 
-        self.client_thread = threading.Thread(target=asyncio.run, args=(self.client_tasks_loop(),), daemon=True)
-        self.client_thread.start()
+        self.threads.append(threading.Thread(target=asyncio.run, args=(self.task_consumer_updates(),), daemon=True))
+        self.threads.append(threading.Thread(target=asyncio.run, args=(self.task_consumer_handles(),), daemon=True))
+        self.threads.append(threading.Thread(target=self.task_producer, daemon=True))
+
+        for thread in self.threads:
+            thread.start()
 
         # run the loops concurrently
-        await asyncio.gather(self.event_producer_loop, self.write_producer_loop, self.write_consumer_loop)
+        await self.poll_events()
 
-    def stop(self):
+    async def stop(self):
         """
         Stop the multiplexer.
         """
-        if self.websocket is not None:
-            self.websocket.close()
+        if self.ws is not None:
+            await self.ws.close()
 
-        if self.event_producer_loop is not None:
-            self.event_producer_loop.cancel()
-            self.event_producer_loop = None
-        
-        if self.write_producer_loop is not None:
-            self.write_producer_loop.cancel()
-            self.write_producer_loop = None
-
-        if self.write_consumer_loop is not None:
-            self.write_consumer_loop.cancel()
-            self.write_consumer_loop = None
-
-        if self.client_thread is not None:
-            self.client_thread.join()
-            self.client_thread = None
+        for thread in self.threads:
+            thread.join()
 

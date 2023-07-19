@@ -70,7 +70,7 @@ class ConfigManager:
         except sqlite3.IntegrityError:
             if config.id == get_pending_config().id:
                 ConfigManager.db.execute("UPDATE configs SET id = ? WHERE token = ?", (config.id, config.token))
-                ConfigManager.logger.info(f"Updated config {config} by id")
+                ConfigManager.logger.info(f"Updated config {config} by token")
             else:
                 ConfigManager.db.execute("UPDATE configs SET token = ? WHERE id = ?", (config.token, config.id))
                 ConfigManager.logger.info(f"Updated config {config} by token")

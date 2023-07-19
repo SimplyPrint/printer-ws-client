@@ -1,6 +1,6 @@
 [tool.poetry]
-name = "simplyprint-ws-client"
-version = "0.0.6"
+name = "simplyprint-ws"
+version = "1.0.0"
 license = "AGPL-3.0-or-later"
 authors = ["SimplyPrint <contact@simplyprint.io>"]
 description = "SimplyPrint Websocket Client"
@@ -10,17 +10,16 @@ keywords = ["simplyprint", "websocket", "client"]
 readme = "README.md"
 
 packages = [
-    { include = "simplyprint_ws_client" },
+    { include = "simplyprint_ws" },
 ]
 
 [tool.poetry.dependencies]
+aiohttp = "^3.8.4"
 python = "^3.8"
-tornado = "^6.2"
 psutil = "^5.9.4"
 sentry-sdk = "^1.18.0"
 netifaces = "^0.11.0"
 requests = "^2.28.2"
-opencv-python = "^4.7.0.72"
 
 [tool.poetry.urls]
 "Bug Tracker" = "https://github.com/SimplyPrint/printer-ws-client/issues"

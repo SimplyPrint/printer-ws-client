@@ -1,17 +1,20 @@
+import asyncio
 import aiohttp
 
 from io import BytesIO
 from ..printer import PrinterFileProgressState, FileProgressState
 
 class FileDownload:
+    loop: asyncio.AbstractEventLoop
     state: PrinterFileProgressState
 
-    def __init__(self, state: PrinterFileProgressState):
+    def __init__(self, state: PrinterFileProgressState, loop: asyncio.AbstractEventLoop) -> None:
+        self.loop = loop
         self.state = state
 
     async def download_as_bytes(self, url) -> bytes:
         # Chunk the download so we can get progress
-        async with aiohttp.ClientSession() as session:
+        async with aiohttp.ClientSession(loop=self.loop) as session:
             async with session.get(url) as resp:
                 if resp.status != 200:
                     self.state.state = FileProgressState.ERROR

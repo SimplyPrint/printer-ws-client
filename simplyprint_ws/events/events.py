@@ -1,7 +1,7 @@
 from abc import abstractmethod
 from typing import Dict, Type, Any, List, Union, Optional
 
-from ..helpers.timer import Intervals
+from ..helpers.ratelimit import Intervals
 from ..printer import PrinterSettings, PrinterDisplaySettings
 
 class ServerEventError(ValueError):

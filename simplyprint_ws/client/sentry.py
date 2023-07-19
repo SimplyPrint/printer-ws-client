@@ -3,18 +3,13 @@ import sentry_sdk
 from typing import Optional
 from ..const import VERSION, IS_TESTING
 
-class ClientInfo:
+class Sentry:
     """
     Configuration object for client information.
     """
     
-    ui: Optional[str] = None
-    ui_version: Optional[str] = None
-    api: Optional[str] = None
-    api_version: Optional[str] = None
     client: Optional[str] = None
     client_version: Optional[str] = None
-    sp_version: Optional[str] = "4.0.0"
     sentry_dsn: Optional[str] = None
     development: bool = IS_TESTING
 
