@@ -1,15 +1,13 @@
-import time
 import asyncio
+import time
+from typing import Callable, Coroutine, Dict, List, Optional, Type
 
-from typing import Coroutine, Type, Dict, Callable, List
+from .config import Config, ConfigManager
+from .events import ClientEvent, Demands, Events
+from .helpers.physical_machine import PhysicalMachine
+from .helpers.sentry import Sentry
+from .printer import PrinterState
 
-from simplyprint_ws.config import Config
-from .sentry import Sentry
-from .machine import Machine
-from ..config import Config, ConfigManager
-from ..events import Events, Demands, ClientEvent
-from ..printer import PrinterState
-from ..helpers.ratelimit import Intervals
 
 class Client:
     """
@@ -21,18 +19,19 @@ class Client:
 
     config: Config
     printer: PrinterState
-    sentry: Sentry
-    machine: Machine
-    intervals: Intervals
-    handles: Dict[Events.ServerEvent, List[Callable[[Events.ServerEvent], Coroutine]]] = {}
-    send_event: Callable[[ClientEvent], Coroutine] # Injected by multiplexer
+
+    # Usually injected by multiplexer
+    sentry: Optional[Sentry]
+    physical_machine: Optional[PhysicalMachine]
+
+    handles: Dict[Events.ServerEvent, List[Callable[[Events.ServerEvent], Coroutine]]]
+    send_event: Callable[[ClientEvent], None] # Injected by multiplexer
 
     def __init__(self, config: Config):
         self.config = config
         self.printer = PrinterState()
-        self.sentry = Sentry()
-        self.machine = Machine()
-        self.intervals = Intervals()
+
+        self.handles = {}
         
         # Recover handles from the class
         for name in dir(self):
@@ -51,14 +50,10 @@ class Client:
         self.handles[event][handle._pre] = handle
 
     async def handle_event(self, event: Events.ServerEvent):
-        print(f"Handling event {repr(event)}")
-
         handle, before = self.handles.get(type(event), (None, None))
 
         if before is not None:
             event = await before(event)
-
-        print(event.data)
 
         if handle is not None:
             await handle(event)
@@ -70,6 +65,7 @@ class DefaultClient(Client):
 
     def __init__(self, config: Config):
         super().__init__(config)
+        self.physical_machine = PhysicalMachine()
         self.printer.observe(self._on_display_message, "current_display_message")
 
     def _on_display_message(self, change):
@@ -81,26 +77,23 @@ class DefaultClient(Client):
             else:
                 message = f"[SimplyPrint] {message}"
         
+        # Pass on to gcode handling (Printer firmware)
         gcode_event = Demands.GcodeEvent(name=Demands.GcodeEvent.name, demand=Demands.GcodeEvent.demand, data={
             "list": ["M117 {}".format(message.replace('\n', ''))]
         })
 
         asyncio.create_task(self.handle_event(gcode_event))
-        
-        # Pass on to gcode handling (Printer firmware)
-        print(f"DISPLAY: {message}")
 
     @Demands.SystemRestartEvent.on
     async def on_system_restart(self, event: Demands.SystemRestartEvent):
-        self.machine.restart()
+        self.physical_machine.restart()
 
     @Demands.SystemShutdownEvent.on
     async def on_system_shutdown(self, event: Demands.SystemShutdownEvent):
-        self.machine.shutdown()
+        self.physical_machine.shutdown()
 
     @Events.ErrorEvent.before
     async def on_error(self, event: Events.ErrorEvent) -> Events.ErrorEvent:
-        # Logging
         return event
     
     @Events.NewTokenEvent.before
@@ -111,11 +104,12 @@ class DefaultClient(Client):
     
     @Events.ConnectEvent.before
     async def before_connect(self, event: Events.ConnectEvent) -> Events.ConnectEvent:
-        self.intervals.update(event.intervals)
-        self.printer.connected = True
         self.printer.name = event.printer_name
-        self.reconnect_token = event.reconnect_token
         self.printer.in_setup = event.in_setup
+        self.printer.connected = True
+        self.printer.intervals.update(event.intervals)
+        
+        self.reconnect_token = event.reconnect_token
 
         if self.printer.in_setup:
             self.printer.current_display_message = "In setup with Code: " + event.short_id
@@ -132,7 +126,7 @@ class DefaultClient(Client):
     
     @Events.IntervalChangeEvent.before
     async def before_interval_change(self, event: Events.IntervalChangeEvent) -> Events.IntervalChangeEvent:
-        self.intervals.update(event.intervals)
+        self.printer.intervals.update(event.intervals)
         return event
     
     @Events.PongEvent.before

@@ -1,11 +1,18 @@
 from enum import Enum
-from typing import Optional, List
-from traitlets import Int, Unicode, Float, List as TraitletsList, Instance, Bool, Enum as TraitletsEnum, observe
+from typing import List, Optional
 
-from .helpers.temperature import Temperature
-from .helpers.ambient_check import AmbientTemperatureState
-from .state import DEFAULT_EVENT, RootState, ClientState
+from traitlets import Bool
+from traitlets import Enum as TraitletsEnum
+from traitlets import Float, Instance, Int
+from traitlets import List as TraitletsList
+from traitlets import Unicode, observe
+
 from .events.client_events import *
+from .helpers.ambient_check import AmbientTemperatureState
+from .helpers.intervals import Intervals
+from .helpers.temperature import Temperature
+from .state import DEFAULT_EVENT, ClientState, RootState
+
 
 class PrinterCpuFlag(Enum):
     NONE = 0
@@ -51,7 +58,7 @@ class PrinterFileProgressState(ClientState):
     }
 
 
-class PrinterMachineData(ClientState):
+class PrinterInfoData(ClientState):
     ui = Unicode()
     ui_version = Unicode()
     api = Unicode()
@@ -143,6 +150,14 @@ class JobInfoState(ClientState):
     cancelled: bool = Bool()
     failed: bool = Bool()
 
+    @observe("started", "finished", "cancelled", "failed")
+    def _on_job_state_change(self, change):
+        # If one changes, set the others to false
+        if change["new"]:
+            for key in ["started", "finished", "cancelled", "failed"]:
+                if key != change["name"]:
+                    setattr(self, key, False)
+
     delay: Optional[float] = Float()
 
     # Not yet implemented
@@ -189,27 +204,29 @@ class PrinterState(RootState):
     current_display_message: Optional[str] = Unicode()
 
     bed_temperature: Temperature = Instance(Temperature)
-    tool_temperatures = TraitletsList(Instance(Temperature))
+    tool_temperatures: List[Temperature] = TraitletsList(Instance(Temperature))
 
     ambient_temperature: AmbientTemperatureState = Instance(
         AmbientTemperatureState)
+    
+    intervals: Intervals = Instance(Intervals)
 
-    machine_data: PrinterMachineData = Instance(PrinterMachineData)
-    settings: PrinterSettings = PrinterSettings()
-    display_settings: PrinterDisplaySettings = PrinterDisplaySettings()
-    firmware: PrinterFirmware = PrinterFirmware()
+    info: PrinterInfoData = Instance(PrinterInfoData)
     cpu_info: CpuInfoState = Instance(CpuInfoState)
-    webcam_info: WebcamState = Instance(WebcamState)
-    webcam_settings: WebcamSettings = Instance(WebcamSettings)
     job_info: JobInfoState = Instance(JobInfoState)
     psu_info: PrinterPSUState = Instance(PrinterPSUState)
+    settings: PrinterSettings = PrinterSettings()
+    firmware: PrinterFirmware = PrinterFirmware()
     ping_pong: PingPongState = Instance(PingPongState)
+    webcam_info: WebcamState = Instance(WebcamState)
+    display_settings: PrinterDisplaySettings = PrinterDisplaySettings()
     file_progress: PrinterFileProgressState = Instance(
         PrinterFileProgressState)
     filament_sensor: PrinterFilamentSensorState = Instance(
         PrinterFilamentSensorState)
-    
-    def __init__(self, extruder_count: int=1) -> None:
+    webcam_settings: WebcamSettings = Instance(WebcamSettings)
+
+    def __init__(self, extruder_count: int = 1) -> None:
         super().__init__(
             name="printer",
             connected=False,
@@ -218,7 +235,8 @@ class PrinterState(RootState):
             bed_temperature=Temperature(),
             tool_temperatures=[Temperature() for _ in range(extruder_count)],
             ambient_temperature=AmbientTemperatureState(),
-            machine_data=PrinterMachineData(),
+            intervals=Intervals(),
+            info=PrinterInfoData(),
             settings=PrinterSettings(),
             display_settings=PrinterDisplaySettings(),
             firmware=PrinterFirmware(),
@@ -239,10 +257,10 @@ class PrinterState(RootState):
 
     def is_heating(self) -> bool:
         for tool in self.tool_temperatures:
-            if tool.heating():
+            if tool.is_heating():
                 return True
 
-        if self.bed_temperature is not None and self.bed_temperature.heating():
+        if self.bed_temperature is not None and self.bed_temperature.is_heating():
             return True
 
         return False

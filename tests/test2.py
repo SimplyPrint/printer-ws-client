@@ -16,14 +16,14 @@ if __name__ == '__main__':
     x = PrinterState(
         tool_temperatures=tool_temperatures,
         bed_temperature=Temperature(actual=10, target=20),
-        machine_data=PrinterMachineData(),
+        info=PrinterInfoData(),
         firmware=PrinterFirmware(),
         cpu_info=CpuInfoState(),
         job_info=JobInfoState()
     )
 
-    x.machine_data.api = "2"
-    x.machine_data.api_version = "1.0.0"
+    x.info.api = "2"
+    x.info.api_version = "1.0.0"
     x.firmware.name = "Klipper 3"
     x.firmware.version = "1.0.0"
     x.firmware.link = "yay"

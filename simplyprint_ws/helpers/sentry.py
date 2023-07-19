@@ -1,7 +1,9 @@
+from typing import Optional
+
 import sentry_sdk
 
-from typing import Optional
-from ..const import VERSION, IS_TESTING
+from ..const import IS_TESTING, VERSION
+
 
 class Sentry:
     """

@@ -23,6 +23,11 @@ class Config:
     def __str__(self)  -> str:
         return f"<Config id={self.id} token='{self.token}'>"
 
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, int): return self.id == other
+        if isinstance(other, Config): return id(self) == id(other)
+        return False
+
     def __hash__(self) -> int:
         return hash(self.id)
 
@@ -57,8 +62,6 @@ class ConfigManager:
         Persist a config.
         """
         ConfigManager.ensure_table()
-
-        print(config)
 
         # Do not persist the pending config, only a populated or partially populated one
         if config.id == get_pending_config().id and config.token == get_pending_config().token:

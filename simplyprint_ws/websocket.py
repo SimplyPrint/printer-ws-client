@@ -1,22 +1,22 @@
-from ast import Dict
+from abc import abstractmethod
 import json
 import aiohttp
 import asyncio
 import logging
 import threading
 
-from typing import Any, Callable, Optional, Self
+from typing import Any, Awaitable, Callable, Optional, Self, Dict
 
-from numpy import rec
-from simplyprint_ws.events import get_event
-from simplyprint_ws.events.client_events import ClientEvent
+from .events import get_event
+from .events.client_events import ClientEvent, ClientEventMode
+from .events.events import ServerEvent
 
-from simplyprint_ws.events.events import ServerEvent
-
-from .helpers.ratelimit import Intervals
+from .helpers.intervals import Intervals
 
 class SimplyPrintWebSocket:
-    on_event: Callable[[ServerEvent], None]
+    on_event: Callable[[ServerEvent, Optional[int]], None]
+    on_disconnect: Callable[[], Awaitable[None]]
+
     loop: asyncio.AbstractEventLoop
     session: aiohttp.ClientSession
     socket: aiohttp.ClientWebSocketResponse
@@ -35,7 +35,8 @@ class SimplyPrintWebSocket:
     async def from_url(
         cls,
         url: str,
-        on_event: Callable[[ServerEvent], None],
+        on_event: Callable[[ServerEvent, Optional[int]], None],
+        on_disconnect: Callable[[], Awaitable[None]],
         loop: asyncio.AbstractEventLoop,
         timeout: Optional[float] = None
     ) -> Self:
@@ -50,6 +51,7 @@ class SimplyPrintWebSocket:
         ws.session = session
         ws.timeout = timeout
         ws.on_event = on_event
+        ws.on_disconnect = on_disconnect or ws.on_disconnect
 
         return ws
     
@@ -63,10 +65,11 @@ class SimplyPrintWebSocket:
         except json.JSONDecodeError:
             self.logger.error(f"Failed to parse event: {message}")
             return
-        
+
         name: str = event.get("type", "")
         data: Dict[str, Any] = event.get("data", {})
-        demand: Optional[str] = data.get("demand", None)
+        forClient: Optional[int] = event.get("for")
+        demand: Optional[str] = data.get("demand")
 
         try:
             event: ServerEvent = get_event(name, demand, data)
@@ -74,13 +77,14 @@ class SimplyPrintWebSocket:
             self.logger.error(f"Unknown event type {e.args[0]}")
             return
         
-        self.logger.debug(f"Recieved event {event} with data {data}")
+        self.logger.debug(f"Recieved event {event} with data {data} for client {forClient}")
         
-        self.on_event(event)
+        self.on_event(event, forClient)
 
     async def poll_event(self) -> None:
         try:
             message = await self.socket.receive()
+
 
             if message.type in (aiohttp.WSMsgType.CLOSED, aiohttp.WSMsgType.CLOSING, aiohttp.WSMsgType.CLOSE):
                 return
@@ -91,24 +95,29 @@ class SimplyPrintWebSocket:
             
             if message.type == aiohttp.WSMsgType.BINARY:
                 message.data = message.data.decode("utf-8")
-            
+
             await self.recieved_message(message.data)
 
-        except asyncio.TimeoutError:
+        except (asyncio.CancelledError, asyncio.TimeoutError):
             await self.on_disconnect()
 
     async def send_event(self, event: ClientEvent) -> None:
         try:
             message = event.as_dict()
-            self.logger.debug(f"Sending event {event} with data {message}")
-            await self.socket.send_json(message)
-        except RuntimeError as e:
+
+            if (mode := event.on_send()) == ClientEventMode.DISPATCH:
+                await self.socket.send_json(message)
+                self.logger.debug(f"Sent event {event} with data {message}")
+            else:
+                self.logger.debug(f"Did not send event {event} with data {message} because of mode {mode.name}")
+
+        except ConnectionResetError as e:
             self.logger.error(f"Failed to send event {event}: {e}")
             await self.on_disconnect()
 
+    def is_connected(self) -> bool:
+        return self.socket is not None and not self.socket.closed
+    
+    @abstractmethod
     async def on_disconnect(self) -> None:
         self.logger.warn(f"Websocket disconnected with code {self.socket.close_code if self.socket else 'Unknown'}")
-
-        # raise Exception("Websocket disconnected")
-        await asyncio.sleep(1)
-

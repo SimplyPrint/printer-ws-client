@@ -1,4 +1,4 @@
-from traitlets import Float
+from traitlets import Float, Int
 from ..state import ClientState
 from ..events.client_events import AmbientTemperatureEvent
 
@@ -11,38 +11,38 @@ class AmbientCheck:
     CHECK_INTERVAL = 5.0
 
     @staticmethod
-    def detect(on_changed: Callable[[int], None], tools: List[Temperature], initial_sample: Optional[float] = None, ambient: float = 0) -> Tuple[Optional[float], float, float]:
+    def detect(on_changed: Callable[[int], None], tools: List[Temperature], initial_sample: Optional[float] = None, ambient: float = 0) -> Tuple[Optional[float], int, float]:
         if len(tools) == 0:
-            return None, ambient, AmbientCheck.CHECK_INTERVAL
+            return None, round(ambient), AmbientCheck.CHECK_INTERVAL
 
         tool0 = tools[0]
 
         if tool0.target is not None:
-            return None, ambient, AmbientCheck.AMBIENT_CHECK_TIME
+            return None, round(ambient), AmbientCheck.AMBIENT_CHECK_TIME
 
         if initial_sample is None:
-            return tool0.actual, ambient, AmbientCheck.SAMPLE_CHACK_TIME
+            return tool0.actual, round(ambient), AmbientCheck.SAMPLE_CHACK_TIME
         else:
             diff = abs(tool0.actual - initial_sample)
             if diff <= 2.0:
                 ambient = (tool0.actual + initial_sample) / 2
-                if round(ambient) != round(ambient):
+                if ambient != ambient:
                     on_changed(round(ambient))
-                return None, ambient, AmbientCheck.AMBIENT_CHECK_TIME
+                return None, round(ambient), AmbientCheck.AMBIENT_CHECK_TIME
             else:
-                return tool0.actual, ambient, AmbientCheck.SAMPLE_CHACK_TIME
+                return tool0.actual, round(ambient), AmbientCheck.SAMPLE_CHACK_TIME
             
 class AmbientTemperatureState(ClientState):
-    initial_sample: Optional[float] = Float()
-    ambient = Float()
-    update_interval: Optional[float] = Float()
+    initial_sample: Optional[float] = Float(allow_none=True)
+    ambient: int = Int()
+    update_interval: Optional[float] = Float(allow_none=True)
 
     event_map = {
         "ambient": AmbientTemperatureEvent,
     }
 
     def on_changed_callback(self, new_ambient):
-        self.ambient = new_ambient
+        self.ambient = round(new_ambient)
 
     def invoke_check(self, tool_temperatures: List[Temperature]):
         """

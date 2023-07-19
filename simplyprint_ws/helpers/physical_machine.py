@@ -8,7 +8,7 @@ import netifaces
 
 from typing import Optional
 
-class Machine:
+class PhysicalMachine:
     """
     Provides hardware and platform information, abstractly.
     """
@@ -35,7 +35,7 @@ class Machine:
             "flags": 0,
         }
 
-    def get_machine_data(self):
+    def get_info(self):
         return {
             "python_version": self.python_version(),
             "machine": self.machine(),

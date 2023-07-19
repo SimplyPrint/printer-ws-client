@@ -1,5 +1,5 @@
 from typing import Any, Dict, List, Optional, Union
-from .events import ServerEvent, EventType, ServerEventTraits
+from .events import ServerEvent, ServerEventType, ServerEventTraits
 
 class DemandEventTraits(ServerEventTraits):
     def __str__(cls):
@@ -16,7 +16,7 @@ class DemandEventTraits(ServerEventTraits):
     def __hash__(cls) -> int:
         return hash(cls.demand or cls.name)
 
-class DemandEventType(EventType, DemandEventTraits):
+class DemandEventType(ServerEventType, DemandEventTraits):
     def __repr__(cls) -> str:
         return f"<DemandEvent {cls.demand}>"
 
@@ -68,8 +68,9 @@ class FileEvent(DemandEvent):
 
     def on_event(self):
         self.url: Optional[str] = self.data.get("url")
-        self.path: Optional[str] = self.data.get("path")
         self.auto_start: bool = bool(self.data.get("auto_start", 0))
+        self.file_name: Optional[str] = self.data.get("file_name")
+        self.file_id: str = self.data.get("file_id")
 
 class StartPrintEvent(DemandEvent):
     demand = "start_print"

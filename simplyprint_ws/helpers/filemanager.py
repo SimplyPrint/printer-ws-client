@@ -1,2 +1,0 @@
-class FileManager:
-    pass

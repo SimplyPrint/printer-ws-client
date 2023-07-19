@@ -163,3 +163,4 @@ config.json
 virtual_local
 Pipfile*
 config.db
+.vscode

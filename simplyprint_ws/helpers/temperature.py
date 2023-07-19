@@ -1,11 +1,14 @@
+from typing import Optional
+
 from traitlets import Float
 
-from ..state import ClientState
 from ..events.client_events import TemperatureEvent
+from ..state import ClientState
+
 
 class Temperature(ClientState):
-    actual = Float()
-    target = Float()
+    actual: Optional[float] = Float()
+    target: Optional[float] = Float(allow_none=True)
 
     event_map = {
         "actual": TemperatureEvent,

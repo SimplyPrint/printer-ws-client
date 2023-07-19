@@ -1,7 +1,7 @@
 from abc import abstractmethod
 from typing import Dict, Type, Any, List, Union, Optional
 
-from ..helpers.ratelimit import Intervals
+from ..helpers.intervals import Intervals
 from ..printer import PrinterSettings, PrinterDisplaySettings
 
 class ServerEventError(ValueError):
@@ -17,16 +17,17 @@ class ServerEventTraits:
     def __eq__(cls, other: object) -> bool:
         if isinstance(other, str): return cls.name == other
         if isinstance(other, ServerEvent): return cls.name == other.name
+        if isinstance(other, ServerEventTraits): return cls.name == other.name
         return False
     
     def __hash__(cls) -> int:
         return hash(cls.name)
 
-class EventType(type, ServerEventTraits):
+class ServerEventType(type, ServerEventTraits):
     def __repr__(cls) -> str:
         return f"<Event {cls.name}>"
 
-class ServerEvent(ServerEventTraits, metaclass=EventType):
+class ServerEvent(ServerEventTraits, metaclass=ServerEventType):
     name: str = ""
     data: Dict[str, Any] = {}
     
@@ -123,4 +124,5 @@ class MultiPrinterAddResponseEvent(ServerEvent):
 
     def on_event(self):
         self.printer_id: str = self.data.get("pid", "")
-        self.status: str = self.data.get("status", "")
+        self.status: bool = self.data.get("status", False)
+        self.unique_id: str = self.data.get("unique_id", "")

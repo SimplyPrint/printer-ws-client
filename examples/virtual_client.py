@@ -3,7 +3,7 @@ import asyncio
 
 from simplyprint_ws.helpers.file_download import FileDownload
 from simplyprint_ws.helpers.temperature import Temperature
-from simplyprint_ws.client.client import DefaultClient
+from simplyprint_ws.client import DefaultClient
 from simplyprint_ws.config import Config
 
 from simplyprint_ws.events import Events, Demands, ClientEvent
@@ -22,11 +22,11 @@ class VirtualSuperClient(DefaultClient):
         self.sentry.sentry_dsn = "https://a5aef1defa83433586dd0cf1c1fffe57@o1102514.ingest.sentry.io/6619552"
         self.sentry.development = True
 
-        self.printer.machine_data.api = "Virtual"
-        self.printer.machine_data.api_version = "0.1"
-        self.printer.machine_data.ui = "Virtual"
-        self.printer.machine_data.ui_version = "0.1"
-        self.printer.machine_data.sp_version = "4.1.0"
+        self.printer.info.api = "Virtual"
+        self.printer.info.api_version = "0.1"
+        self.printer.info.ui = "Virtual"
+        self.printer.info.ui_version = "0.1"
+        self.printer.info.sp_version = "4.1.0"
 
         self.printer.bed_temperature = Temperature(actual=20.0)
         self.printer.tool_temperatures = [
@@ -35,8 +35,8 @@ class VirtualSuperClient(DefaultClient):
 
         self.printer.status = PrinterStatus.OPERATIONAL
 
-        for k, v in self.machine.get_machine_data().items():
-            self.printer.machine_data.set_trait(k, v)
+        for k, v in self.physical_machine.get_info().items():
+            self.printer.info.set_trait(k, v)
 
     @Events.ConnectEvent.on
     async def on_connect(self, event: Events.ConnectEvent):

@@ -1,21 +1,33 @@
-import logging
 import asyncio
-import threading
-
+import logging
 from enum import Enum
-from typing import Dict, List, Optional
+from typing import Coroutine, Dict, List, Optional, Tuple, Union
 
-from .websocket import SimplyPrintWebSocket
+import aiohttp
+import janus
+
+from simplyprint_ws.helpers.sentry import Sentry
+
+from .client import Client
+from .config import Config, ConfigManager
+from .const import API_VERSION, WEBSOCKET_URL
 from .events import ClientEvent, ServerEvent
-from .config import Config
-from .const import WEBSOCKET_URL, API_VERSION
-from .client.client import Client
+from .events.events import MultiPrinterAddResponseEvent, SetupCompleteEvent, ConnectEvent
+from .websocket import SimplyPrintWebSocket
+
+
+class MultiplexerException(RuntimeError):
+    pass
+
+class MultiplexerClientEvents(Enum):
+    ADD_PRINTER = "add_connection"
+    REMOVE_PRINTER = "remove_connection"
 
 class MultiplexerAddPrinterEvent(ClientEvent):
-    event_type = "add_connection"
+    event_type = MultiplexerClientEvents.ADD_PRINTER
 
 class MultiplexerRemovePrinterEvent(ClientEvent):
-    event_type = "remove_connection"
+    event_type = MultiplexerClientEvents.REMOVE_PRINTER
 
 class MultiplexerMode(Enum):
     MULTIPRINTER = "mp"
@@ -26,65 +38,148 @@ class Multiplexer:
 
     """
     
+    loop: asyncio.AbstractEventLoop
+
     url: str
     mode: MultiplexerMode = MultiplexerMode.SINGLE
     connect_timeout: Optional[float]
 
     ws: Optional[SimplyPrintWebSocket] = None
-    clients: Dict[Config, Client] = {}
+    clients: Dict[int, Client] = {}
+    pending_clients: Dict[str, Client] = {}
+    allow_setup: bool = False
+    
+    buffered_events: List[Tuple[ServerEvent, Optional[int]]] = []
+    task_queue: janus.Queue
 
-    tasks_handles = []
-    tasks_updates = []
-    threads: List[threading.Thread] = []
-
+    sentry: Sentry = Sentry()
     logger: logging.Logger = logging.getLogger("multiplexer")
+    _connect_lock = asyncio.Lock()
+    _disconnect_lock = asyncio.Lock()
 
-    def __init__(self, mode: MultiplexerMode, single_config: Optional[Config] = None, connect_timeout: Optional[float] = None):
+    def __init__(self, mode: MultiplexerMode, single_config: Optional[Config] = None, connect_timeout: Optional[float] = None):        
         self.mode = mode
         self.connect_timeout = connect_timeout or 1
 
         self.url = self.get_url(single_config)
 
     def get_url(self, config: Optional[Config] = None):
-        return f"{WEBSOCKET_URL}/{API_VERSION}/{self.mode.value}" + (f"/{config.id}/{config.token}" if config.id is not None and config.id != 0 else "/0/0")
+        return f"{WEBSOCKET_URL}/{API_VERSION}/{self.mode.value}" + (f"/{config.id}/{config.token}" if config is not None and config.id is not None and config.id != 0 else "/0/0")
 
+    def get_client_by_id(self, client_id: int):
+        if client_id in self.clients:
+            return self.clients.get(client_id)
+        
+        # Linear search for client in pending clients
+        for client in self.pending_clients.values():
+            if client.config.id == client_id:
+                return client
+        
+        return None
+    
+    def get_clients_by_token(self, token: str):
+        return [client for client in self.clients.values() if client.config.token == token] + [client for _, client in self.pending_clients.values() if client.config.token == token]
 
-    def add_client(self, config: Config, client: Client):
-        def send_handle(event: ClientEvent):
-            self.client_send_handle(event, config)
-
-        client.send_event = send_handle
-
-        self.clients[config] = client
-
+    def add_client(self, client: Client, unique_id: Optional[str] = None, public_ip: Optional[str] = None):
         if self.ws is None:
-            # If the websocket is already closed, we can't connect
-            self.clients[config].printer.connected = False
-            return
+            raise MultiplexerException("Cannot add client without being connected")
 
-    def remove_client(self, config: Config):
-        if not config in self.clients:
+        client.sentry = self.sentry
+        client.send_event = lambda event: self.client_send_handle(event, client.config)
+        client.printer.connected = True
+
+        if self.mode == MultiplexerMode.SINGLE:
+            assert len(self.clients) == 0
+            self.clients[client.config.id] = client
             return
         
-        if self.clients[config].printer.connected:
-            # TODO disconnect from websocket
-            pass
+        client.printer.connected = False
 
-        del self.clients[config]
+        if unique_id is None:
+            unique_id = str(id(client))
 
+        self.pending_clients[unique_id] = client
+
+        self.task_queue.sync_q.put(self.ws.send_event(MultiplexerAddPrinterEvent(data={
+            "pid": client.config.id,
+            "token": client.config.token,
+            "unique_id": unique_id,
+            "allow_setup": self.allow_setup,
+            "public_ip": public_ip,
+        })))
+        
+        self.logger.debug(f"Added printer {client.config.id} with unique id {unique_id}")
+
+    def remove_client(self, ident: Union[Client, Config, int]):
+        if self.ws is None:
+            raise MultiplexerException("Cannot add client without being connected")
+        
+        if isinstance(ident, Client): client_id = ident.config.id
+        elif isinstance(ident, Config): client_id = ident.id
+        else: client_id = ident
+
+        client: Optional[Client] = self.get_client_by_id(client_id)
+
+        if client is None:
+            raise MultiplexerException(f"Cannot remove client {client_id} as it does not exist")
+
+        if client_id in self.clients:
+            del self.clients[client_id]
+        
+        for unique_id, client in self.pending_clients.items():
+            if client.config.id == client_id:
+                del self.pending_clients[unique_id]
+                break
+        
+        if client.printer.connected:
+            self.task_queue.sync_q.put(self.ws.send_event(MultiplexerRemovePrinterEvent(data={
+                "pid": client_id,
+            })))
     
-    def client_send_handle(self, event: ClientEvent, config: Config):
+    async def client_send_handle(self, event: ClientEvent, config: Config):
         event.forClient = config.id
-        self.tasks_handles.append(self.ws.send_event(event))
+        self.task_queue.sync_q.put(self.ws.send_event(event))
 
-    def on_event(self, event: ServerEvent):
+    def on_event(self, event: ServerEvent, forClient: Optional[int] = None):
         if self.mode == MultiplexerMode.SINGLE:
             assert len(self.clients) == 1
             client = list(self.clients.values())[0]
-            self.tasks_handles.append(client.handle_event(event))
+            self.task_queue.sync_q.put(client.handle_event(event))
+            return
+ 
+        if event == MultiPrinterAddResponseEvent:
+            # If the printer did not authenticate, remove it.
+            if not event.status:
+                if event.unique_id in self.pending_clients: del self.pending_clients[event.unique_id]
+                if event.printer_id in self.clients: del self.clients[event.printer_id]
+            elif event.unique_id in self.pending_clients.keys():
+                if not event.status:
+                    self.logger.info(f"Removing {event.unique_id} from multiplexer as it failed to authenticate")
+                    del self.pending_clients[event.unique_id]
+                    return
+
+                client = self.pending_clients[event.unique_id]
+                client.config.id = event.printer_id
+                ConfigManager.persist_config(client.config)
+                client.printer.connected = True
+                self.clients[client.config.id] = client
+                del self.pending_clients[event.unique_id]
+            
+            self.cleanout_buffer()
             return
 
-        forClient: Optional[int] = event.pop("for")
+        if event == SetupCompleteEvent:
+            # Move printer from pending to active
+            self.logger.info(f"Moving {forClient} to {event.printer_id}")
+            if forClient in self.clients.keys():
+                self.clients[event.printer_id] = self.clients[forClient]
+                del self.clients[forClient]
+
+        if event == ConnectEvent and not self.allow_setup and event.in_setup:
+            # Drop connection and remove printer
+            self.logger.info(f"Removing {forClient} from multiplexer")
+            self.remove_client(forClient)
+            return
 
         if event is None:
             self.logger.error("Received invalid event from websocket")
@@ -92,67 +187,135 @@ class Multiplexer:
 
         if not forClient in self.clients:
             self.logger.error(f"Received event for unknown client {forClient}")
+            self.buffered_events.append((event, forClient))
             return
 
-        self.tasks_handles.append(self.clients[forClient].handle_event(event))
+        self.task_queue.sync_q.put(self.clients[forClient].handle_event(event))
+
+    async def on_disconnect(self):
+        if self._disconnect_lock.locked():
+            self.logger.info("Already captured disconnect from websocket to reconnect later")
+            return
+
+        async with self._disconnect_lock:
+            # Pop all pending clients and clients
+            clients: List[Client] = list(self.clients.values()) + list(self.pending_clients.values())
+            
+            self.clients.clear()
+            self.pending_clients.clear()
+
+            # Mark all clients as disconnected
+            for client in clients.values():
+                client.printer.connected = False
+
+            await self.connect()
+
+            # Once connected, re-add all clients
+            for client in clients:
+                self.add_client(client)
+
+
+    def cleanout_buffer(self):
+        # Cleanout the buffer queue, in one iteration
+        for event, forClient in self.buffered_events:
+            if forClient in self.clients:
+                self.logger.info(f"Sending buffered event {event} with data {event.data} to client {forClient}")
+                self.task_queue.sync_q.put(self.clients[forClient].handle_event(event))
 
     async def poll_events(self):
         """
         Poll events from the websocket and send them to the clients.
         """
         while True:
-            await self.ws.poll_event()
+            try:
+                await self.ws.poll_event()
+            except Exception as e:
+                self.logger.exception(f"Error polling event: {e}")
 
-    async def task_consumer_handles(self):
+                if not self.ws.is_connected():
+                    await self.connect()
+
+    async def task_consumer(self):
         while True:
-            popped_tasks = self.tasks_handles.copy()
-            await asyncio.gather(*popped_tasks)
+            task: Coroutine = await self.task_queue.async_q.get()
 
-            for task in popped_tasks:
-                self.tasks_handles.remove(task)
-    
-    async def task_consumer_updates(self):
-        while True:
-            popped_tasks = self.tasks_updates.copy()
-            await asyncio.gather(*popped_tasks)
+            try:
+                await task
+            except Exception as e:
+                self.logger.exception(f"Error running task {task.__name__}: {e}")
 
-            for task in popped_tasks:
-                self.tasks_updates.remove(task)
+            self.task_queue.async_q.task_done()
 
     def task_producer(self):
-        self.logger.info("Starting event queue producer loop")
-
+        self.logger.info("Starting event queue producer loop")        
         while True:
-            for config, client in self.clients.items():
-                if not client.printer.connected:
+            for config_id in list(self.clients.keys()):
+                client = self.clients.get(config_id)
+
+                if client is None or not client.printer.connected:
                     continue
                     
-                for event in client.printer._build_events(config.id):
-                    self.tasks_updates.append(self.ws.send_event(event))
+                for event in client.printer._build_events(config_id):
+                    self.task_queue.sync_q.put(self.ws.send_event(event))
+    
+    async def connect(self):
+            if self._connect_lock.locked():
+                self.logger.info("Already connecting to websocket")
 
-    async def start(self):
+                # Await lock to be released then check if we are connected
+                await self._connect_lock.acquire()
+
+                if self.ws.is_connected():
+                    self._connect_lock.release()
+                    return
+
+            try:
+                async with self._connect_lock:
+                    self.logger.info(f"Connecting to {self.url}")
+
+                    self.ws = await SimplyPrintWebSocket.from_url(
+                        url=self.url,
+                        on_event=self.on_event,
+                        on_disconnect=self.on_disconnect,
+                        loop=asyncio.get_running_loop(),
+                        timeout=self.connect_timeout)
+                    
+                    self.logger.info("Connected to websocket")
+
+            except (aiohttp.WSServerHandshakeError, aiohttp.ClientConnectorError):
+                self.logger.error(f"Failed to connect to websocket at {self.url} retrying in {self.connect_timeout or 1} seconds")
+                await asyncio.sleep(self.connect_timeout or 1)
+                await self.connect()
+
+    def start(self, loop: Optional[asyncio.AbstractEventLoop] = None, consumer_count: int = 1):
         """
         Do connection and read/write loops.
         """
-        self.ws = await SimplyPrintWebSocket.from_url(self.url, self.on_event, asyncio.get_running_loop(), self.connect_timeout)
 
-        self.threads.append(threading.Thread(target=asyncio.run, args=(self.task_consumer_updates(),), daemon=True))
-        self.threads.append(threading.Thread(target=asyncio.run, args=(self.task_consumer_handles(),), daemon=True))
-        self.threads.append(threading.Thread(target=self.task_producer, daemon=True))
+        if self.sentry.sentry_dsn is not None:
+            self.sentry.initialize_sentry()
 
-        for thread in self.threads:
-            thread.start()
+        async def wrapped_start():
+            self.task_queue = janus.Queue()
+            await self.connect()
 
-        # run the loops concurrently
-        await self.poll_events()
+            await asyncio.gather(*[
+                asyncio.create_task(self.poll_events()),
+                *[asyncio.create_task(self.task_consumer()) for _ in range(consumer_count)]
+            ])
 
-    async def stop(self):
+        self.loop = loop or asyncio.new_event_loop()
+        self.loop.run_in_executor(None, self.task_producer)
+        self.loop.run_until_complete(wrapped_start())
+        self.loop.run_forever()
+
+    def stop(self):
         """
-        Stop the multiplexer.
+        Stops the multiplexer event loop and thread.
         """
-        if self.ws is not None:
-            await self.ws.close()
+        async def wrapped_stop():
+            if self.ws is not None: await self.ws.close()
 
-        for thread in self.threads:
-            thread.join()
-
+        self.loop.stop()
+        self.loop.run_until_complete(wrapped_stop())
+        self.loop.close()
