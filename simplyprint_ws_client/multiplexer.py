@@ -6,7 +6,7 @@ from typing import Coroutine, Dict, List, Optional, Tuple, Union
 import aiohttp
 import janus
 
-from simplyprint_ws.helpers.sentry import Sentry
+from simplyprint_ws_client.helpers.sentry import Sentry
 
 from .client import Client
 from .config import Config, ConfigManager

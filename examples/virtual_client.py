@@ -1,14 +1,14 @@
 import math
 import asyncio
 
-from simplyprint_ws.helpers.file_download import FileDownload
-from simplyprint_ws.helpers.temperature import Temperature
-from simplyprint_ws.client import DefaultClient
-from simplyprint_ws.config import Config
+from simplyprint_ws_client.helpers.file_download import FileDownload
+from simplyprint_ws_client.helpers.temperature import Temperature
+from simplyprint_ws_client.client import DefaultClient
+from simplyprint_ws_client.config import Config
 
-from simplyprint_ws.events import Events, Demands, ClientEvent
+from simplyprint_ws_client.events import Events, Demands, ClientEvent
 
-from simplyprint_ws.printer import PrinterStatus
+from simplyprint_ws_client.printer import PrinterStatus
 
 def expt_smooth(target, actual, alpha, dt):
     return actual + (target - actual) * (1.0 - math.exp(-alpha * dt))

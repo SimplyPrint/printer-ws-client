@@ -1,7 +1,7 @@
 import time
 import unittest
 
-from simplyprint_ws.helpers.file_manager import File, FileManager
+from simplyprint_ws_client.helpers.file_manager import File, FileManager
 
 test_time = time.time()
 
