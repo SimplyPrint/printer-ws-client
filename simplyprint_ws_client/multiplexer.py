@@ -81,7 +81,7 @@ class Multiplexer:
         return [client for client in self.clients.values() if client.config.token == token] + [client for _, client in self.pending_clients.values() if client.config.token == token]
 
     def add_client(self, client: Client, unique_id: Optional[str] = None, public_ip: Optional[str] = None):
-        if self.ws is None:
+        if not self.ws.is_connected():
             raise MultiplexerException("Cannot add client without being connected")
 
         client.sentry = self.sentry
