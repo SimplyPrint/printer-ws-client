@@ -71,6 +71,7 @@ class FileEvent(DemandEvent):
         self.auto_start: bool = bool(self.data.get("auto_start", 0))
         self.file_name: Optional[str] = self.data.get("file_name")
         self.file_id: str = self.data.get("file_id")
+        self.file_size: Optional[int] = self.data.get("file_size")
 
 class StartPrintEvent(DemandEvent):
     demand = "start_print"
