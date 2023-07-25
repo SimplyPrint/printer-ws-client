@@ -6,13 +6,13 @@ from typing import Coroutine, Dict, List, Optional, Tuple, Union
 import aiohttp
 import janus
 
-from simplyprint_ws_client.helpers.sentry import Sentry
-
 from .client import Client
 from .config import Config, ConfigManager
 from .const import API_VERSION, WEBSOCKET_URL
 from .events import ClientEvent, ServerEvent
-from .events.events import MultiPrinterAddResponseEvent, SetupCompleteEvent, ConnectEvent
+from .events.events import (ConnectEvent, MultiPrinterAddResponseEvent,
+                            SetupCompleteEvent)
+from .helpers.sentry import Sentry
 from .websocket import SimplyPrintWebSocket
 
 
