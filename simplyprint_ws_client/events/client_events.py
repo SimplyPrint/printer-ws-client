@@ -23,7 +23,7 @@ class PrinterEvent(Enum):
     STREAM = "stream"
     PRINTER_ERROR = "printer_error"
     MESH_DATA = "mesh_data"
-    info = "info"
+    INFO = "machine_data"
     INPUT_REQUIRED = "input_required"
     UPDATE_STARTED = "update_started"
     FIRMWARE = "firmware"
@@ -103,7 +103,7 @@ class GcodeScriptsEvent(ClientEvent):
     event_type = PrinterEvent.GCODE_SCRIPTS
 
 class MachineDataEvent(ClientEvent):
-    event_type = PrinterEvent.info
+    event_type = PrinterEvent.INFO
     
     def generate_data(self) -> Generator[Tuple, None, None]:
         for key, value in self.state.info.trait_values().items():
