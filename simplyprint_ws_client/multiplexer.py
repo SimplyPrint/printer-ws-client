@@ -273,10 +273,6 @@ class Multiplexer:
 
             try:
                 async with self._connect_lock:
-                    # Ensure proper cleanup
-                    if self.ws is not None and not self.ws.session.closed:
-                        await self.ws.close()
-
                     self.logger.info(f"Connecting to {self.url}")
 
                     self.ws = await SimplyPrintWebSocket.from_url(
@@ -284,6 +280,7 @@ class Multiplexer:
                         on_event=self.on_event,
                         on_disconnect=self.on_disconnect,
                         loop=asyncio.get_running_loop(),
+                        session=self.ws.session if self.ws is not None else None,
                         timeout=self.connect_timeout)
                     
                     self.logger.info("Connected to websocket")

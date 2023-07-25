@@ -38,13 +38,14 @@ class SimplyPrintWebSocket:
         on_event: Callable[[ServerEvent, Optional[int]], None],
         on_disconnect: Callable[[], Awaitable[None]],
         loop: asyncio.AbstractEventLoop,
+        session: Optional[aiohttp.ClientSession] = None,
         timeout: Optional[float] = None
     ) -> Self:
         """
 
         """
         timeout = timeout or cls.timeout
-        session = aiohttp.ClientSession()
+        session = session or aiohttp.ClientSession(loop=loop)
         socket = await session.ws_connect(url, timeout=timeout, autoclose=False, max_msg_size=0, compress=False)
 
         ws = cls(socket, loop)
