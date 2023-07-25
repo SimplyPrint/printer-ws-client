@@ -82,6 +82,9 @@ class SimplyPrintWebSocket:
         self.on_event(event, forClient)
 
     async def poll_event(self) -> None:
+        if not self.is_connected():
+            await self.on_disconnect()
+
         try:
             message = await self.socket.receive()
 
@@ -102,6 +105,9 @@ class SimplyPrintWebSocket:
             await self.on_disconnect()
 
     async def send_event(self, event: ClientEvent) -> None:
+        if not self.is_connected():
+            await self.on_disconnect()
+
         try:
             message = event.as_dict()
 

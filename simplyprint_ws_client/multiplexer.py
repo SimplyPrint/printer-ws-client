@@ -197,6 +197,8 @@ class Multiplexer:
             self.logger.info("Already captured disconnect from websocket to reconnect later")
             return
 
+        self.logger.info("Captured disconnect from websocket, reconnecting")
+
         async with self._disconnect_lock:
             # Pop all pending clients and clients
             clients: List[Client] = list(self.clients.values()) + list(self.pending_clients.values())
@@ -205,7 +207,7 @@ class Multiplexer:
             self.pending_clients.clear()
 
             # Mark all clients as disconnected
-            for client in clients.values():
+            for client in clients:
                 client.printer.connected = False
 
             await self.connect()
@@ -233,7 +235,7 @@ class Multiplexer:
                 self.logger.exception(f"Error polling event: {e}")
 
                 if not self.ws.is_connected():
-                    await self.connect()
+                    await self.on_disconnect()
 
     async def task_consumer(self):
         while True:
@@ -271,6 +273,10 @@ class Multiplexer:
 
             try:
                 async with self._connect_lock:
+                    # Ensure proper cleanup
+                    if self.ws is not None and not self.ws.session.closed:
+                        await self.ws.close()
+
                     self.logger.info(f"Connecting to {self.url}")
 
                     self.ws = await SimplyPrintWebSocket.from_url(
