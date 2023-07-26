@@ -35,7 +35,9 @@ class MultiplexerMode(Enum):
 
 class Multiplexer:
     """
-
+    If multiplexer.start is run in a seperate thread, ensure the outer python programming
+    is always running or is blocking otherwise the async thread will be unable to restart
+    itself due to the executor being shutdown.
     """
     
     loop: asyncio.AbstractEventLoop
@@ -81,7 +83,7 @@ class Multiplexer:
         return [client for client in self.clients.values() if client.config.token == token] + [client for _, client in self.pending_clients.values() if client.config.token == token]
 
     def add_client(self, client: Client, unique_id: Optional[str] = None, public_ip: Optional[str] = None):
-        if not self.ws.is_connected():
+        if self.ws is None or not self.ws.is_connected():
             raise MultiplexerException("Cannot add client without being connected")
 
         client.sentry = self.sentry
@@ -232,7 +234,7 @@ class Multiplexer:
             try:
                 await self.ws.poll_event()
             except Exception as e:
-                self.logger.exception(f"Error polling event: {e}")
+                self.logger.error(f"Error polling event: {e}")
 
                 if not self.ws.is_connected():
                     await self.on_disconnect()
@@ -244,7 +246,7 @@ class Multiplexer:
             try:
                 await task
             except Exception as e:
-                self.logger.exception(f"Error running task {task.__name__}: {e}")
+                self.logger.error(f"Error running task {task.__name__}: {e}")
 
             self.task_queue.async_q.task_done()
 
