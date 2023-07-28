@@ -1,26 +1,28 @@
-from abc import abstractmethod
-import json
-import aiohttp
 import asyncio
+import json
 import logging
 import threading
+from typing import Any, Awaitable, Callable, Dict, Optional, Self
 
-from typing import Any, Awaitable, Callable, Optional, Self, Dict
+import aiohttp
 
 from .events import get_event
 from .events.client_events import ClientEvent, ClientEventMode
 from .events.events import ServerEvent
 
-from .helpers.intervals import Intervals
 
 class SimplyPrintWebSocket:
-    on_event: Callable[[ServerEvent, Optional[int]], None]
-    on_disconnect: Callable[[], Awaitable[None]]
 
     loop: asyncio.AbstractEventLoop
     session: aiohttp.ClientSession
     socket: aiohttp.ClientWebSocketResponse
-    intervals: Intervals
+
+    url: str
+
+    _on_event: Callable[[ServerEvent, Optional[int]], None]
+    _on_disconnect: Callable[[], Awaitable[None]]
+    _do_reconnect: Callable[[], bool]
+
     timeout: float = 5.0
 
     thread_id: int
@@ -37,6 +39,7 @@ class SimplyPrintWebSocket:
         url: str,
         on_event: Callable[[ServerEvent, Optional[int]], None],
         on_disconnect: Callable[[], Awaitable[None]],
+        do_reconnect: Callable[[], bool],
         loop: asyncio.AbstractEventLoop,
         session: Optional[aiohttp.ClientSession] = None,
         timeout: Optional[float] = None
@@ -51,11 +54,26 @@ class SimplyPrintWebSocket:
         ws = cls(socket, loop)
         ws.session = session
         ws.timeout = timeout
-        ws.on_event = on_event
-        ws.on_disconnect = on_disconnect or ws.on_disconnect
+        ws.url = url
+        ws._on_event = on_event
+        ws._on_disconnect = on_disconnect or ws.on_disconnect
+        ws._do_reconnect = do_reconnect
 
         return ws
-    
+
+    async def connect(self) -> None:
+        """
+        Primarely used for reconnection
+        """
+        if not self.session:
+            raise RuntimeError("Cannot connect without a session")
+
+        if self.is_connected():
+            return
+
+        await self.socket.close()
+        self.socket = await self.session.ws_connect(self.url, timeout=self.timeout, autoclose=False, max_msg_size=0, compress=False)
+
     async def close(self) -> None:
         await self.socket.close()
         await self.session.close()
@@ -69,7 +87,7 @@ class SimplyPrintWebSocket:
 
         name: str = event.get("type", "")
         data: Dict[str, Any] = event.get("data", {})
-        forClient: Optional[int] = event.get("for")
+        for_client: Optional[int] = event.get("for")
         demand: Optional[str] = data.get("demand")
 
         try:
@@ -77,10 +95,11 @@ class SimplyPrintWebSocket:
         except KeyError as e:
             self.logger.error(f"Unknown event type {e.args[0]}")
             return
-        
-        self.logger.debug(f"Recieved event {event} with data {data} for client {forClient}")
-        
-        self.on_event(event, forClient)
+
+        self.logger.debug(
+            f"Recieved event {event} with data {data} for client {for_client}")
+
+        self.on_event(event, for_client)
 
     async def poll_event(self) -> None:
         if not self.is_connected():
@@ -89,14 +108,13 @@ class SimplyPrintWebSocket:
         try:
             message = await self.socket.receive()
 
-
             if message.type in (aiohttp.WSMsgType.CLOSED, aiohttp.WSMsgType.CLOSING, aiohttp.WSMsgType.CLOSE):
                 return
-            
+
             if message.type == aiohttp.WSMsgType.ERROR:
                 self.logger.error(f"Websocket error: {str(message.data)}")
                 return
-            
+
             if message.type == aiohttp.WSMsgType.BINARY:
                 message.data = message.data.decode("utf-8")
 
@@ -116,7 +134,8 @@ class SimplyPrintWebSocket:
                 await self.socket.send_json(message)
                 self.logger.debug(f"Sent event {event} with data {message}")
             else:
-                self.logger.debug(f"Did not send event {event} with data {message} because of mode {mode.name}")
+                self.logger.debug(
+                    f"Did not send event {event} with data {message} because of mode {mode.name}")
 
         except ConnectionResetError as e:
             self.logger.error(f"Failed to send event {event}: {e}")
@@ -124,7 +143,13 @@ class SimplyPrintWebSocket:
 
     def is_connected(self) -> bool:
         return self.socket is not None and not self.socket.closed
-    
-    @abstractmethod
+
+    def on_event(self, event: ServerEvent, for_client: Optional[int]) -> None:
+        self._on_event(event, for_client)
+
     async def on_disconnect(self) -> None:
-        self.logger.warn(f"Websocket disconnected with code {self.socket.close_code if self.socket else 'Unknown'}")
+        if hasattr(self, "_on_disconnect"):
+            await self._on_disconnect()
+
+        if hasattr(self, "_do_reconnect") and self._do_reconnect():
+            await self.connect()

@@ -50,17 +50,17 @@ class ClientEvent:
     interval_type: Optional[IntervalTypes] = None
     
     state: Any
-    forClient: Optional[int]
+    for_client: Optional[int]
     data: Optional[Dict[str, Any]]
 
-    def __init__(self, state = None, forClient: Optional[int] = None, data: Optional[Dict[str, Any]] = None) -> None:
+    def __init__(self, state = None, for_client: Optional[int] = None, data: Optional[Dict[str, Any]] = None) -> None:
         """
         state (PrinterState): The state of the printer at the time of the event.
-        forClient (int): Id of client event belongs to
+        for_client (int): Id of client event belongs to
         data (Optional[Dict[str, Any]], optional): Custom data to send with the event. Defaults to None.
         """
         self.state = state
-        self.forClient = forClient
+        self.for_client = for_client
         self.data = data
 
     def __str__(self) -> str:
@@ -79,8 +79,8 @@ class ClientEvent:
     def generate(self) -> Generator[Tuple, None, None]:
         yield "type", self.event_type.value
 
-        if not self.forClient is None and self.forClient != 0:
-            yield "for", self.forClient
+        if not self.for_client is None and self.for_client != 0:
+            yield "for", self.for_client
 
         if self.data is not None:
             yield "data", self.data

@@ -67,8 +67,9 @@ class FileEvent(DemandEvent):
     demand = "file"
 
     def on_event(self):
-        self.url: Optional[str] = self.data.get("url")
         self.auto_start: bool = bool(self.data.get("auto_start", 0))
+        self.url: Optional[str] = self.data.get("url")
+        self.cdn_url: Optional[str] = self.data.get("cdn_url")
         self.file_name: Optional[str] = self.data.get("file_name")
         self.file_id: str = self.data.get("file_id")
         self.file_size: Optional[int] = self.data.get("file_size")

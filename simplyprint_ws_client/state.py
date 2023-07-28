@@ -76,12 +76,12 @@ class RootState(HasTraits):
 
         self._dirty.add(event)
 
-    def _build_events(self, forClient: Optional[int] = None):
+    def _build_events(self, for_client: Optional[int] = None):
         """Generator - creates :class:`ClientEvent` instances from dirty"""
 
         while self._dirty:
             client_event = self._dirty.pop()
-            yield client_event(state=self, forClient=forClient)
+            yield client_event(state=self, for_client=for_client)
 
     def has_changed(self, obj: HasTraits, name: Optional[str] = None):
         """Check if a field has changed since last update"""

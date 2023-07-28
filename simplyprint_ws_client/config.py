@@ -8,14 +8,18 @@ class Config:
     Configuration object.
     """
     
-    __slots__ = ("id", "token")
+    __slots__ = ("id", "token", "unique_id", "public_ip")
 
     id: int
     token: str
+    unique_id: Optional[str]
+    public_ip: Optional[str]
 
-    def __init__(self, id: int, token: str):
+    def __init__(self, id: int, token: str, unique_id: Optional[str] = None, public_ip: Optional[str] = None) -> None:
         self.id = id
         self.token = token
+        self.unique_id = unique_id
+        self.public_ip = public_ip
 
     def __repr__(self) -> str:
         return str(self)
@@ -48,8 +52,8 @@ class ConfigManager:
         """
         Get the config for a client.
         """
-        ConfigManager.ensure_table()
-        config_data = ConfigManager.db.execute("SELECT * FROM configs WHERE id = ?", (id,)).fetchone()
+        ConfigManager._ensure_table()
+        config_data = ConfigManager.db.execute("SELECT * FROM config WHERE id = ?", (id,)).fetchone()
 
         if config_data is None:
             return None
@@ -61,21 +65,21 @@ class ConfigManager:
         """
         Persist a config.
         """
-        ConfigManager.ensure_table()
+        ConfigManager._ensure_table()
 
         # Do not persist the pending config, only a populated or partially populated one
         if config.id == get_pending_config().id and config.token == get_pending_config().token:
             return
 
         try:
-            ConfigManager.db.execute("INSERT INTO configs VALUES (?, ?)", (config.id, config.token))
+            ConfigManager.db.execute("INSERT INTO config VALUES (?, ?)", (config.id, config.token))
             ConfigManager.logger.info(f"Added config {config}")
         except sqlite3.IntegrityError:
             if config.id == get_pending_config().id:
-                ConfigManager.db.execute("UPDATE configs SET id = ? WHERE token = ?", (config.id, config.token))
+                ConfigManager.db.execute("UPDATE config SET id = ? WHERE token = ?", (config.id, config.token))
                 ConfigManager.logger.info(f"Updated config {config} by token")
             else:
-                ConfigManager.db.execute("UPDATE configs SET token = ? WHERE id = ?", (config.token, config.id))
+                ConfigManager.db.execute("UPDATE config SET token = ? WHERE id = ?", (config.token, config.id))
                 ConfigManager.logger.info(f"Updated config {config} by token")
 
         ConfigManager.db.commit()
@@ -83,10 +87,10 @@ class ConfigManager:
     @staticmethod
     def get_all_configs() -> List[Config]:
         """
-        Get all configs.
+        Get all config.
         """
-        ConfigManager.ensure_table()
-        config_data = ConfigManager.db.execute("SELECT * FROM configs").fetchall()
+        ConfigManager._ensure_table()
+        config_data = ConfigManager.db.execute("SELECT * FROM config").fetchall()
 
         return [Config(config[0], config[1]) for config in config_data]
 
@@ -95,13 +99,13 @@ class ConfigManager:
         """
         Remove a config.
         """
-        ConfigManager.ensure_table()
-        ConfigManager.db.execute("DELETE FROM configs WHERE id = ?", (config.id,))
+        ConfigManager._ensure_table()
+        ConfigManager.db.execute("DELETE FROM config WHERE id = ?", (config.id,))
         ConfigManager.db.commit()
         ConfigManager.logger.info(f"Removed config {config}")
 
     @staticmethod
-    def ensure_table():
+    def _ensure_table():
         """
         Ensure the config table exists.
         """
@@ -109,7 +113,7 @@ class ConfigManager:
         if ConfigManager.table_exists:
             return
 
-        ConfigManager.db.execute("CREATE TABLE IF NOT EXISTS configs (id INTEGER PRIMARY KEY, token TEXT)")
+        ConfigManager.db.execute("CREATE TABLE IF NOT EXISTS config (id INTEGER PRIMARY KEY, token TEXT)")
         ConfigManager.db.commit()
 
         ConfigManager.logger.info("Created config table")

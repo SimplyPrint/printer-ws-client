@@ -5,3 +5,7 @@
 ## Usage
 
 TBD
+
+## TODO 
+
+Cleanup multiplexer.py and fix disconnect flow.
