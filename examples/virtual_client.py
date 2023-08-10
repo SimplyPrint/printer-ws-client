@@ -134,7 +134,7 @@ class VirtualSuperClient(DefaultClient):
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)
 
-    config = ConfigManager.get_config(16781) or Config(id=0, token="0")
+    config = ConfigManager.get_config(17120) or Config(id=0, token="0")
     client = VirtualSuperClient(config)
     mp = Multiplexer(MultiplexerMode.SINGLE, config)
     mp.allow_setup = True

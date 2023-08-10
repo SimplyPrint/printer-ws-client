@@ -281,7 +281,7 @@ class Multiplexer:
         if for_client in self.clients.keys():
             self.clients[event.printer_id] = self.clients[for_client]
             self.clients[event.printer_id].config.id = event.printer_id
-            del self.clients[for_client]
+            if hash(for_client) != hash(event.printer_id): del self.clients[for_client]
             ConfigManager.persist_config(self.clients[event.printer_id].config)
 
     def on_event(self, event: ServerEvent, for_client: Optional[int] = None):
