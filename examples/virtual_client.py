@@ -1,12 +1,17 @@
+import logging
 import math
 import asyncio
+import threading
 
 from simplyprint_ws_client.helpers.file_download import FileDownload
+from simplyprint_ws_client.helpers.sentry import Sentry
 from simplyprint_ws_client.helpers.temperature import Temperature
 from simplyprint_ws_client.client import DefaultClient
-from simplyprint_ws_client.config import Config
+from simplyprint_ws_client.config import Config, ConfigManager
 
-from simplyprint_ws_client.events import Events, Demands, ClientEvent
+from simplyprint_ws_client.events import events as Events
+from simplyprint_ws_client.events import demands as Demands
+from simplyprint_ws_client.multiplexer import Multiplexer, MultiplexerMode
 
 from simplyprint_ws_client.printer import PrinterStatus
 
@@ -17,6 +22,7 @@ class VirtualSuperClient(DefaultClient):
     def __init__(self, config: Config):
         super().__init__(config)
 
+        self.sentry = Sentry()
         self.sentry.client = "VirtualSuperClient"
         self.sentry.client_version = "0.0.1"
         self.sentry.sentry_dsn = "https://a5aef1defa83433586dd0cf1c1fffe57@o1102514.ingest.sentry.io/6619552"
@@ -69,6 +75,7 @@ class VirtualSuperClient(DefaultClient):
 
     @Demands.FileEvent.on
     async def on_file(self, event: Demands.FileEvent):
+        print(event)
         downloader = FileDownload(self.printer.file_progress, asyncio.get_event_loop())
         data = await downloader.download_as_bytes(event.url)
 
@@ -113,13 +120,24 @@ class VirtualSuperClient(DefaultClient):
                 self.printer.job_info.progress += expt_smooth(
                     100.0,
                     0.01,
-                    0.15,
+                    0.01,
                     self.tick_rate
                 )
 
                 if self.printer.job_info.progress > 100.0:
-                    self.printer.status = PrinterStatus.IDLE
-                    self.printer.job_info.started = False
-                    self.printer.job_info.progress = 0.0
+                    self.printer.status = PrinterStatus.OPERATIONAL
+                    self.printer.job_info.finished = True
+                    self.printer.job_info.progress = 100
 
             await asyncio.sleep(self.tick_rate)
+
+if __name__ == '__main__':
+    logging.basicConfig(level=logging.DEBUG)
+
+    config = ConfigManager.get_config(16781) or Config(id=0, token="0")
+    client = VirtualSuperClient(config)
+    mp = Multiplexer(MultiplexerMode.SINGLE, config)
+    mp.allow_setup = True
+    mp.add_client(client)
+    threading.Thread(target=mp.start).start()
+    asyncio.run(client.printer_loop())

@@ -3,7 +3,10 @@ import time
 from typing import Callable, Coroutine, Dict, List, Optional, Type
 
 from .config import Config, ConfigManager
-from .events import ClientEvent, Demands, Events
+from .events.client_events import ClientEvent
+from .events import events as Events
+from .events import demands as Demands
+
 from .helpers.physical_machine import PhysicalMachine
 from .helpers.sentry import Sentry
 from .printer import PrinterState

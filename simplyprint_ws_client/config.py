@@ -86,7 +86,7 @@ class ConfigManager:
     
     @staticmethod
     def get_all_configs() -> List[Config]:
-        """
+        """int()
         Get all config.
         """
         ConfigManager._ensure_table()

@@ -10,7 +10,8 @@ import janus
 from .client import Client
 from .config import Config, ConfigManager
 from .const import API_VERSION, WEBSOCKET_URL
-from .events import ClientEvent, ServerEvent
+from .events.client_events import ClientEvent
+from .events.events import ServerEvent
 from .events.events import (ConnectEvent, MultiPrinterAddResponseEvent,
                             SetupCompleteEvent)
 from .helpers.sentry import Sentry
@@ -112,7 +113,21 @@ class Multiplexer:
     def get_url(self, config: Optional[Config] = None):
         return f"{WEBSOCKET_URL}/{API_VERSION}/{self.mode.value}" + (f"/{config.id}/{config.token}" if config is not None and config.id is not None and config.id != 0 else "/0/0")
 
+    def get_single_client(self):
+        if self.mode != MultiplexerMode.SINGLE:
+            raise MultiplexerException(
+                "Cannot get single client in multiplexer mode")
+
+        if len(self.clients) + len(self.pending_clients) == 0:
+            return None
+
+        return (list(self.clients.values()) + list(self.pending_clients.values()))[0]
+
     def get_client_by_id(self, client_id: int):
+        if self.mode == MultiplexerMode.SINGLE:
+            # Always return the single client
+            return self.get_single_client()
+
         if client_id in self.clients:
             return self.clients.get(client_id)
 
@@ -142,7 +157,7 @@ class Multiplexer:
             raise MultiplexerAlreadyConnectedException(
                 f"Cannot add client with id {client.config.id} and token {client.config.token} as it is already connected")
 
-        if unique_id is None:
+        if unique_id is None and self.mode != MultiplexerMode.SINGLE:
             unique_id = str(id(client))
 
         async def client_send_handle(self, event: ClientEvent):
@@ -173,6 +188,10 @@ class Multiplexer:
             f"Added printer {client.config.id} with unique id {unique_id}")
 
     def remove_client(self, ident: Union[Client, Config, int]):
+        if self.mode == MultiplexerMode.SINGLE:
+            # Remove the single client
+            ident = list(self.clients.values())[0].config.id
+
         if isinstance(ident, Client):
             client_id = ident.config.id
         elif isinstance(ident, Config):
@@ -261,7 +280,9 @@ class Multiplexer:
         self.logger.info(f"Moving {for_client} to {event.printer_id}")
         if for_client in self.clients.keys():
             self.clients[event.printer_id] = self.clients[for_client]
+            self.clients[event.printer_id].config.id = event.printer_id
             del self.clients[for_client]
+            ConfigManager.persist_config(self.clients[event.printer_id].config)
 
     def on_event(self, event: ServerEvent, for_client: Optional[int] = None):
         if event is None:
@@ -269,8 +290,9 @@ class Multiplexer:
             return
 
         if self.mode == MultiplexerMode.SINGLE:
-            assert len(self.clients) == 1
-            for_client = list(self.clients.keys())[0]
+            assert len(self.clients) + len(self.pending_clients) <= 1, "Cannot have more than one client in single mode"
+            # Key is always None in single mode
+            for_client = next(iter(self.clients.keys())) if len(self.clients) else next(iter(self.pending_clients.keys())) if len(self.pending_clients) else None
 
         if event == MultiPrinterAddResponseEvent:
             return self.on_add_client_response(event, for_client)
@@ -283,7 +305,7 @@ class Multiplexer:
             self.logger.info(f"Removing {for_client} from multiplexer")
             self.remove_client(for_client)
             return
-
+        
         self.queue_update_sync(event, for_client)
 
     async def poll_events(self):
@@ -336,6 +358,7 @@ class Multiplexer:
 
             if not for_client in self.clients:
                 await self.buffered_events.async_q.put((event, for_client))
+                continue
 
             try:
                 await self.clients[for_client].handle_event(event)
@@ -356,7 +379,7 @@ class Multiplexer:
         if self._connect_lock.locked():
             self.logger.info("Already connecting to websocket")
 
-            # Await lock to be released then check if we are connected
+            # Await lock to be released then check if we are connectedwwwwwwwwwwww
             await self._connect_lock.acquire()
 
             if self.ws.is_connected():
@@ -413,6 +436,10 @@ class Multiplexer:
             # Mark all clients as disconnected
             for client in list(self.clients.values()) + list(self.pending_clients.values()):
                 client.printer.connected = False
+
+            if self.mode == MultiplexerMode.SINGLE:
+                self.get_single_client().printer.connected = True
+                return
 
             # Move all non connected clients to pending
             # and readd them to the multiplexer connection

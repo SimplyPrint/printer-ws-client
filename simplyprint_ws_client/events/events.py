@@ -2,7 +2,6 @@ from abc import abstractmethod
 from typing import Dict, Type, Any, List, Union, Optional
 
 from ..helpers.intervals import Intervals
-from ..printer import PrinterSettings, PrinterDisplaySettings
 
 class ServerEventError(ValueError):
     pass
@@ -115,6 +114,8 @@ class PrinterSettingsEvent(ServerEvent):
     name = "printer_settings"
 
     def on_event(self):
+        from ..printer import PrinterSettings, PrinterDisplaySettings
+
         self.name = self.data.get("name", "")
         self.printer_settings = PrinterSettings(has_psu=self.data.get("has_psu", False), has_filament_sensor=self.data.get("has_filament_sensor", False))
         self.display_settings = PrinterDisplaySettings(**self.data.get("display", {}))
@@ -123,6 +124,6 @@ class MultiPrinterAddResponseEvent(ServerEvent):
     name = "add_connection"
 
     def on_event(self):
-        self.printer_id: str = self.data.get("pid", "")
+        self.printer_id: int = int(self.data.get("pid", ""))
         self.status: bool = self.data.get("status", False)
         self.unique_id: str = self.data.get("unique_id", "")

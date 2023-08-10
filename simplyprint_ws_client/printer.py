@@ -13,7 +13,6 @@ from .helpers.intervals import Intervals
 from .helpers.temperature import Temperature
 from .state import DEFAULT_EVENT, ClientState, RootState
 
-
 class PrinterCpuFlag(Enum):
     NONE = 0
     THROTTLED = 1

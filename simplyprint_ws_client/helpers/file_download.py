@@ -2,13 +2,14 @@ import asyncio
 import aiohttp
 
 from io import BytesIO
+
 from ..printer import PrinterFileProgressState, FileProgressState
 
 class FileDownload:
     loop: asyncio.AbstractEventLoop
-    state: PrinterFileProgressState
+    state: "PrinterFileProgressState"
 
-    def __init__(self, state: PrinterFileProgressState, loop: asyncio.AbstractEventLoop) -> None:
+    def __init__(self, state: "PrinterFileProgressState", loop: asyncio.AbstractEventLoop) -> None:
         self.loop = loop
         self.state = state
 

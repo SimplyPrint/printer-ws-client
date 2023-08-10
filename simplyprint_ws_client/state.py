@@ -83,17 +83,19 @@ class RootState(HasTraits):
             client_event = self._dirty.pop()
             yield client_event(state=self, for_client=for_client)
 
-    def has_changed(self, obj: HasTraits, name: Optional[str] = None):
+    def has_changed(self, obj: HasTraits, name: Optional[str] = None, clear: bool = True):
         """Check if a field has changed since last update"""
         if name is None:
             predicate = len(self._changed_fields[id(obj)]) > 0
-            if predicate:
+
+            if predicate and clear:
                 self._changed_fields[id(obj)].clear()
+
             return predicate
 
         predicate = name in self._changed_fields[id(obj)]
 
-        if predicate:
+        if predicate and clear:
             self._changed_fields[id(obj)].remove(name)
 
         return predicate
