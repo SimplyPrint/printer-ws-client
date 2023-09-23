@@ -283,6 +283,8 @@ class Multiplexer:
             self.clients[event.printer_id].config.id = event.printer_id
             if hash(for_client) != hash(event.printer_id): del self.clients[for_client]
             ConfigManager.persist_config(self.clients[event.printer_id].config)
+         
+            self.queue_update_sync(event, event.printer_id)
 
     def on_event(self, event: ServerEvent, for_client: Optional[int] = None):
         if event is None:
@@ -299,6 +301,7 @@ class Multiplexer:
 
         if event == SetupCompleteEvent:
             self.on_setup_complete(event, for_client)
+            return
 
         if not self.allow_setup and event == ConnectEvent and event.in_setup:
             # Drop connection and remove printer if we disallow setup
