@@ -195,7 +195,12 @@ class JobInfoEvent(ClientEvent):
     def generate_data(self) -> Generator[Tuple, None, None]:
         for key, value in self.state.job_info.trait_values().items():
             if self.state.has_changed(self.state.job_info, key):
-                if key in ["started", "finished", "cancelled", "failed"]: self.force_dispatch = True
+                if key in ["started", "finished", "cancelled", "failed"]:
+                    # Only send updates in terms of true, since they
+                    # are mutually exclusive.
+                    if not value: continue
+                    self.force_dispatch = True
+        
                 yield key, value if key != 'progress' else round(value)
     
     def on_send(self) -> ClientEventMode:
