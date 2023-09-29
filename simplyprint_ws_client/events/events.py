@@ -123,7 +123,7 @@ class PrinterSettingsEvent(ServerEvent):
 class MultiPrinterAddResponseEvent(ServerEvent):
     name = "add_connection"
 
-    def on_event(self):
-        self.printer_id: int = int(self.data.get("pid", ""))
+    def on_event(self): 
+        self.printer_id: Optional[int] = int(self.data["pid"]) if "pid" in self.data else None
         self.status: bool = self.data.get("status", False)
-        self.unique_id: str = self.data.get("unique_id", "")
+        self.unique_id: Optional[str] = self.data.get("unique_id", "")
