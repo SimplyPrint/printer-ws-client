@@ -1,6 +1,7 @@
 from typing import Any, Dict, Optional, Set, Type
 
 from traitlets import HasTraits
+from collections import OrderedDict
 
 from .events.client_events import ClientEvent
 
@@ -30,13 +31,13 @@ class RootState(HasTraits):
     """
     event_map: Dict[str, Any]
 
-    _dirty: Set[Type[ClientEvent]]
+    _dirty: OrderedDict[Type[ClientEvent], None]
     _changed_fields: Dict[int, Set[str]]
 
     def __init__(self, **kwargs):
         super().__init__()
 
-        self._dirty = set()
+        self._dirty = OrderedDict()
         self._changed_fields = dict()
 
         self._changed_fields[id(self)] = set()
@@ -74,13 +75,18 @@ class RootState(HasTraits):
         if event is None:
             return
 
-        self._dirty.add(event)
+        self._dirty[event] = None
 
     def _build_events(self, for_client: Optional[int] = None):
-        """Generator - creates :class:`ClientEvent` instances from dirty"""
+        """
+        Generator - creates :class:`ClientEvent` instances from dirty
+        
+        Ensure the ordered "set" is iterated in the same order as it was inserted
+        so we pop from the front.
+        """
 
         while self._dirty:
-            client_event = self._dirty.pop()
+            client_event, _ = self._dirty.popitem(last=False)
             yield client_event(state=self, for_client=for_client)
 
     def has_changed(self, obj: HasTraits, name: Optional[str] = None, clear: bool = True):
