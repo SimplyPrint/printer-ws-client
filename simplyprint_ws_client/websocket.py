@@ -120,7 +120,7 @@ class SimplyPrintWebSocket:
 
             await self.recieved_message(message.data)
 
-        except (asyncio.CancelledError, asyncio.TimeoutError):
+        except (asyncio.CancelledError, asyncio.TimeoutError, ConnectionResetError):
             await self.on_disconnect()
 
     async def send_event(self, event: ClientEvent) -> None:
