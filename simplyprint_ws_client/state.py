@@ -75,6 +75,10 @@ class RootState(HasTraits):
         if event is None:
             return
 
+        self.mark_event_as_dirty(event)
+    
+    def mark_event_as_dirty(self, event: Type[ClientEvent]):
+        """Mark an event as dirty"""
         self._dirty[event] = None
 
     def _build_events(self, for_client: Optional[int] = None):

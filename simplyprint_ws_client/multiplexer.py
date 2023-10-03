@@ -10,7 +10,7 @@ import janus
 from .client import Client
 from .config import Config, ConfigManager
 from .const import API_VERSION, WEBSOCKET_URL
-from .events.client_events import ClientEvent
+from .events.client_events import ClientEvent, MachineDataEvent
 from .events.events import ServerEvent
 from .events.events import (ConnectEvent, MultiPrinterAddResponseEvent,
                             SetupCompleteEvent)
@@ -302,13 +302,17 @@ class Multiplexer:
         if event == SetupCompleteEvent:
             self.on_setup_complete(event, for_client)
             return
-
+        
         if not self.allow_setup and event == ConnectEvent and event.in_setup:
             # Drop connection and remove printer if we disallow setup
             self.logger.info(f"Removing {for_client} from multiplexer")
             self.remove_client(for_client)
             return
-        
+
+        if event == ConnectEvent and for_client in self.clients:
+            # TODO, field might not be called printer
+            self.clients[for_client].printer.mark_event_as_dirty(MachineDataEvent) 
+
         self.queue_update_sync(event, for_client)
 
     async def poll_events(self):
@@ -453,6 +457,11 @@ class Multiplexer:
 
             for unique_id in list(self.pending_clients.keys()):
                 config = self.pending_clients[unique_id].config
+
+                # Mark printer info as changed
+                # TODO, field might not be called printer
+                self.pending_clients[unique_id].printer.mark_event_as_dirty(MachineDataEvent) 
+
                 try:
                     self.queue_event_sync(MultiplexerAddPrinterEvent(
                         config, allow_setup=self.allow_setup))

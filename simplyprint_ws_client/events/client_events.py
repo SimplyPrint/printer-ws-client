@@ -107,8 +107,7 @@ class MachineDataEvent(ClientEvent):
     
     def generate_data(self) -> Generator[Tuple, None, None]:
         for key, value in self.state.info.trait_values().items():
-            if self.state.has_changed(self.state.info, key):
-                yield key, value
+            yield key, value
     
 class WebcamStatusEvent(ClientEvent):
     event_type = PrinterEvent.WEBCAM_STATUS
