@@ -2,7 +2,11 @@ import asyncio
 import json
 import logging
 import threading
-from typing import Any, Awaitable, Callable, Dict, Optional, Self
+from typing import Any, Awaitable, Callable, Dict, Optional
+try:
+    from typing import Self
+except ImportError:
+    from typing_extensions import Self
 
 import aiohttp
 
