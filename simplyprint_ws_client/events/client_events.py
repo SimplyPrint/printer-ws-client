@@ -199,6 +199,9 @@ class JobInfoEvent(ClientEvent):
                     # are mutually exclusive.
                     if not value: continue
                     self.force_dispatch = True
+
+                if key in ["time", "initial_estimate"]:
+                    self.force_dispatch = True
         
                 yield key, value if key != 'progress' else round(value)
     
