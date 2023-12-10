@@ -198,19 +198,12 @@ class JobInfoEvent(ClientEvent):
                     # Only send updates in terms of true, since they
                     # are mutually exclusive.
                     if not value: continue
-                    self.force_dispatch = True
-
-                if key in ["time", "initial_estimate"]:
-                    self.force_dispatch = True
         
                 yield key, value if key != 'progress' else round(value)
     
     def on_send(self) -> ClientEventMode:
         # Ensure we never drop job status updates
-        if self.force_dispatch:
-            return ClientEventMode.DISPATCH
-
-        return super().on_send()
+        return ClientEventMode.DISPATCH
 
 # TODO in the future
 class AiResponseEvent(ClientEvent):
@@ -255,6 +248,10 @@ class FileProgressEvent(ClientEvent):
             if key == "state": continue
             if self.state.has_changed(self.state.file_progress, key):
                 yield key, value
+
+    def on_send(self) -> ClientEventMode:
+        # Ensure we never drop file progress updates
+        return ClientEventMode.DISPATCH
 
 class FilamentSensorEvent(ClientEvent):
     event_type = PrinterEvent.FILAMENT_SENSOR

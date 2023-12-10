@@ -44,11 +44,14 @@ class MultiplexerAddPrinterEvent(ClientEvent):
 
     event_type = MultiplexerClientEvents.ADD_PRINTER
 
+    unique_id: str
+
     def __init__(self, config: Config, allow_setup: bool = False) -> None:
         if config.unique_id in self.unique_set:
             raise MultiplexerException(
                 f"Cannot add printer with unique id {config.unique_id} as it is already in use")
 
+        self.unique_id = config.unique_id
         self.unique_set.add(config.unique_id)
 
         super().__init__(None, None, {
@@ -344,6 +347,9 @@ class Multiplexer:
                 self.logger.error(f"Error sending event {event.__name__}:")
                 self.logger.exception(e)
 
+            if isinstance(event, MultiplexerAddPrinterEvent):
+                MultiplexerAddPrinterEvent.unique_set.remove(event.unique_id)
+
             self.event_queue.async_q.task_done()
 
     def event_producer(self):
@@ -432,6 +438,7 @@ class Multiplexer:
 
         self.logger.info("Was not connected to websocket, reading clients...")
 
+
         try:
             if not self.ready_to_connect() or not self.is_connected():
                 self.logger.info(
@@ -455,13 +462,14 @@ class Multiplexer:
                     self.pending_clients[client.config.unique_id] = client
                     del self.clients[client.config.id]
 
+
             for unique_id in list(self.pending_clients.keys()):
                 config = self.pending_clients[unique_id].config
 
                 # Mark printer info as changed
                 # TODO, field might not be called printer
                 self.pending_clients[unique_id].printer.mark_event_as_dirty(MachineDataEvent) 
-
+                
                 try:
                     self.queue_event_sync(MultiplexerAddPrinterEvent(
                         config, allow_setup=self.allow_setup))
