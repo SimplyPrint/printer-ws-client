@@ -221,6 +221,9 @@ class ShutdownEvent(ClientEvent):
 class StreamEvent(ClientEvent):
     event_type = PrinterEvent.STREAM
 
+    def generate_data(self) -> Generator[Tuple, None, None]:
+        yield "base", self.data.get("base")
+
 class PingEvent(ClientEvent):
     event_type = PrinterEvent.PING
     interval_type = IntervalTypes.PING

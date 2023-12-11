@@ -168,7 +168,7 @@ class Multiplexer:
             self.queue_event_sync(event)
 
         client.sentry = self.sentry
-        client.send_event = client_send_handle
+        client.send_event = lambda event: client_send_handle(self, event)
         client.printer.connected = False
         client.config.public_ip = public_ip
         client.config.unique_id = unique_id
