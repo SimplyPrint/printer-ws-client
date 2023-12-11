@@ -293,7 +293,7 @@ class MaterialDataEvent(ClientEvent):
             self.has_changes = True
 
     def on_send(self) -> ClientEventMode:
-        if has_changes:
+        if self.has_changes:
             return ClientEventMode.DISPATCH
         
         return ClientEventMode.CANCEL
