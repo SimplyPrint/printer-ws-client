@@ -45,6 +45,7 @@ class RootState(HasTraits):
 
         for field, value in kwargs.items():
             setattr(self, field, value)
+                
             if isinstance(value, HasTraits):
                 value.observe(self._notify_change)
                 self._changed_fields[id(value)] = set()
@@ -56,7 +57,6 @@ class RootState(HasTraits):
 
     def _notify_change(self, change):
         """Will trigger when state fields are updated, marking corresponding events as dirty"""
-
         owner = change['owner']
         self._changed_fields[id(owner)].add(change['name'])
 

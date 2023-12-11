@@ -1,7 +1,7 @@
 from enum import Enum
 from typing import List, Optional
 
-from traitlets import Bool
+from traitlets import Bool, Integer
 from traitlets import Enum as TraitletsEnum
 from traitlets import Float, Instance, Int
 from traitlets import List as TraitletsList
@@ -12,6 +12,7 @@ from .helpers.ambient_check import AmbientTemperatureState
 from .helpers.intervals import Intervals
 from .helpers.temperature import Temperature
 from .state import DEFAULT_EVENT, ClientState, RootState
+from .models import MaterialModel
 
 class PrinterCpuFlag(Enum):
     NONE = 0
@@ -77,7 +78,6 @@ class PrinterInfoData(ClientState):
     event_map = {
         DEFAULT_EVENT: MachineDataEvent,
     }
-        
 
 class PrinterDisplaySettings(ClientState):
     enabled: bool = Bool()
@@ -225,6 +225,9 @@ class PrinterState(RootState):
         PrinterFilamentSensorState)
     webcam_settings: WebcamSettings = Instance(WebcamSettings)
 
+    active_tool: Optional[int] = Integer(None, allow_none=True)
+    material_data: List[MaterialModel] = TraitletsList(Instance(MaterialModel))
+
     def __init__(self, extruder_count: int = 1) -> None:
         super().__init__(
             name="printer",
@@ -246,12 +249,16 @@ class PrinterState(RootState):
             psu_info=PrinterPSUState(),
             ping_pong=PingPongState(),
             file_progress=PrinterFileProgressState(),
-            filament_sensor=PrinterFilamentSensorState()
+            filament_sensor=PrinterFilamentSensorState(),
+            active_material=None,
+            material_data=[],
         )
 
     event_map = {
         "status": StateChangeEvent,
         "connected": ConnectionEvent,
+        "active_tool": ToolEvent,
+        "material_data": MaterialDataEvent,
     }
 
     def is_heating(self) -> bool:

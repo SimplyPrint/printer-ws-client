@@ -1,9 +1,11 @@
 from abc import abstractmethod
 from enum import Enum
-from typing import Any, Dict, Generator, Optional, Tuple
+from typing import Any, Dict, Generator, Optional, Tuple, TYPE_CHECKING
 
 from ..helpers.intervals import IntervalException, IntervalTypes
 
+if TYPE_CHECKING:
+    from ..printer import PrinterState
 
 class PrinterEvent(Enum):
     PING = "ping"
@@ -39,6 +41,7 @@ class PrinterEvent(Enum):
     AI_RESP = "ai_resp"
     LOGS_SENT = "logs_sent"
     FILAMENT_SENSOR = "filament_sensor"
+    MATERIAL_DATA = "material_data"
 
 class ClientEventMode(Enum):
     DISPATCH = 0
@@ -49,7 +52,7 @@ class ClientEvent:
     event_type: PrinterEvent
     interval_type: Optional[IntervalTypes] = None
     
-    state: Any
+    state: 'PrinterState'
     for_client: Optional[int]
     data: Optional[Dict[str, Any]]
 
@@ -148,7 +151,7 @@ class ToolEvent(ClientEvent):
     event_type = PrinterEvent.TOOL
 
     def generate_data(self) -> Generator[Tuple, None, None]:
-        yield "active_tool", 0
+        yield "new", self.state.active_tool
 
 class TemperatureEvent(ClientEvent):
     event_type = PrinterEvent.TEMPERATURES
@@ -280,3 +283,17 @@ class MeshDataEvent(ClientEvent):
 class LogsSentEvent(ClientEvent):
     event_type = PrinterEvent.LOGS_SENT
 
+class MaterialDataEvent(ClientEvent):
+    event_type = PrinterEvent.MATERIAL_DATA
+    has_changes = False
+
+    def generate_data(self) -> Generator[Tuple, None, None]:
+        if self.state.has_changed(self.state, "material_data"):
+            yield "materials", [material.trait_values() for material in self.state.material_data]
+            self.has_changes = True
+
+    def on_send(self) -> ClientEventMode:
+        if has_changes:
+            return ClientEventMode.DISPATCH
+        
+        return ClientEventMode.CANCEL
