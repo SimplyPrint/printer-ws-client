@@ -10,7 +10,7 @@ import janus
 from .client import Client
 from .config import Config, ConfigManager
 from .const import API_VERSION, WEBSOCKET_URL
-from .events.client_events import ClientEvent, MachineDataEvent
+from .events.client_events import ClientEvent, MachineDataEvent, StateChangeEvent
 from .events.events import ServerEvent
 from .events.events import (ConnectEvent, MultiPrinterAddResponseEvent,
                             SetupCompleteEvent)
@@ -314,7 +314,10 @@ class Multiplexer:
 
         if event == ConnectEvent and for_client in self.clients:
             # TODO, field might not be called printer
-            self.clients[for_client].printer.mark_event_as_dirty(MachineDataEvent) 
+            printer_state = self.clients[for_client].printer
+        
+            printer_state.mark_event_as_dirty(MachineDataEvent)
+            printer_state.mark_event_as_dirty(StateChangeEvent)
 
         self.queue_update_sync(event, for_client)
 
