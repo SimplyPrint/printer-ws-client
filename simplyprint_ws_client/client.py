@@ -23,6 +23,7 @@ class Client:
     """
 
     config: Config
+    config_manager: ConfigManager # Injected by multiplexer
     printer: PrinterState
 
     # Usually injected by multiplexer
@@ -104,7 +105,7 @@ class DefaultClient(Client):
     @Events.NewTokenEvent.before
     async def before_new_token(self, event: Events.NewTokenEvent) -> Events.NewTokenEvent:
         self.config.token = event.token
-        ConfigManager.persist_config(self.config)
+        self.config_manager.flush(self.config)
         return event
     
     @Events.ConnectEvent.before
@@ -125,8 +126,8 @@ class DefaultClient(Client):
     async def before_setup_complete(self, event: Events.SetupCompleteEvent) -> Events.SetupCompleteEvent:
         self.config.id = event.printer_id
         self.printer.in_setup = False
-        ConfigManager.persist_config(self.config)
         self.printer.current_display_message = "Setup complete"
+        self.config_manager.flush(self.config)
         return event
     
     @Events.IntervalChangeEvent.before

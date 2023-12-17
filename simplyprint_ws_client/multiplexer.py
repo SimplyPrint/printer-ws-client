@@ -86,6 +86,7 @@ class Multiplexer:
     url: str
 
     ws: Optional[SimplyPrintWebSocket] = None
+    config_manager: ConfigManager
 
     clients: Dict[int, Client]
     pending_clients: Dict[str, Client]
@@ -104,7 +105,15 @@ class Multiplexer:
     _reconnect_lock: asyncio.Lock = asyncio.Lock()
     _disconnect_lock: asyncio.Lock = asyncio.Lock()
 
-    def __init__(self, mode: MultiplexerMode, single_config: Optional[Config] = None, connect_timeout: Optional[float] = None):
+    def __init__(
+        self,
+        mode: MultiplexerMode,
+        config_manager: ConfigManager,
+        single_config: Optional[Config] = None,
+        connect_timeout: Optional[float] = None
+    ):
+        self.config_manager = config_manager
+
         self.connect_timeout = connect_timeout or 1
         self.mode = mode
         self.url = self.get_url(single_config)
@@ -142,7 +151,7 @@ class Multiplexer:
         return None
 
     def get_clients_by_token(self, token: str):
-        return [client for client in self.clients.values() if client.config.token == token] + [client for _, client in self.pending_clients.values() if client.config.token == token]
+        return [client for client in self.clients.values() if client.config.token == token] + [client for client in self.pending_clients.values() if client.config.token == token]
 
     def _format_credentials_key(self, config: Config):
         return f"{config.id}:{config.token}"
@@ -168,6 +177,7 @@ class Multiplexer:
             self.queue_event_sync(event)
 
         client.sentry = self.sentry
+        client.config_manager = self.config_manager
         client.send_event = lambda event: client_send_handle(self, event)
         client.printer.connected = False
         client.config.public_ip = public_ip
@@ -272,7 +282,9 @@ class Multiplexer:
             client.config.id = event.printer_id
             client.printer.connected = True
 
-            ConfigManager.persist_config(client.config)
+            self.config_manager.persist(client.config)
+            self.config_manager.flush(client.config)
+
             self.clients[client.config.id] = client
             del self.pending_clients[event.unique_id]
 
@@ -285,8 +297,11 @@ class Multiplexer:
             self.clients[event.printer_id] = self.clients[for_client]
             self.clients[event.printer_id].config.id = event.printer_id
             if hash(for_client) != hash(event.printer_id): del self.clients[for_client]
-            ConfigManager.persist_config(self.clients[event.printer_id].config)
-         
+
+            config = self.clients[event.printer_id].config
+            self.config_manager.persist(config)
+            self.config_manager.flush(config)
+
             self.queue_update_sync(event, event.printer_id)
 
     def on_event(self, event: ServerEvent, for_client: Optional[int] = None):
