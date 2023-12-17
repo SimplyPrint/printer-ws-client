@@ -1,12 +1,11 @@
-from typing import Any, Dict, Optional, Set, Type
+from typing import Any, Dict, List, Optional, Set, Type
 
 from traitlets import HasTraits
 from collections import OrderedDict
 
-from .events.client_events import ClientEvent
+from ..events.client_events import ClientEvent
 
 DEFAULT_EVENT = "__default__"
-
 
 class ClientState(HasTraits):
     """
@@ -16,10 +15,10 @@ class ClientState(HasTraits):
 
     The key __default__ is reserved for the default event that should be sent when any trait changes.
     """
-    event_map: Dict[str, Any]
+    _event_mapping: Dict[str, Any]
 
 
-class RootState(HasTraits):
+class RootState(ClientState):
     """
     A class that represents the root state of a client. Handles reactive updates and dirty checking.
 
@@ -29,7 +28,6 @@ class RootState(HasTraits):
     Then we can iterate over the dirty set and build the corresponding events which on generate_data checks the changed fields
     to decide which data has changed and needs to be sent.
     """
-    event_map: Dict[str, Any]
 
     _dirty: OrderedDict[Type[ClientEvent], None]
     _changed_fields: Dict[int, Set[str]]
@@ -42,23 +40,42 @@ class RootState(HasTraits):
 
         self._changed_fields[id(self)] = set()
         self.observe(self._notify_change)
-
+        
         for field, value in kwargs.items():
             setattr(self, field, value)
-                
+
             if isinstance(value, HasTraits):
                 value.observe(self._notify_change)
                 self._changed_fields[id(value)] = set()
+            
+            # TODO implement traitlets list container
             elif isinstance(value, list):
                 for item in value:
-                    if isinstance(item, HasTraits):
-                        item.observe(self._notify_change)
-                        self._changed_fields[id(item)] = set()
+                    if not isinstance(item, HasTraits):
+                        continue
+
+                    item.observe(self._notify_change)
+                    self._changed_fields[id(item)] = set()
+
+    def _validate_change(self, state, proposal):
+        print(proposal)   
+        return state
 
     def _notify_change(self, change):
         """Will trigger when state fields are updated, marking corresponding events as dirty"""
         owner = change['owner']
-        self._changed_fields[id(owner)].add(change['name'])
+
+    
+        # With Always events we need to also check if
+        # the value has changed before setting the changed
+        # fields here.
+        try:
+            has_changed = change['old'] != change['new']
+        except Exception:
+            has_changed = True
+    
+        if has_changed:
+            self._changed_fields[id(owner)].add(change['name'])
 
         # If the change from old to new is an object, replace the id() in _changed_fields
         # and add all its fields to it, so to mark the entire object as "changed"
@@ -66,11 +83,11 @@ class RootState(HasTraits):
         #    self._changed_fields[id(change["new"])] = change["new"].trait_names()
         #    del self._changed_fields[id(change["old"])]
 
-        if not hasattr(owner, 'event_map'):
+        if not hasattr(owner, '_event_mapping'):
             return
 
-        event = owner.event_map.get(change['name']) or owner.event_map.get(
-            DEFAULT_EVENT) or self.event_map.get(change['name'])
+        event = owner._event_mapping.get(change['name']) or owner._event_mapping.get(
+            DEFAULT_EVENT) or self._event_mapping.get(change['name'])
 
         if event is None:
             return
@@ -92,6 +109,10 @@ class RootState(HasTraits):
         while self._dirty:
             client_event, _ = self._dirty.popitem(last=False)
             yield client_event(state=self, for_client=for_client)
+
+    def get_event_types(self) -> List[Type[ClientEvent]]:
+        """Get all event types that are currently dirty"""
+        return list(self._dirty.keys())
 
     def has_changed(self, obj: HasTraits, name: Optional[str] = None, clear: bool = True):
         """Check if a field has changed since last update"""

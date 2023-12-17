@@ -4,8 +4,11 @@ import unittest
 from traitlets import Instance, Integer, List as TraitletsList
 from simplyprint_ws_client.events.client_events import MaterialDataEvent, ToolEvent
 from simplyprint_ws_client.models import MaterialModel
-from simplyprint_ws_client.state import RootState
+from simplyprint_ws_client.state import to_event
+from simplyprint_ws_client.state.root_state import RootState
 
+@to_event(MaterialDataEvent, "material_data")
+@to_event(ToolEvent, "active_tool")
 class TestState(RootState):
     active_tool: Optional[int] = Integer(None, allow_none=True)
     material_data: List[MaterialModel] = TraitletsList(Instance(MaterialModel))
@@ -15,11 +18,6 @@ class TestState(RootState):
             active_tool=None,
             material_data=[],
         )
-
-    event_map = {
-        "active_tool": ToolEvent,
-        "material_data": MaterialDataEvent,
-    }
 
     def get_events(self):
         events = list(self._build_events())

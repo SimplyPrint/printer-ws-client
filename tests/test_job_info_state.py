@@ -3,9 +3,11 @@ import unittest
 from traitlets import Enum, Instance
 from simplyprint_ws_client.events.client_events import JobInfoEvent, StateChangeEvent
 from simplyprint_ws_client.printer import JobInfoState, PrinterStatus
+from simplyprint_ws_client.state import to_event
 
-from simplyprint_ws_client.state import RootState
+from simplyprint_ws_client.state.root_state import RootState
 
+@to_event(StateChangeEvent, "status")
 class TestState(RootState):
     status: PrinterStatus = Enum(PrinterStatus)
     job_info: JobInfoState = Instance(JobInfoState)
@@ -16,25 +18,40 @@ class TestState(RootState):
             job_info=JobInfoState(),
         )
 
-    event_map = {
-        "status": StateChangeEvent,
-    }
-
 class TestJobInfoState(unittest.TestCase):
     def test_basic_state(self):
         state = TestState()
         
-        self.assertEqual(list(map(lambda x: x.__class__, state._build_events())), [
+        self.assertEqual(state.get_event_types(), [
             StateChangeEvent,
         ])
 
         self.assertEqual(state.status, PrinterStatus.OFFLINE)
+    
+    def test_state_resetting(self):
+        state = TestState()
+        state.status = PrinterStatus.OPERATIONAL
+        state.job_info.started = True
+
+        # Consume all initial events
+        list(state._build_events())
+        self.assertEqual(state.get_event_types(), [])
+
+        state.job_info.started = True
+
+        self.assertEqual(state.get_event_types(), [ JobInfoEvent ])
+
+        # Consume all events
+        list(state._build_events())
+        self.assertEqual(state.get_event_types(), [])
+        state.job_info.started = True
+        self.assertEqual(state.get_event_types(), [ JobInfoEvent ])
 
     def test_status_change(self):
         state = TestState()
         state.status = PrinterStatus.PRINTING
 
-        self.assertEqual(list(map(lambda x: x.__class__, state._build_events())), [
+        self.assertEqual(state.get_event_types(), [
             StateChangeEvent,
         ])
         
@@ -46,7 +63,7 @@ class TestJobInfoState(unittest.TestCase):
         state.job_info.started = True
 
         # Ensure the order of the events is correct
-        self.assertEqual(list(map(lambda x: x.__class__, state._build_events())), [
+        self.assertEqual(state.get_event_types(), [
             StateChangeEvent,
             JobInfoEvent,
         ])

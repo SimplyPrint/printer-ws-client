@@ -1,17 +1,19 @@
 from enum import Enum
 from typing import List, Optional
 
-from traitlets import Bool, Integer
+from traitlets import Bool, Integer, validate
 from traitlets import Enum as TraitletsEnum
 from traitlets import Float, Instance, Int
 from traitlets import List as TraitletsList
 from traitlets import Unicode, observe
+from simplyprint_ws_client.events.events import PrinterSettingsEvent
 
+from simplyprint_ws_client.state import Always, to_event
 from .events.client_events import *
 from .helpers.ambient_check import AmbientTemperatureState
 from .helpers.intervals import Intervals
 from .helpers.temperature import Temperature
-from .state import DEFAULT_EVENT, ClientState, RootState
+from .state import ClientState, RootState
 from .models import MaterialModel
 
 class PrinterCpuFlag(Enum):
@@ -19,14 +21,11 @@ class PrinterCpuFlag(Enum):
     THROTTLED = 1
 
 
+@to_event(CpuInfoEvent)
 class CpuInfoState(ClientState):
     usage: float = Float()
     temp: float = Float()
     memory: float = Float()
-
-    event_map = {
-        DEFAULT_EVENT: CpuInfoEvent,
-    }
 
 
 class PrinterStatus(Enum):
@@ -48,16 +47,14 @@ class FileProgressState(Enum):
     READY = "ready"
 
 
+@to_event(FileProgressEvent)
 class PrinterFileProgressState(ClientState):
     state: Optional[FileProgressState] = TraitletsEnum(FileProgressState)
     percent: Optional[float] = Float()
     message: Optional[str] = Unicode()  # Typically error message
 
-    event_map = {
-        DEFAULT_EVENT: FileProgressEvent,
-    }
 
-
+@to_event(MachineDataEvent)
 class PrinterInfoData(ClientState):
     ui = Unicode()
     ui_version = Unicode()
@@ -75,22 +72,18 @@ class PrinterInfoData(ClientState):
     total_memory = Int()
     mac = Unicode()
 
-    event_map = {
-        DEFAULT_EVENT: MachineDataEvent,
-    }
-
 class PrinterDisplaySettings(ClientState):
     enabled: bool = Bool()
     branding: bool = Bool()
     while_printing_type: int = Int()
     show_status: bool = Bool()
 
-
 class PrinterSettings(ClientState):
     has_psu: bool = Bool()
     has_filament_sensor: bool = Bool()
 
 
+@to_event(FirmwareEvent)
 class PrinterFirmware(ClientState):
     name: Optional[str] = Unicode()
     name_raw: Optional[str] = Unicode()
@@ -98,20 +91,13 @@ class PrinterFirmware(ClientState):
     date: Optional[str] = Unicode()
     link: Optional[str] = Unicode()
 
-    event_map = {
-        DEFAULT_EVENT: FirmwareEvent,
-    }
 
-
-class PrinterFirmwareWarning(ClientEvent):
+@to_event(FirmwareWarningEvent)
+class PrinterFirmwareWarning(ClientState):
     check_name: Optional[str] = Unicode()
     warning_type: Optional[str] = Unicode()
     severity: Optional[str] = Unicode()
     url: Optional[str] = Unicode()
-
-    event_map = {
-        DEFAULT_EVENT: FirmwareWarningEvent,
-    }
 
 
 class PrinterFilamentSensorEnum(Enum):
@@ -119,23 +105,17 @@ class PrinterFilamentSensorEnum(Enum):
     RUNOUT = "runout"
 
 
+@to_event(FilamentSensorEvent)
 class PrinterFilamentSensorState(ClientState):
     state: Optional[PrinterFilamentSensorEnum] = TraitletsEnum(
         PrinterFilamentSensorEnum)
 
-    event_map = {
-        DEFAULT_EVENT: FilamentSensorEvent,
-    }
 
-
+@to_event(PowerControllerEvent)
 class PrinterPSUState(ClientState):
     on: bool = Bool()
 
-    event_map = {
-        DEFAULT_EVENT: PowerControllerEvent,
-    }
-
-
+@to_event(JobInfoEvent)
 class JobInfoState(ClientState):
     progress: Optional[float] = Float()
     initial_estimate: Optional[float] = Float()
@@ -144,56 +124,48 @@ class JobInfoState(ClientState):
     filament: Optional[float] = Float()  # Filament usage
     filename: Optional[str] = Unicode()
 
-    started: bool = Bool()
-    finished: bool = Bool()
-    cancelled: bool = Bool()
-    failed: bool = Bool()
+    started: bool = Always(Bool())
+    finished: bool = Always(Bool())
+    cancelled: bool = Always(Bool())
+    failed: bool = Always(Bool())
 
     @observe("started", "finished", "cancelled", "failed")
-    def _on_job_state_change(self, change):
-        # If one changes, set the others to false
-        if change["new"]:
-            for key in ["started", "finished", "cancelled", "failed"]:
-                if key != change["name"]:
-                    setattr(self, key, False)
+    def _on_job_state_change(self, change):        # If one changes, set the others to false
+        if not change["new"]:
+            return
+        
+        for key in ["started", "finished", "cancelled", "failed"]:
+            # Only set "True" values to "False"
+            # As undefined values can stay undefined
+            if key != change["name"] and getattr(self, key):
+                setattr(self, key, False)
 
     delay: Optional[float] = Float()
 
     # Not yet implemented
     # ai: List[int] = TraitletsList(Int())
 
-    event_map = {
-        DEFAULT_EVENT: JobInfoEvent,
-    }
 
-
+@to_event(LatencyEvent, "pong")
 class PingPongState(ClientState):
     ping: Optional[float] = Float()  # Timestamp when ping was sent
     pong: Optional[float] = Float()  # Timestamp when pong was received
 
-    event_map = {
-        "pong": LatencyEvent,
-    }
 
-
+@to_event(WebcamStatusEvent, "connected")
 class WebcamState(ClientState):
     connected: bool = Bool()
 
-    event_map = {
-        "connected": WebcamStatusEvent,
-    }
-
-
+@to_event(WebcamEvent)
 class WebcamSettings(ClientState):
     flipH: bool = Bool()
     flipV: bool = Bool()
     rotate90: bool = Bool()
 
-    event_map = {
-        DEFAULT_EVENT: WebcamEvent,
-    }
-
-
+@to_event(StateChangeEvent, "status")
+@to_event(ConnectionEvent, "connected")
+@to_event(ToolEvent, "active_tool")
+@to_event(MaterialDataEvent, "material_data")
 class PrinterState(RootState):
     name = Unicode(allow_none=True)
     connected = Bool()
@@ -253,13 +225,6 @@ class PrinterState(RootState):
             active_material=None,
             material_data=[],
         )
-
-    event_map = {
-        "status": StateChangeEvent,
-        "connected": ConnectionEvent,
-        "active_tool": ToolEvent,
-        "material_data": MaterialDataEvent,
-    }
 
     def is_heating(self) -> bool:
         for tool in self.tool_temperatures:

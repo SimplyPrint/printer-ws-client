@@ -1,5 +1,7 @@
 from traitlets import Float, Int
-from ..state import ClientState
+
+from simplyprint_ws_client.state import to_event
+from ..state.root_state import ClientState
 from ..events.client_events import AmbientTemperatureEvent
 
 from .temperature import Temperature
@@ -31,15 +33,12 @@ class AmbientCheck:
                 return None, round(ambient), AmbientCheck.AMBIENT_CHECK_TIME
             else:
                 return tool0.actual, round(ambient), AmbientCheck.SAMPLE_CHACK_TIME
-            
+
+@to_event(AmbientTemperatureEvent, "ambient")            
 class AmbientTemperatureState(ClientState):
     initial_sample: Optional[float] = Float(allow_none=True)
     ambient: int = Int()
     update_interval: Optional[float] = Float(allow_none=True)
-
-    event_map = {
-        "ambient": AmbientTemperatureEvent,
-    }
 
     def on_changed_callback(self, new_ambient):
         self.ambient = round(new_ambient)
