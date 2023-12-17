@@ -136,7 +136,7 @@ class SimplyPrintWebSocket:
 
             if (mode := event.on_send()) == ClientEventMode.DISPATCH:
                 await self.socket.send_json(message)
-                self.logger.debug(f"Sent event {event} with data {message}")
+                self.logger.debug(f"Sent event {event} with data {str(message):.150}")
             else:
                 self.logger.debug(
                     f"Did not send event {event} with data {message} because of mode {mode.name}")

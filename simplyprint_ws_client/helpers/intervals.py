@@ -22,6 +22,7 @@ class IntervalTypes(Enum):
     RECONNECT = IntervalType("reconnect", 1000)
     READY_MESSAGE = IntervalType("ready_message", 60000)
     PING = IntervalType("ping", 20000)
+    WEBCAM = IntervalType("webcam", 1000)
 
     @classmethod
     def values(cls) -> List[IntervalType]:
@@ -49,12 +50,21 @@ class Intervals:
         for t, interval in other.intervals.items():
             self.intervals[t] = interval
 
+    def set(self, t: IntervalType, interval: float):
+        self.intervals[t.name] = (interval or t.default_timing) / 1000.0
+        
+        if not t.name in self.last_updates:
+            self.last_updates[t.name] = datetime.now() - timedelta(seconds=self.intervals[t.name])
+            
     def update_raw(self, data: Dict[Union[str, IntervalType], float]):
         for t, interval in data.items():
             if isinstance(t, str): t = self._get_type_from_str(t)
             self.intervals[t.name] = interval
 
     def is_ready(self, t: IntervalType) -> bool:
+        if t.name not in self.intervals:
+            return True 
+        
         return datetime.now() - self.last_updates[t.name] > timedelta(seconds=self.intervals[t.name])
     
     def use(self, t: IntervalType):

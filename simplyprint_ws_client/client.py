@@ -2,6 +2,8 @@ import asyncio
 import time
 from typing import Callable, Coroutine, Dict, List, Optional, Type
 
+from simplyprint_ws_client.helpers.intervals import IntervalTypes
+
 from .config import Config, ConfigManager
 from .events.client_events import ClientEvent
 from .events import events as Events
@@ -154,4 +156,11 @@ class DefaultClient(Client):
     
     @Demands.PauseEvent.before
     async def before_pause(self, event: Demands.PauseEvent) -> Demands.PauseEvent:
+        return event
+    
+    @Demands.WebcamSnapshotEvent.before
+    async def before_webcam_snapshot(self, event: Demands.WebcamSnapshotEvent) -> Demands.WebcamSnapshotEvent:
+        if event.timer is not None:
+            self.printer.intervals.set(IntervalTypes.WEBCAM.value, event.timer)
+        
         return event
