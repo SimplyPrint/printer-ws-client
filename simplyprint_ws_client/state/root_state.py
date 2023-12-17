@@ -57,10 +57,6 @@ class RootState(ClientState):
                     item.observe(self._notify_change)
                     self._changed_fields[id(item)] = set()
 
-    def _validate_change(self, state, proposal):
-        print(proposal)   
-        return state
-
     def _notify_change(self, change):
         """Will trigger when state fields are updated, marking corresponding events as dirty"""
         owner = change['owner']

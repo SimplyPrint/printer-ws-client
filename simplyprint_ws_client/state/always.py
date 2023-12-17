@@ -16,18 +16,20 @@ class Always(TraitType):
             if name in ["set"] or name.startswith("__"):
                 continue
 
-            is_callable = callable(getattr(trait, name))
+            value = getattr(trait, name)
+
+            is_callable = callable(value)
 
             if not is_callable and not hasattr(self, name):
-                setattr(self, name, getattr(trait, name))
+                setattr(self, name, value)
 
             if not is_callable:
                 continue
 
             # Make a wrapper so self is _trait
             def make_wrapper(trait, name):
-                def wrapper(obj, *args, **kwargs):
-                    return getattr(trait, name)(obj, *args, **kwargs)
+                def wrapper(*args, **kwargs):
+                    return getattr(trait, name)(*args, **kwargs)
 
                 return wrapper
 
@@ -45,7 +47,7 @@ class Always(TraitType):
     def set(self, obj: HasTraits, value: Any):
         """ 
         Re-implementation of TraitType.set from 
-        https://github.com/ipython/traitlets/blob/main/traitlets/traitlets.py#L1759
+        https://github.com/ipython/traitlets/blob/main/traitlets/traitlets.py#L689
 
         to always notify observers when a value has been set
         not just when it has new information.
