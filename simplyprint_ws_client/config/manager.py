@@ -1,18 +1,22 @@
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Dict, List, Optional, Type
+from typing import Dict, Generic, List, Optional, Type, TypeVar
 
 from .config import Config
 
-class ConfigManager(ABC):
+TConfig = TypeVar("TConfig", bound=Config)
+
+class ConfigManager(ABC, Generic[TConfig]):
     name: str
     config_class: Type[Config]
     configurations: Dict[int, Config]
+    base_directory: Path
 
-    def __init__(self, name: str = "config", config_class: Type[Config] = Config) -> None:
+    def __init__(self, name: str = "config", config_class: Type[Config] = Config, base_directory = ".") -> None:
         self.name = name
         self.config_class = config_class
         self.configurations = {}
+        self.base_directory = Path(base_directory)
 
     def by_id(self, id: int) -> Config:
         return self.by_other(self.config_class(id=id))
@@ -47,10 +51,6 @@ class ConfigManager(ABC):
     
     def clear(self):
         self.configurations.clear()
-
-    @property
-    def base_directory(self) -> Path:
-        return Path(".")
 
     @abstractmethod
     def flush(self, config: Optional[Config] = None):

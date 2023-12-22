@@ -9,7 +9,7 @@ from simplyprint_ws_client.helpers.temperature import Temperature
 from simplyprint_ws_client.client import DefaultClient
 from simplyprint_ws_client.config import Config, ConfigManager
 
-from simplyprint_ws_client.events import events as Events
+from simplyprint_ws_client.events import server_events as Events
 from simplyprint_ws_client.events import demands as Demands
 from simplyprint_ws_client.multiplexer import Multiplexer, MultiplexerMode
 
@@ -18,12 +18,15 @@ from simplyprint_ws_client.state.printer import PrinterStatus
 def expt_smooth(target, actual, alpha, dt):
     return actual + (target - actual) * (1.0 - math.exp(-alpha * dt))
 
+class VirtualConfig(Config):
+    ...
+
 class VirtualClient(DefaultClient):
     def __init__(self, config: Config):
         super().__init__(config)
 
         self.sentry = Sentry()
-        self.sentry.client = "VirtualSuperClient"
+        self.sentry.client = "VirtualClient"
         self.sentry.client_version = "0.0.1"
         self.sentry.sentry_dsn = "https://a5aef1defa83433586dd0cf1c1fffe57@o1102514.ingest.sentry.io/6619552"
         self.sentry.development = True
@@ -41,8 +44,6 @@ class VirtualClient(DefaultClient):
 
         self.printer.status = PrinterStatus.OPERATIONAL
 
-        for k, v in self.physical_machine.get_info().items():
-            self.printer.info.set_trait(k, v)
 
     @Events.ConnectEvent.on
     async def on_connect(self, event: Events.ConnectEvent):
@@ -131,7 +132,7 @@ if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)
 
     config = ConfigManager.get_config(17120) or Config(id=0, token="0")
-    client = VirtualSuperClient(config)
+    client = VirtualClient(config)
     mp = Multiplexer(MultiplexerMode.SINGLE, config)
     mp.allow_setup = True
     mp.add_client(client)

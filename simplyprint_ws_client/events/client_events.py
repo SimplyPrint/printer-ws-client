@@ -3,6 +3,7 @@ from enum import Enum
 from typing import Any, Dict, Generator, Optional, Tuple, TYPE_CHECKING
 
 from ..helpers.intervals import IntervalException, IntervalTypes
+from ..events.event_bus import Event
 
 if TYPE_CHECKING:
     from ..state.printer import PrinterState
@@ -48,7 +49,7 @@ class ClientEventMode(Enum):
     RATELIMIT = 1
     CANCEL = 2
 
-class ClientEvent:
+class ClientEvent(Event):
     event_type: PrinterEvent
     interval_type: Optional[IntervalTypes] = None
     
@@ -66,21 +67,19 @@ class ClientEvent:
         self.for_client = for_client
         self.data = data
 
-    def __str__(self) -> str:
-        return self.event_type.value
-    
-    def __repr__(self) -> str:
-        return f"<{self.__class__.__name__} {self.event_type}>"
-    
-    def __hash__(self) -> int:
-        return hash(self.event_type)
+    @classmethod
+    def get_name(cls) -> Optional[str]:
+        if cls is ClientEvent:
+            return None
+
+        return cls.event_type.value
 
     @abstractmethod
     def generate_data(self) -> Optional[Generator[Tuple, None, None]]:
         pass
 
     def generate(self) -> Generator[Tuple, None, None]:
-        yield "type", self.event_type.value
+        yield "type", self.get_name()
 
         if not self.for_client is None and self.for_client != 0:
             yield "for", self.for_client
@@ -230,7 +229,7 @@ class PingEvent(ClientEvent):
     interval_type = IntervalTypes.PING
 
     def generate_data(self) -> Generator[Tuple, None, None]:
-        yield ()
+        ...
 
 class LatencyEvent(ClientEvent):
     event_type = PrinterEvent.LATENCY

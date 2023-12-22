@@ -1,27 +1,7 @@
 from typing import Any, Dict, List, Optional, Union
-from .events import ServerEvent, ServerEventType, ServerEventTraits
+from .server_events import ServerEvent
 
-class DemandEventTraits(ServerEventTraits):
-    def __str__(cls):
-        return cls.demand or cls.name
-    
-    def __repr__(cls) -> str:
-        return f"<DemandEvent {cls.demand}>"
-
-    def __eq__(cls, other: object) -> bool:
-        if isinstance(other, str): return (cls.demand or cls.name) == other
-        if isinstance(other, DemandEvent): return (cls.demand or cls.name) == (other.demand or other.name)
-        return False
-
-    def __hash__(cls) -> int:
-        return hash(cls.demand or cls.name)
-
-class DemandEventType(ServerEventType, DemandEventTraits):
-    def __repr__(cls) -> str:
-        return f"<DemandEvent {cls.demand}>"
-
-class DemandEvent(ServerEvent, DemandEventTraits, metaclass=DemandEventType):
-    name = "demand"
+class DemandEvent(ServerEvent):
     demand: Union[str, List[str]] = ""
 
     def __init__(self, name: str, demand: str, data: Dict[str, Any] = {}):
@@ -31,6 +11,13 @@ class DemandEvent(ServerEvent, DemandEventTraits, metaclass=DemandEventType):
             raise ValueError(f"Demand type {name} does not match demand {self.demand}")
 
         self.demand = demand
+
+    @classmethod
+    def get_name(cls) -> Optional[str]:
+        if cls is DemandEvent:
+            return None
+
+        return cls.demand or "demand"
 
 class PauseEvent(DemandEvent):
     demand = "pause"

@@ -1,4 +1,4 @@
-from typing import Optional, List
+from typing import Optional
 
 class ConfigMeta(type):
     """ 
@@ -37,6 +37,12 @@ class Config(metaclass=ConfigMeta):
     def __init__(self, **kwargs) -> None:            
         for key in kwargs:
             setattr(self, key, kwargs[key])
+        
+        if not hasattr(self, "unique_id"):
+            self.unique_id = str(id(self))
+
+        if not hasattr(self, "public_ip"):
+            self.public_ip = None
     
     def as_dict(self) -> dict:
         return { slot: getattr(self, slot) for slot in self.__slots__ if hasattr(self, slot) }
@@ -63,9 +69,6 @@ class Config(metaclass=ConfigMeta):
                 return False
 
         return True
-
-    def __hash__(self) -> int:
-        return hash(self.id)
 
     @staticmethod
     def get_blank() -> 'Config':

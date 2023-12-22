@@ -10,66 +10,12 @@ import janus
 from .client import Client
 from .config import Config, ConfigManager
 from .const import API_VERSION, WEBSOCKET_URL
-from .events.client_events import ClientEvent, MachineDataEvent, StateChangeEvent
-from .events.events import ServerEvent
-from .events.events import (ConnectEvent, MultiPrinterAddResponseEvent,
-                            SetupCompleteEvent)
+from .events.client_events import (ClientEvent, MachineDataEvent,
+                                   StateChangeEvent)
+from .events.server_events import (ConnectEvent, MultiPrinterAddResponseEvent,
+                            ServerEvent, SetupCompleteEvent)
 from .helpers.sentry import Sentry
 from .websocket import SimplyPrintWebSocket
-
-
-class MultiplexerException(RuntimeError):
-    pass
-
-
-class MultiplexerNotConnectedException(MultiplexerException):
-    pass
-
-
-class MultiplexerAlreadyConnectedException(MultiplexerException):
-    pass
-
-
-class MultiplexerConnectionFailedException(MultiplexerException):
-    pass
-
-
-class MultiplexerClientEvents(Enum):
-    ADD_PRINTER = "add_connection"
-    REMOVE_PRINTER = "remove_connection"
-
-
-class MultiplexerAddPrinterEvent(ClientEvent):
-    unique_set: Set[str] = set()
-
-    event_type = MultiplexerClientEvents.ADD_PRINTER
-
-    unique_id: str
-
-    def __init__(self, config: Config, allow_setup: bool = False) -> None:
-        if config.unique_id in self.unique_set:
-            raise MultiplexerException(
-                f"Cannot add printer with unique id {config.unique_id} as it is already in use")
-
-        self.unique_id = config.unique_id
-        self.unique_set.add(config.unique_id)
-
-        super().__init__(None, None, {
-            "pid": config.id,
-            "token": config.token,
-            "unique_id": config.unique_id,
-            "allow_setup": allow_setup,
-            "public_ip": config.public_ip,
-        })
-
-
-class MultiplexerRemovePrinterEvent(ClientEvent):
-    event_type = MultiplexerClientEvents.REMOVE_PRINTER
-
-
-class MultiplexerMode(Enum):
-    MULTIPRINTER = "mp"
-    SINGLE = "p"
 
 
 class Multiplexer:
@@ -239,23 +185,6 @@ class Multiplexer:
     def queue_update_sync(self, event: ServerEvent, for_client: Optional[int] = None):
         self.update_queue.sync_q.put((event, for_client))
 
-    def cleanout_buffer(self):
-        # Cleanout the buffer queue, in one iteration
-        seek_pointer = 0
-        seek_until = self.buffered_events.sync_q.qsize()
-        
-        while seek_pointer < seek_until:
-            event, for_client = self.buffered_events.sync_q.get()
-
-            if for_client in self.clients:
-                self.logger.info(
-                    f"Sending buffered event {event} with data {event.data} to client {for_client}")
-
-                self.queue_update_sync(event, for_client)
-
-            seek_pointer += 1
-            self.buffered_events.sync_q.task_done()
-
     def on_add_client_response(self, event: MultiPrinterAddResponseEvent, for_client: int):
         # Clear unique_id from MultiplexerAddPrinterEvent
         if event.unique_id in MultiplexerAddPrinterEvent.unique_set:
@@ -371,7 +300,7 @@ class Multiplexer:
             self.event_queue.async_q.task_done()
 
     def event_producer(self):
-        self.logger.info("Starting event queue producer loop")
+        self.logger.info("Starting event ServerEventqueue producer loop")
 
         while True:
             for config_id in list(self.clients.keys()):
