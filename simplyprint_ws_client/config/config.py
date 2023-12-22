@@ -1,15 +1,28 @@
-import sqlite3
-import logging
-
 from typing import Optional, List
 
-class Config:
+class ConfigMeta(type):
+    """ 
+    Automatically add correct slots based on
+    type annotations for config definitions.
+    """
+        
+    def __new__(mcs, name, bases, ns):
+        slots = set(ns.get('__slots__', ()))
+
+        # Traverse parent classes and add their slots
+        for base in bases:
+            if hasattr(base, '__slots__'):
+                slots |= set(base.__slots__)
+
+        slots |= set(ns.get('__annotations__').keys())
+        ns['__slots__'] = slots
+        return super().__new__(mcs, name, bases, ns)
+    
+class Config(metaclass=ConfigMeta):
     """
     Configuration object.
     """
     
-    __slots__ = { "id", "token", "unique_id", "public_ip" }
-
     id: int
     token: str
     unique_id: Optional[str]

@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional, Set, Type
+from typing import Any, Dict, List, Optional, Set, Type, OrderedDict as OrderedDictType
 
 from traitlets import HasTraits
 from collections import OrderedDict
@@ -17,6 +17,28 @@ class ClientState(HasTraits):
     """
     _event_mapping: Dict[str, Any]
 
+def to_event(client_event: Type[ClientEvent], *names: str):
+    """ 
+    Map events from a ClientState class to its _event_mapping
+    """
+
+    def wrapper(cls: ClientState):
+        if not issubclass(cls, ClientState):
+            raise ValueError("to_event can only be used on subclasses of ClientState")
+
+        if not hasattr(cls, "_event_mapping"):
+            cls._event_mapping = {}
+ 
+        if not names:
+            cls._event_mapping[DEFAULT_EVENT] = client_event
+            return cls
+        
+        for name in names:
+            cls._event_mapping[name] = client_event
+
+        return cls 
+
+    return wrapper
 
 class RootState(ClientState):
     """
@@ -29,7 +51,7 @@ class RootState(ClientState):
     to decide which data has changed and needs to be sent.
     """
 
-    _dirty: OrderedDict[Type[ClientEvent], None]
+    _dirty: OrderedDictType[Type[ClientEvent], None]
     _changed_fields: Dict[int, Set[str]]
 
     def __init__(self, **kwargs):

@@ -1,7 +1,6 @@
 from traitlets import Float, Int
 
-from simplyprint_ws_client.state import to_event
-from ..state.root_state import ClientState
+from ..state.root_state import ClientState, to_event
 from ..events.client_events import AmbientTemperatureEvent
 
 from .temperature import Temperature

@@ -1,5 +1,6 @@
 import json
 import logging
+from pathlib import Path
 import sqlite3
 from typing import Optional
 
@@ -17,7 +18,7 @@ class SqliteConfigManager(ConfigManager):
     db: Optional[sqlite3.Connection] = None
     table_exists: bool = False
 
-    def flush(self, config: Config | None = None):
+    def flush(self, config: Optional[Config] = None):
         self._ensure_table()
 
         try:
@@ -50,6 +51,12 @@ class SqliteConfigManager(ConfigManager):
             kwargs["id"] = config[0]
             kwargs["token"] = config[1]
             self.persist(self.config_class(**kwargs))
+    
+    def deleteStorage(self):
+        if not self._database_file.exists():
+            return
+        
+        self._database_file.unlink()
     
     def _get_single(self, config: Config):
         return self.db.execute(
@@ -93,13 +100,17 @@ class SqliteConfigManager(ConfigManager):
                     DELETE FROM config WHERE id= ? AND token= ?
                     """, (config[0], config[1]))
 
+    @property
+    def _database_file(self) -> Path:
+        return self.base_directory / f"{self.name}.db"
+
     def _ensure_table(self):
         """
         Ensure the config table exists.
         """
 
-        if not SqliteConfigManager.db:
-            SqliteConfigManager.db = sqlite3.connect(f"{self.base_directory / self.name}.db", check_same_thread=False)
+        if not SqliteConfigManager.db or not self._database_file.exists():
+            SqliteConfigManager.db = sqlite3.connect(self._database_file.as_posix(), check_same_thread=False)
 
         if SqliteConfigManager.table_exists:
             return

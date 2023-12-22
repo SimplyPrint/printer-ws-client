@@ -98,9 +98,12 @@ class TestConfigManager(unittest.TestCase):
         
         self.assertEqual(len(config_manager), 1)
 
+        config_manager.deleteStorage()
 
     def test_json_manager(self):
         self._test_manager(JsonConfigManager())
+        self.assertFalse(JsonConfigManager()._json_file.exists())
 
     def test_sqlite3_manager(self):
-        self._test_manager(SqliteConfigManager())        
+        self._test_manager(SqliteConfigManager())      
+        self.assertFalse(SqliteConfigManager()._database_file.exists())  

@@ -1,20 +1,19 @@
 from enum import Enum
 from typing import List, Optional
 
-from traitlets import Bool, Integer, validate
+from traitlets import Bool
 from traitlets import Enum as TraitletsEnum
-from traitlets import Float, Instance, Int
+from traitlets import Float, Instance, Int, Integer
 from traitlets import List as TraitletsList
 from traitlets import Unicode, observe
-from simplyprint_ws_client.events.events import PrinterSettingsEvent
 
-from simplyprint_ws_client.state import Always, to_event
-from .events.client_events import *
-from .helpers.ambient_check import AmbientTemperatureState
-from .helpers.intervals import Intervals
-from .helpers.temperature import Temperature
-from .state import ClientState, RootState
+from ..events.client_events import *
+from ..helpers.ambient_check import AmbientTemperatureState
+from ..helpers.intervals import Intervals
+from ..helpers.temperature import Temperature
+from .always import Always
 from .models import MaterialModel
+from .root_state import ClientState, RootState, to_event
 
 class PrinterCpuFlag(Enum):
     NONE = 0

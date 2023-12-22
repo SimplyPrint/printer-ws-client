@@ -5,7 +5,7 @@ from typing import Any, Dict, Generator, Optional, Tuple, TYPE_CHECKING
 from ..helpers.intervals import IntervalException, IntervalTypes
 
 if TYPE_CHECKING:
-    from ..printer import PrinterState
+    from ..state.printer import PrinterState
 
 class PrinterEvent(Enum):
     PING = "ping"

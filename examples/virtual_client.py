@@ -13,12 +13,12 @@ from simplyprint_ws_client.events import events as Events
 from simplyprint_ws_client.events import demands as Demands
 from simplyprint_ws_client.multiplexer import Multiplexer, MultiplexerMode
 
-from simplyprint_ws_client.printer import PrinterStatus
+from simplyprint_ws_client.state.printer import PrinterStatus
 
 def expt_smooth(target, actual, alpha, dt):
     return actual + (target - actual) * (1.0 - math.exp(-alpha * dt))
 
-class VirtualSuperClient(DefaultClient):
+class VirtualClient(DefaultClient):
     def __init__(self, config: Config):
         super().__init__(config)
 
@@ -86,50 +86,46 @@ class VirtualSuperClient(DefaultClient):
         self.printer.job_info.progress = 0.0
 
 
-    async def printer_loop(self):
-        self.tick_rate = 0.1
+    async def tick(self):
         # Update temperatures, printer status and so on with smoothing function
-        while True:
-            if self.printer.bed_temperature.target is None:
-                target = 20.0
+        if self.printer.bed_temperature.target is None:
+            target = 20.0
+        else:
+            target = self.printer.bed_temperature.target
 
-            else:
-                target = self.printer.bed_temperature.target
+        self.printer.bed_temperature.actual = expt_smooth(
+            target,
+            self.printer.bed_temperature.actual,
+            0.05,
+            0.1,
+        )
 
-            self.printer.bed_temperature.actual = expt_smooth(
-                target,
-                self.printer.bed_temperature.actual,
-                0.05,
-                self.tick_rate
+        if self.printer.tool_temperatures[0].target is None:
+            target = 20.0
+
+        else:
+            target = self.printer.tool_temperatures[0].target
+
+        self.printer.tool_temperatures[0].actual = expt_smooth(
+            target,
+            self.printer.tool_temperatures[0].actual,
+            0.05,
+            0.1,
+        )
+
+        if self.printer.status == PrinterStatus.PRINTING:
+            self.printer.job_info.progress += expt_smooth(
+                100.0,
+                0.01,
+                0.01,
+                0.1,
             )
 
-            if self.printer.tool_temperatures[0].target is None:
-                target = 20.0
+            if self.printer.job_info.progress > 100.0:
+                self.printer.status = PrinterStatus.OPERATIONAL
+                self.printer.job_info.finished = True
+                self.printer.job_info.progress = 100
 
-            else:
-                target = self.printer.tool_temperatures[0].target
-
-            self.printer.tool_temperatures[0].actual = expt_smooth(
-                target,
-                self.printer.tool_temperatures[0].actual,
-                0.05,
-                self.tick_rate
-            )
-
-            if self.printer.status == PrinterStatus.PRINTING:
-                self.printer.job_info.progress += expt_smooth(
-                    100.0,
-                    0.01,
-                    0.01,
-                    self.tick_rate
-                )
-
-                if self.printer.job_info.progress > 100.0:
-                    self.printer.status = PrinterStatus.OPERATIONAL
-                    self.printer.job_info.finished = True
-                    self.printer.job_info.progress = 100
-
-            await asyncio.sleep(self.tick_rate)
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)

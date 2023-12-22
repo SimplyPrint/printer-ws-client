@@ -392,7 +392,7 @@ class Multiplexer:
                 continue
 
             try:
-                await self.clients[for_client].handle_event(event)
+                await self.clients[for_client].on_event(event)
             except Exception as e:
                 self.logger.error(
                     f"Error handling event for {for_client} with event {event}:")

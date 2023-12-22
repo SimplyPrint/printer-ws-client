@@ -2,7 +2,7 @@ import unittest
 
 from traitlets import Enum, Instance
 from simplyprint_ws_client.events.client_events import JobInfoEvent, StateChangeEvent
-from simplyprint_ws_client.printer import JobInfoState, PrinterStatus
+from simplyprint_ws_client.state.printer import JobInfoState, PrinterStatus
 from simplyprint_ws_client.state import to_event
 
 from simplyprint_ws_client.state.root_state import RootState

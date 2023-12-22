@@ -70,5 +70,12 @@ class ConfigManager(ABC):
         """
         ...
 
+    @abstractmethod
+    def deleteStorage(self):
+        """
+        Delete the entire storage.
+        """
+        ...
+
     def __len__(self):
         return len(self.configurations)

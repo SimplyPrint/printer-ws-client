@@ -3,7 +3,7 @@ import aiohttp
 
 from io import BytesIO
 
-from ..printer import PrinterFileProgressState, FileProgressState
+from ..state.printer import PrinterFileProgressState, FileProgressState
 
 class FileDownload:
     loop: asyncio.AbstractEventLoop

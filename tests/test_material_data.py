@@ -3,9 +3,8 @@ import unittest
 
 from traitlets import Instance, Integer, List as TraitletsList
 from simplyprint_ws_client.events.client_events import MaterialDataEvent, ToolEvent
-from simplyprint_ws_client.models import MaterialModel
-from simplyprint_ws_client.state import to_event
-from simplyprint_ws_client.state.root_state import RootState
+from simplyprint_ws_client.state import RootState, to_event
+from simplyprint_ws_client.state.models import MaterialModel
 
 @to_event(MaterialDataEvent, "material_data")
 @to_event(ToolEvent, "active_tool")

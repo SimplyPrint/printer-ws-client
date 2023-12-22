@@ -1,8 +1,9 @@
+from abc import ABC, abstractmethod
 import asyncio
 import time
 from typing import Callable, Coroutine, Dict, List, Optional, Type
 
-from simplyprint_ws_client.helpers.intervals import IntervalTypes
+from .helpers.intervals import IntervalTypes
 
 from .config import Config, ConfigManager
 from .events.client_events import ClientEvent
@@ -11,10 +12,10 @@ from .events import demands as Demands
 
 from .helpers.physical_machine import PhysicalMachine
 from .helpers.sentry import Sentry
-from .printer import PrinterState
+from .state.printer import PrinterState
 
 
-class Client:
+class Client(ABC):
     """
     Generic client class that handles and brokers information between the server and the client.
 
@@ -55,7 +56,7 @@ class Client:
     
         self.handles[event][handle._pre] = handle
 
-    async def handle_event(self, event: Events.ServerEvent):
+    async def on_event(self, event: Events.ServerEvent):
         handle, before = self.handles.get(type(event), (None, None))
 
         if before is not None:
@@ -63,6 +64,16 @@ class Client:
 
         if handle is not None:
             await handle(event)
+    
+    @abstractmethod
+    async def tick(self):
+        """ 
+        Define a continuous task that will be called every "tick"
+        this is variable and made to optimize certain performance
+        when running a lot of clients at once.
+        """
+        ...
+    
 
 class DefaultClient(Client):
     """
@@ -88,7 +99,7 @@ class DefaultClient(Client):
             "list": ["M117 {}".format(message.replace('\n', ''))]
         })
 
-        asyncio.create_task(self.handle_event(gcode_event))
+        asyncio.create_task(self.on_event(gcode_event))
 
     @Demands.SystemRestartEvent.on
     async def on_system_restart(self, event: Demands.SystemRestartEvent):

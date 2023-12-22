@@ -1,5 +1,4 @@
-from operator import call
-from typing import Any, Union
+from typing import Any
 from traitlets import HasTraits, TraitType
 
 class Always(TraitType):
@@ -10,7 +9,7 @@ class Always(TraitType):
     def __init__(self, trait: TraitType):
         self._trait = trait
 
-        # Loop over all functiosn in the trait
+        # Loop over all functions in the trait
         for name in dir(trait):
             # If it's a function, and not a private function
             if name in ["set"] or name.startswith("__"):

@@ -114,7 +114,7 @@ class PrinterSettingsEvent(ServerEvent):
     name = "printer_settings"
 
     def on_event(self):
-        from ..printer import PrinterSettings, PrinterDisplaySettings
+        from ..state.printer import PrinterSettings, PrinterDisplaySettings
 
         self.name = self.data.get("name", "")
         self.printer_settings = PrinterSettings(has_psu=self.data.get("has_psu", False), has_filament_sensor=self.data.get("has_filament_sensor", False))

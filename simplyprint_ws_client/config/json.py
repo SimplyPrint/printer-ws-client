@@ -24,6 +24,12 @@ class JsonConfigManager(ConfigManager):
             for config in data:
                 self.persist(self.config_class(**config))
 
+    def deleteStorage(self):
+        if not self._json_file.exists():
+            return
+        
+        self._json_file.unlink()
+
     @property
     def _json_file(self) -> Path:
         return self.base_directory / f"{self.name}.json"
