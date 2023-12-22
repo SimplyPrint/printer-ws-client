@@ -1,47 +1,26 @@
-import logging
-import math
 import asyncio
-import threading
+import math
 
-from simplyprint_ws_client.helpers.file_download import FileDownload
-from simplyprint_ws_client.helpers.sentry import Sentry
-from simplyprint_ws_client.helpers.temperature import Temperature
-from simplyprint_ws_client.client import DefaultClient
-from simplyprint_ws_client.config import Config, ConfigManager
+from ...helpers.file_download import FileDownload
+from ...state.printer import PrinterStatus
+from ...client import DefaultClient
+from ...events import Events, Demands
 
-from simplyprint_ws_client.events import server_events as Events
-from simplyprint_ws_client.events import demands as Demands
-from simplyprint_ws_client.multiplexer import Multiplexer, MultiplexerMode
+from .virtual_config import VirtualConfig
 
-from simplyprint_ws_client.state.printer import PrinterStatus
 
 def expt_smooth(target, actual, alpha, dt):
     return actual + (target - actual) * (1.0 - math.exp(-alpha * dt))
 
-class VirtualConfig(Config):
-    ...
-
-class VirtualClient(DefaultClient):
-    def __init__(self, config: Config):
+class VirtualClient(DefaultClient[VirtualConfig]):
+    def __init__(self, config: VirtualConfig):
         super().__init__(config)
 
-        self.sentry = Sentry()
-        self.sentry.client = "VirtualClient"
-        self.sentry.client_version = "0.0.1"
-        self.sentry.sentry_dsn = "https://a5aef1defa83433586dd0cf1c1fffe57@o1102514.ingest.sentry.io/6619552"
-        self.sentry.development = True
+        self.set_info("Virtual Printer", "0.0.1")
+        self.setup_sentry("https://a5aef1defa83433586dd0cf1c1fffe57@o1102514.ingest.sentry.io/6619552")
 
-        self.printer.info.api = "Virtual"
-        self.printer.info.api_version = "0.1"
-        self.printer.info.ui = "Virtual"
-        self.printer.info.ui_version = "0.1"
-        self.printer.info.sp_version = "4.1.0"
-
-        self.printer.bed_temperature = Temperature(actual=20.0)
-        self.printer.tool_temperatures = [
-            Temperature(actual=20.0)
-        ]
-
+        self.printer.bed_temperature.actual = 20.0
+        self.printer.tool_temperatures[0].actual = 20.0
         self.printer.status = PrinterStatus.OPERATIONAL
 
 
@@ -126,15 +105,3 @@ class VirtualClient(DefaultClient):
                 self.printer.status = PrinterStatus.OPERATIONAL
                 self.printer.job_info.finished = True
                 self.printer.job_info.progress = 100
-
-
-if __name__ == '__main__':
-    logging.basicConfig(level=logging.DEBUG)
-
-    config = ConfigManager.get_config(17120) or Config(id=0, token="0")
-    client = VirtualClient(config)
-    mp = Multiplexer(MultiplexerMode.SINGLE, config)
-    mp.allow_setup = True
-    mp.add_client(client)
-    threading.Thread(target=mp.start).start()
-    asyncio.run(client.printer_loop())

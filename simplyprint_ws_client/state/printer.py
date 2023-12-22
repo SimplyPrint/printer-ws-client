@@ -221,9 +221,25 @@ class PrinterState(RootState):
             ping_pong=PingPongState(),
             file_progress=PrinterFileProgressState(),
             filament_sensor=PrinterFilamentSensorState(),
-            active_material=None,
-            material_data=[],
+            material_data=[MaterialModel() for _ in range(extruder_count)],
         )
+
+    def set_extruder_count(self, count: int) -> None:
+        if count > len(self.tool_temperatures):
+            for _ in range(count - len(self.tool_temperatures)):
+                self.tool_temperatures.append(Temperature())
+        else:
+            self.tool_temperatures = self.tool_temperatures[:count]
+
+        if self.active_tool is not None and self.active_tool >= count:
+            self.active_tool = None
+
+        if count > len(self.material_data) :
+            for _ in range(count - len(self.material_data)):
+                self.material_data.append(MaterialModel())
+        else:
+            self.material_data = self.material_data[:count]
+       
 
     def is_heating(self) -> bool:
         for tool in self.tool_temperatures:

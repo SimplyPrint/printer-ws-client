@@ -14,7 +14,9 @@ class ConfigMeta(type):
             if hasattr(base, '__slots__'):
                 slots |= set(base.__slots__)
 
-        slots |= set(ns.get('__annotations__').keys())
+        annotations = ns.get('__annotations__', {})
+        slots |= set(annotations.keys())
+        
         ns['__slots__'] = slots
         return super().__new__(mcs, name, bases, ns)
     
@@ -45,7 +47,7 @@ class Config(metaclass=ConfigMeta):
             self.public_ip = None
     
     def as_dict(self) -> dict:
-        return { slot: getattr(self, slot) for slot in self.__slots__ if hasattr(self, slot) }
+        return dict(sorted([ (slot, getattr(self, slot)) for slot in self.__slots__ if hasattr(self, slot) ], key=lambda x: x[0]))
 
     def __repr__(self) -> str:
         return str(self)

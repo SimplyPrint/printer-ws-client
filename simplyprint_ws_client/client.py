@@ -1,20 +1,22 @@
-from abc import ABC, abstractmethod
 import asyncio
 import time
-from typing import Optional
-
-from simplyprint_ws_client.events.client_events import ClientEvent
-
-from .helpers.intervals import IntervalTypes
+from abc import ABC, abstractmethod
+from typing import Generic, Optional, TypeVar
 
 from .config import Config
-from .events import server_events as Events
+from .const import SUPPORTED_SIMPLYPRINT_VERSION
 from .events import demands as Demands
+from .events import server_events as Events
+from .events.client_events import ClientEvent
 from .events.event_bus import Event, EventBus
-
+from .helpers.intervals import IntervalTypes
 from .helpers.physical_machine import PhysicalMachine
 from .helpers.sentry import Sentry
 from .state.printer import PrinterState
+
+
+class ClientConfigurationException(Exception):
+    ...
 
 class ClientEventBus(EventBus[Event]):
     """ 
@@ -27,7 +29,9 @@ class ClientEventBus(EventBus[Event]):
 class ClientConfigChangedEvent(Event):
     ...
 
-class Client(ABC):
+TConfig = TypeVar("TConfig", bound=Config)
+
+class Client(ABC, Generic[TConfig]):
     """
     Generic client class that handles and brokers information between the server and the client.
 
@@ -35,7 +39,7 @@ class Client(ABC):
     But in some cases also an actual physical device.
     """
 
-    config: Config
+    config: TConfig
     printer: PrinterState
 
     # Usually injected by multiplexer
@@ -44,7 +48,7 @@ class Client(ABC):
 
     event_bus: ClientEventBus
 
-    def __init__(self, config: Config):
+    def __init__(self, config: TConfig):
         self.config = config
         self.printer = PrinterState()
 
@@ -90,19 +94,46 @@ class Client(ABC):
         ...
 
 
-class DefaultClient(Client):
+class DefaultClient(Client[TConfig]):
     """
     Client with default event handling.
     """
 
-    def __init__(self, config: Config):
+    def __init__(self, config: TConfig):
         super().__init__(config)
+
         self.physical_machine = PhysicalMachine()
+        
         self.printer.observe(self._on_display_message,
                              "current_display_message")
 
         for k, v in self.physical_machine.get_info().items():
             self.printer.info.set_trait(k, v)
+
+        self.printer.info.sp_version = SUPPORTED_SIMPLYPRINT_VERSION
+
+    def set_info(self, name, version = "0.0.1"):
+        self.set_api_info(name, version)
+        self.set_ui_info(name, version)
+
+    def set_api_info(self, api: str, api_version: str):
+        self.printer.info.api = api
+        self.printer.info.api_version = api_version
+
+    def set_ui_info(self, ui: str, ui_version: str):
+        self.printer.info.ui = ui
+        self.printer.info.ui_version = ui_version
+
+    def setup_sentry(self, sentry_dsn: str, development: bool = False):
+        if not self.printer.info.api or not self.printer.info.api_version:
+            raise ClientConfigurationException(
+                "You need to set the api and api_version before you can setup sentry")
+
+        self.sentry = Sentry()
+        self.sentry.client = self.printer.info.api
+        self.sentry.client_version = self.printer.info.api_version
+        self.sentry.sentry_dsn = sentry_dsn
+        self.sentry.development = development
 
     def _on_display_message(self, change):
         message = change['new']
@@ -114,7 +145,7 @@ class DefaultClient(Client):
                 message = f"[SimplyPrint] {message}"
 
         # Pass on to gcode handling (Printer firmware)
-        gcode_event = Demands.GcodeEvent(name=Demands.GcodeEvent.name, demand=Demands.GcodeEvent.demand, data={
+        gcode_event = Demands.GcodeEvent(name="demand", demand=Demands.GcodeEvent.demand, data={
             "list": ["M117 {}".format(message.replace('\n', ''))]
         })
 

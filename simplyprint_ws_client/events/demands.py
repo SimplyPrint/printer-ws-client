@@ -2,6 +2,7 @@ from typing import Any, Dict, List, Optional, Union
 from .server_events import ServerEvent
 
 class DemandEvent(ServerEvent):
+    event_type = "demand"
     demand: Union[str, List[str]] = ""
 
     def __init__(self, name: str, demand: str, data: Dict[str, Any] = {}):
@@ -17,7 +18,7 @@ class DemandEvent(ServerEvent):
         if cls is DemandEvent:
             return None
 
-        return cls.demand or "demand"
+        return cls.demand or cls.event_type
 
 class PauseEvent(DemandEvent):
     demand = "pause"

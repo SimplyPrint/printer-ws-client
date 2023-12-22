@@ -36,6 +36,13 @@ class Event(EventTraits, metaclass=EventType):
     @classmethod
     def get_name(cls) -> str:
         return cls.__name__
+    
+    # Allow for propegation control of events.
+    def is_stopped(self) -> bool:
+        return hasattr(self, "_stopped") and self._stopped
+    
+    def stop_event(self) -> None:
+        self._stopped = True
 
 TEvent = TypeVar('TEvent', bound=object)
 
@@ -99,7 +106,7 @@ class EventBus(Generic[TEvent]):
         if isinstance(handled, tuple):
             args = handled + args
         else:
-            args = (handled,) + args
+            args = args + (handled,)
 
         return args
     
@@ -117,7 +124,9 @@ class EventBus(Generic[TEvent]):
                     yield handler
         
     async def emit(self, event: Hashable, *args, **kwargs):
-        if isinstance(event, self._generic_class) and not event in args:
+        is_event_obj = isinstance(event, self._generic_class)
+
+        if is_event_obj and not event in args:
             args = self._merge_args(event, args)
         
         for handler in self._get_event_handlers(event):                 
@@ -127,6 +136,9 @@ class EventBus(Generic[TEvent]):
                 handled = await handler(*args, **kwargs)
             else:
                 handled = handler(*args, **kwargs)
+
+            if is_event_obj and event.is_stopped():
+                break
 
             if handled is not None:
                 args = self._merge_args(handled, args)

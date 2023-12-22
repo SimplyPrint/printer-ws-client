@@ -76,6 +76,9 @@ class Connection:
             self.timeout = timeout or self.timeout
             self.session = self.session or session or ClientSession(loop=self.loop)
 
+            if not self.url:
+                raise ValueError("No url specified")
+
             try:
                 self.socket = await self.session.ws_connect(self.url, timeout=timeout, autoclose=False, max_msg_size=0, compress=False)
             except WSServerHandshakeError as e:
