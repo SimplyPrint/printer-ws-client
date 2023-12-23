@@ -169,9 +169,9 @@ class Connection:
                 return
 
             self.logger.debug(
-                f"Recieved event {event} with data {data} for client {for_client}")
+                f"Recieved event {event} with data {message.data} for client {for_client}")
             
-            await self.event_bus.emit(ConnectionEventReceivedEvent(event))
+            await self.event_bus.emit(ConnectionEventReceivedEvent(event, for_client))
 
         except (CancelledError, TimeoutError, ConnectionResetError):
             await self.event_bus.emit(ConnectionDisconnectEvent())

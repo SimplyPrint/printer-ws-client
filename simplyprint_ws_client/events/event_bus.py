@@ -4,8 +4,6 @@ import heapq
 from abc import ABC, abstractmethod
 from typing import Callable, Dict, Generator, Generic, Hashable, List, Optional, Type, TypeVar, Tuple, get_args
 
-from numpy import generic
-
 class EventTraits:
     def __str__(cls):
         return cls.get_name()
