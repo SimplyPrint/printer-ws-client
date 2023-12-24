@@ -61,8 +61,8 @@ class Config(metaclass=ConfigMeta):
     def as_dict(self) -> dict:
         return dict(sorted([ (slot, getattr(self, slot)) for slot in self.__slots__ if hasattr(self, slot) ], key=lambda x: x[0]))
     
-    def get_unique_id(self) -> Optional[str]:
-        return str(id(self)) if not hasattr(self, "unique_id") else self.unique_id  
+    def get_unique_id(self) -> str:
+        return self.unique_id if hasattr(self, "unique_id") and self.unique_id is not None else str(id(self)) 
 
     def __repr__(self) -> str:
         return str(self)
@@ -80,6 +80,9 @@ class Config(metaclass=ConfigMeta):
         for slot in other.__slots__:
             if not hasattr(other, slot):
                 continue
+            
+            if slot == "unique_id":
+                return self.get_unique_id() == other.get_unique_id()
 
             # If the slot is not in self, or the values are not equal
             if not hasattr(self, slot) or getattr(self, slot) != getattr(other, slot):

@@ -81,6 +81,10 @@ class Connection:
             except ClientConnectorError:
                 self.logger.error(f"Failed to connect to {self.url}")
                 return
+            finally:
+                if not self.socket:
+                    await self.event_bus.emit(ConnectionDisconnectEvent())
+                    return
 
             if reconnected:
                 await self.event_bus.emit(ConnectionReconnectEvent())

@@ -160,9 +160,10 @@ class Instance(ABC, Generic[TClient, TConfig]):
         """
         client = self.get_client(Config(id=event.for_client))
 
+
         if not client and hasattr(event.event, "unique_id"):
             client = self.get_client(Config(unique_id=event.event.unique_id))
-
+        
         if not client:
             self.server_event_backlog.append((event,))
             return
