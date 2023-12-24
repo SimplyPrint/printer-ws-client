@@ -8,20 +8,52 @@ import netifaces
 
 from typing import Optional
 
-class ClientInfo:
-    ui: Optional[str] = None
-    ui_version: Optional[str] = None
-    api: Optional[str] = None
-    api_version: Optional[str] = None
-    client: Optional[str] = None
-    client_version: Optional[str] = None
-    sp_version: Optional[str] = "4.0.0"
-    sentry_dsn: Optional[str] = None
-    development: bool = False
+class PhysicalMachine:
+    """
+    Provides hardware and platform information, abstractly.
+    """
+
+    def get_cpu(self):
+        temperature: Optional[float] = None
+        temperatures = psutil.sensors_temperatures()
+        
+        # Find the first temperature sensor that is not None
+        # Priority is given in reverse order
+        temperature_keys = {
+            "coretemp", 
+            "cpu-thermal",
+            "cpu_thermal", 
+            "soc_thermal"
+        } & set(temperatures.keys())
+        
+        temperature = temperatures[temperature_keys.pop()][0].current if len(temperature_keys) > 0 and temperatures[temperature_keys.pop()][0].current is not None else 0
+
+        return {
+            "usage": round(psutil.cpu_percent()),
+            "temp": round(temperature),
+            "memory": round(psutil.virtual_memory().percent),
+            "flags": 0,
+        }
+
+    def get_info(self):
+        return {
+            "python_version": self.python_version(),
+            "machine": self.machine(),
+            "os": self.os(),
+            "is_ethernet": self.is_ethernet(),
+            "ssid": self.ssid(),
+            "hostname": self.hostname(),
+            "local_ip": self.local_ip(),
+            "core_count": self.core_count(),
+            "total_memory": self.total_memory(),
+        }
 
     def python_version(self) -> str:
-        return platform.python_version() 
-
+        """
+        Returns the Python version.
+        """
+        return platform.python_version()
+    
     def __get_cpu_model_linux(self) -> Optional[str]:
         info_path = "/proc/cpuinfo"
 
@@ -68,8 +100,6 @@ class ClientInfo:
 
             if not model is None:
                 return model
-    
-        return platform.machine()
 
     def os(self) -> str:
         return platform.system()
@@ -125,4 +155,15 @@ class ClientInfo:
 
     def total_memory(self) -> int:
         return psutil.virtual_memory().total
-        
+    
+    def restart(self):
+        if self.os() == "Linux":
+            os.system("sudo reboot")
+        elif self.os() == "Windows":
+            os.system("shutdown /r /t 1")
+
+    def shutdown(self):
+        if self.os() == "Linux":
+            os.system("sudo shutdown now")
+        elif self.os() == "Windows":
+            os.system("shutdown /s /t 1")

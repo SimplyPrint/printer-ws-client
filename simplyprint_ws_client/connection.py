@@ -1,156 +1,171 @@
 import json
-import requests
+import logging
+import threading
+from asyncio import AbstractEventLoop, CancelledError
+from typing import Any, Dict, Optional, Union
 
-from tornado.websocket import WebSocketClientConnection, WebSocketClosedError, websocket_connect
-from logging import Logger
+from aiohttp import (ClientConnectorError, ClientSession,
+                     ClientWebSocketResponse, WSMsgType,
+                     WSServerHandshakeError)
 
-from simplyprint_ws_client.const import REACHABLE_URL, WEBSOCKET_URL
+from .events import DemandEvent, ServerEvent, get_event
+from .events.client_events import ClientEvent, ClientEventMode
+from .events.event import Event
+from .events.event_bus import EventBus
 
-from .event import *
 
-from typing import (
-    Optional, 
-    Dict, 
-    Any, 
-)
+class ConnectionEventReceivedEvent(Event):
+    event: Union[ServerEvent, DemandEvent]
+    for_client: Optional[int] = None
+    
+    def __init__(self, event: Union[ServerEvent, DemandEvent], for_client: Optional[int] = None) -> None:
+        self.event = event
+        self.for_client = for_client
+
+class ConnectionConnectedEvent(Event):
+    ...
+
+class ConnectionDisconnectEvent(Event):
+    ...
+
+class ConnectionReconnectEvent(Event):
+    ...
+
+class ConnectionEventBus(EventBus[Event]):
+    ...
+
 
 class Connection:
-    def __init__(self, logger: Logger) -> None:
-        self.ws: Optional[WebSocketClientConnection] = None
+    logger = logging.getLogger("websocket")
 
-        self.api_version: str = "0.1"
-        self.reconnect_token: Optional[str] = None
+    event_bus: ConnectionEventBus
 
-        self.log_connect: bool = True
-        self.logger: Logger = logger
+    loop: AbstractEventLoop
+    socket: Optional[ClientWebSocketResponse] = None
+    session: Optional[ClientSession] = None
+
+    # Ensure only a single thread can connect at a time
+    _connection_lock: threading.Lock = threading.Lock()
+
+    url: Optional[str] = None
+    timeout: float = 5.0
+
+    def __init__(self, loop: AbstractEventLoop) -> None:
+        self.loop = loop
+        self.event_bus = ConnectionEventBus()
+
+    def set_url(self, url: str) -> None:
+        self.url = url
+
+    async def connect(self, url: Optional[str] = None, session: Optional[ClientSession] = None, timeout: Optional[float] = None) -> None:
+        with self._connection_lock:
+            reconnected = False
+
+            if self.socket:
+                await self.socket.close()
+                self.socket = None
+                reconnected = True
+
+            self.url = url or self.url
+            self.timeout = timeout or self.timeout
+            self.session = self.session or session or ClientSession(loop=self.loop)
+
+            if not self.url:
+                raise ValueError("No url specified")
+
+            try:
+                self.socket = await self.session.ws_connect(self.url, timeout=timeout, autoclose=False, max_msg_size=0, compress=False)
+            except WSServerHandshakeError as e:
+                self.logger.error(f"Failed to connect to {self.url} with status code {e.status}")
+                return
+            except ClientConnectorError:
+                self.logger.error(f"Failed to connect to {self.url}")
+                return
+
+            if reconnected:
+                await self.event_bus.emit(ConnectionReconnectEvent())
+                self.logger.debug(f"Reconnected to {self.url}")
+            else:
+                await self.event_bus.emit(ConnectionConnectedEvent())
+                self.logger.debug(f"Connected to {self.url}")
+
+    async def close(self) -> None:
+        if self.socket:
+            await self.socket.close()
+            self.socket = None
+
+        if self.session:
+            await self.session.close()
+            self.session = None
+
+        await self.event_bus.emit(ConnectionDisconnectEvent())
 
     def is_connected(self) -> bool:
-        return self.ws is not None
-
-    def get_url(self, id: str, token: str) -> str:
-        return f"{WEBSOCKET_URL}/{self.api_version}/p/{id}/{token}"
-
-    async def connect(self, id: str, token: str) -> None:
-        url = self.get_url(id, token)
-
-        if self.reconnect_token is not None:
-            url = f"{url}/{self.reconnect_token}"
-
-        if self.log_connect:
-            self.logger.info(f"Connecting to {url}")
-
-        try:
-            requests.get(REACHABLE_URL, timeout=5.0)
-        except Exception:
-            return
-
-        self.ws = await websocket_connect(url, connect_timeout=5.0)
-
-    def _log_disconnect(self) -> None:
-        if self.ws is None:
-            return
-
-        reason = self.ws.close_reason
-        code = self.ws.close_code
-
-        msg = (
-            f"SimplyPrint Disconnected - Code: {code} Reason: {reason}"
-        ) 
-
-        self.logger.info(msg)
-
-    async def send_message(self, message: str) -> None:
-        if self.ws is None:
-            raise Exception("not connected")
-
-        try:
-            fut = self.ws.write_message(message);
-        except WebSocketClosedError:
-            self._log_disconnect()
-
-            self.ws = None
-            return
-
-        await fut
-
+        return self.socket is not None and not self.socket.closed
     
-    async def read_message(self) -> Optional[str]:
-        if self.ws is None:
-            raise Exception("not connected")
-
-        message = await self.ws.read_message()
-
-        if message is None: 
-            self._log_disconnect()
-
-            # remove websocket
-            self.ws = None
-            return None
-
-        if message is bytes:
-            raise Exception("message is bytes, expected str")
-
-        return str(message)
-
-    async def read_event(self) -> Optional[Event]:
-        message = await self.read_message()
-
-        if message is None:
-            return None
+    async def send_event(self, event: ClientEvent) -> None:
+        if not self.is_connected():
+            await self.event_bus.emit(ConnectionDisconnectEvent())
 
         try:
-            packet: Dict[str, Any] = json.loads(message)
-        except json.JSONDecodeError:
-            self.logger.debug(f"Invalid message, not JSON: {message}")
-            return None
+            message = event.as_dict()
 
-        event: str = packet.get("type", "")
-        data: Dict[str, Any] = packet.get("data", {})
+            mode = event.on_send()
 
-        if event == "demand":
-            demand = data.get("demand", "UNDEFINED")
+            if mode != ClientEventMode.DISPATCH:
+                self.logger.debug(
+                    f"Did not send event {event} with data {message} because of mode {mode.name}")
+                 
+                return
             
-            if demand == "pause": return PauseEvent()
-            elif demand == "resume": return ResumeEvent()
-            elif demand == "cancel": return CancelEvent()
-            elif demand == "terminal": return TerminalEvent(data)
-            elif demand == "gcode": return GcodeEvent(data)
-            elif demand == "test_webcam": return WebcamTestEvent()
-            elif demand == "webcam_snapshot": return WebcamSnapshotEvent(data)
-            elif demand == "file": return FileEvent(data)
-            elif demand == "start_print": return StartPrintEvent()
-            elif demand == "connect_printer": return ConnectPrinterEvent()
-            elif demand == "disconnect_printer": return DisconnectPrinterEvent()
-            elif demand == "system_restart": return SystemRestartEvent()
-            elif demand == "system_shutdown": return SystemShutdownEvent()
-            elif demand == "api_restart": return ApiRestartEvent()
-            elif demand == "api_shutdown": return ApiShutdownEvent()
-            elif demand == "update": return UpdateEvent()
-            elif demand == "plugin_install": return PluginInstallEvent()
-            elif demand == "plugin_uninstall": return PluginUninstallEvent()
-            elif demand == "webcam_settings_updated": return WebcamSettingsEvent(data)
-            elif demand == "stream_on": return StreamOnEvent(data)
-            elif demand == "stream_off": return StreamOffEvent()
-            elif demand == "set_printer_profile": return SetPrinterProfileEvent(data)
-            elif demand == "get_gcode_script_backups": return GetGcodeScriptBackupsEvent(data)
-            elif demand == "has_gcode_changes": return HasGcodeChangesEvent(data)
-            elif demand == "psu_off": return PsuControlEvent(False)
-            elif demand == "psu_on": return PsuControlEvent(True)
-            elif demand == "psu_keepalive": return PsuControlEvent(True)
-            elif demand == "disable_websocket": return DisableWebsocketEvent(data)
-            else:
-                # Return what ever
-                self.logger.debug(f"Unknown demand: {demand} data: {data}")
-                return None
-        elif event == "error": return ErrorEvent(data)
-        elif event == "new_token": return NewTokenEvent(data)
-        elif event == "connected": return ConnectEvent(data)
-        elif event == "pause": return PauseEvent()
-        elif event == "complete_setup": return SetupCompleteEvent(data)
-        elif event == "interval_change": return IntervalChangeEvent(data)
-        elif event == "pong": return PongEvent()
-        elif event == "stream_received": return StreamReceivedEvent()
-        elif event == "printer_settings": return PrinterSettingsEvent(data)
-        else:
-            self.logger.debug(f"Unknown event: {event} data: {data}")
-            return None
+            await self.socket.send_json(message)
+            self.logger.debug(f"Sent event {event} with data {message}")
+            
+        except ConnectionResetError as e:
+            self.logger.error(f"Failed to send event {event}: {e}")
+            await self.event_bus.emit(ConnectionDisconnectEvent())
+
+    async def poll_event(self, timeout=None) -> None:
+        if not self.is_connected():
+            await self.event_bus.emit(ConnectionDisconnectEvent())
+            return
+
+        try:
+            message = await self.socket.receive(timeout=timeout)
+
+            if message.type in (WSMsgType.CLOSED, WSMsgType.CLOSING, WSMsgType.CLOSE):
+                await self.event_bus.emit(ConnectionDisconnectEvent())
+                return
+            
+            if message.type == WSMsgType.ERROR:
+                self.logger.error(f"Websocket error: {str(message.data)}")
+                await self.event_bus.emit(ConnectionDisconnectEvent())
+                return
+            
+            if message.type == WSMsgType.BINARY:
+                message.data = message.data.decode("utf-8")
+
+            try:
+                event: Dict[str, Any] = json.loads(message.data)
+            except json.JSONDecodeError:
+                self.logger.error(f"Failed to parse event: {message.data}")
+                return
+
+            name: str = event.get("type", "")
+            data: Dict[str, Any] = event.get("data", {})
+            for_client: Optional[int] = event.get("for")
+            demand: Optional[str] = data.get("demand")
+
+            try:
+                event: ServerEvent = get_event(name, demand, data)
+            except KeyError as e:
+                self.logger.error(f"Unknown event type {e.args[0]}")
+                return
+
+            self.logger.debug(
+                f"Recieved event {event} with data {message.data} for client {for_client}")
+            
+            await self.event_bus.emit(ConnectionEventReceivedEvent(event, for_client))
+
+        except (CancelledError, TimeoutError, ConnectionResetError):
+            await self.event_bus.emit(ConnectionDisconnectEvent())

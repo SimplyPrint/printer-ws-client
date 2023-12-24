@@ -62,7 +62,6 @@ db.sqlite3
 db.sqlite3-journal
 
 # Flask stuff:
-instance/
 .webassets-cache
 
 # Scrapy stuff:
@@ -162,3 +161,5 @@ cython_debug/
 config.json
 virtual_local
 Pipfile*
+config.db
+.vscode

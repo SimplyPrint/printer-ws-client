@@ -1,41 +1,15 @@
-# Printer WS Client
+# SimplyPrint Websocket Client
 
-A package for easy implementations of SimplyPrint printers.
+> A python package to simplify the use of the SimplyPrint websocket API to easily integrate with the <https://simplyprint.io> platform.
+
+This package version v1.0.0 is under major development and is not yet ready for use. API is not stable and will change.
 
 ## Usage
 
-```python
-from printer_ws_client import *
+TBD
 
-class MyClient(Client):
-    def __init__(self):
-        self.info.ui = "My Ui"
-        self.info.ui_version = "0.0.1"
+## TODO
 
-        self.info.api = "My Api"
-        self.info.api_version = "4.2.0"
+Cleanup multiplexer.py and fix disconnect flow.
 
-        self.local_path = "path_to_local_files"
-
-    # define a callback
-    async def on_connect(self, event: ConnectEvent):
-        print(f"Connected, got name: {event.name}")
-
-    # define another callback
-    async def on_start_print(self, _: StartPrintEvent):
-        # start the print somehow
-        start_print(self.selected_file)
-
-my_client = MyClient()
-
-# start the client
-# this runs the background thread and starts even processing
-my_client.start()
-
-# run some loop
-while True:
-    sleep(1)
-    # get data from printer
-    my_client.tool_temperatures = poll_tool_temperatures()
-    my_client.bed_temperature = poll_bed_temperature()
-```
+Currently there is a disconnection bug once in a while which needs to be resolved
