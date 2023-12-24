@@ -24,6 +24,9 @@ class ConfigManager(ABC, Generic[TConfig]):
         if not self.base_directory.exists():
             self.base_directory.mkdir(parents=True)
 
+        # Read all configurations from storage initially.
+        self.load()
+
     def by_id(self, id: int) -> Config:
         return self.by_other(self.config_t(id=id))
 
@@ -43,7 +46,7 @@ class ConfigManager(ABC, Generic[TConfig]):
     def persist(self, config: Config):
         if self.contains(config):
             return
-        
+                
         self.configurations[id(config)] = config
 
     def remove(self, config: Config):

@@ -63,9 +63,6 @@ class ClientApp:
         self.client_factory = ClientFactory(client_t=options.client_t, config_t=options.config_t)
     
     async def run(self):
-        # Read all configurations from storage initially.
-        self.config_manager.load()
-
         # Register all clients
         for config in self.config_manager.get_all():
             self.logger.debug(f"Registering client {config}")

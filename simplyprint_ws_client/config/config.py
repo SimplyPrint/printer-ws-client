@@ -31,6 +31,7 @@ class Config(metaclass=ConfigMeta):
     in_setup: Optional[bool]
 
     public_ip: Optional[str]
+
     unique_id: Optional[str]
 
     def is_pending(self) -> bool:
@@ -59,6 +60,9 @@ class Config(metaclass=ConfigMeta):
     
     def as_dict(self) -> dict:
         return dict(sorted([ (slot, getattr(self, slot)) for slot in self.__slots__ if hasattr(self, slot) ], key=lambda x: x[0]))
+    
+    def get_unique_id(self) -> Optional[str]:
+        return str(id(self)) if not hasattr(self, "unique_id") else self.unique_id  
 
     def __repr__(self) -> str:
         return str(self)

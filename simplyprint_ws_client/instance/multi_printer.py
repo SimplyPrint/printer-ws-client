@@ -28,9 +28,9 @@ class MultiPrinterAddPrinterEvent(ClientEvent):
         super().__init__(None, None, {
             "pid": config.id,
             "token": config.token,
-            "unique_id": config.unique_id,
+            "unique_id": config.get_unique_id(),
             "allow_setup": allow_setup,
-            "public_ip": config.public_ip,
+            "public_ip": config.public_ip if hasattr(config, "public_ip") else None
         })
 
 
@@ -100,7 +100,7 @@ class MultiPrinter(Instance[TClient, TConfig]):
         await client.event_bus.emit(event)
 
     async def on_printer_added_response(self, client: TClient, event: MultiPrinterAddResponseEvent):
-        self.pending_unique_set.remove(client.config.unique_id)
+        self.pending_unique_set.remove(client.config.get_unique_id())
         
         if event.status:
             client.config.id = event.printer_id
@@ -134,12 +134,12 @@ class MultiPrinter(Instance[TClient, TConfig]):
             await self._send_add_printer(client)
 
     async def _send_add_printer(self, client: TClient):
-        if client.config.unique_id in self.pending_unique_set:
+        if client.config.get_unique_id() in self.pending_unique_set:
             raise MultiPrinterException(
-                f"Cannot add printer with unique id {client.config.unique_id} as it is already in use")
+                f"Cannot add printer with unique id {client.config.get_unique_id()} as it is already in use")
 
         await self.connection.send_event(MultiPrinterAddPrinterEvent(client.config, self.allow_setup))
-        self.pending_unique_set.add(client.config.unique_id)
+        self.pending_unique_set.add(client.config.get_unique_id())
 
     async def _send_remove_printer(self, client: TClient):
         await self.connection.send_event(MultiPrinterRemovePrinterEvent(client.config))

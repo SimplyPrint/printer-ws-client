@@ -32,7 +32,6 @@ class ClientCliConfigManager(CommandBag, click.Group):
         self.add_command(click.Command("remove", callback=self.remove_config, params=[click.Argument(["index"], type=int)]))
 
     def list_configs(self):
-        self.app.config_manager.load()
         configs = self.app.config_manager.get_all()
 
         for index, config in enumerate(configs):
@@ -68,7 +67,6 @@ class ClientCliConfigManager(CommandBag, click.Group):
             setattr(config, field, value)
 
     def get_config_by_index(self, index: int) -> Optional[Config]:
-        self.app.config_manager.load()
         configs = self.app.config_manager.get_all()
         if 0 <= index < len(configs):
             return configs[index]

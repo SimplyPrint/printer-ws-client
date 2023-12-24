@@ -6,10 +6,11 @@ from .examples.virtual.virtual_config import VirtualConfig
 
 if __name__ == '__main__':
     options = ClientOptions()
-    options.mode = ClientMode.SINGLE
+    options.mode = ClientMode.MULTIPRINTER
     options.config_manager_type = ConfigManagerType.JSON
     options.client_t = VirtualClient
     options.config_t = VirtualConfig
+    options.allow_setup = True
 
     cli = ClientCli(options)
     cli(prog_name="python -m simplyprint_ws_client")
