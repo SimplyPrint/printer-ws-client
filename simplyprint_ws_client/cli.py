@@ -1,4 +1,5 @@
 from imaplib import Commands
+import logging
 from typing import Any, Dict, Optional, Union, get_args, get_origin
 
 import click
@@ -74,7 +75,7 @@ class ClientCliConfigManager(CommandBag, click.Group):
             return configs[index]
         return None
 
-    def edit_config(self, index: int, **kwargs):
+    def edit_config(self, index: int):
         config = self.get_config_by_index(index)
 
         if config:
@@ -85,7 +86,7 @@ class ClientCliConfigManager(CommandBag, click.Group):
         else:
             click.echo("Configuration not found.")
 
-    def add_config(self, **kwargs):
+    def add_config(self):
         config = self.app.config_manager.config_t()
         self.prompt_and_update_config(config)
         self.app.config_manager.persist(config)
@@ -94,6 +95,7 @@ class ClientCliConfigManager(CommandBag, click.Group):
 
     def remove_config(self, index: int):
         config = self.get_config_by_index(index)
+
         if config:
             self.app.config_manager.remove(config)
             self.app.config_manager.flush()
@@ -114,3 +116,8 @@ class ClientCli(CommandBag, click.MultiCommand):
 
         # Register commands
         self.add_command(ClientCliConfigManager(self.app))
+        self.add_command(click.Command("start", callback=self.start_client, help="Start the client"))
+
+    def start_client(self):
+        logging.basicConfig(level=logging.DEBUG)
+        self.app.start()
