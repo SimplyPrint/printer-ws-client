@@ -1,3 +1,4 @@
+from operator import is_
 from typing import Optional
 
 class ConfigMeta(type):
@@ -37,7 +38,21 @@ class Config(metaclass=ConfigMeta):
         return self.id == 0
     
     def is_blank(self) -> bool:
-        return self.is_pending() and len(self.token) < 2
+        # Check if any other slots are filled
+        is_blank = True
+
+        for slot in self.__slots__:
+            if not hasattr(self, slot):
+                continue
+
+            if slot in ["id", "token"]:
+                continue
+
+            if getattr(self, slot) is not None:
+                is_blank = False
+                break
+
+        return self.is_pending() and len(self.token) < 2 and is_blank
 
     def __init__(self, **kwargs) -> None:            
         for key in kwargs:
@@ -49,11 +64,8 @@ class Config(metaclass=ConfigMeta):
     def __repr__(self) -> str:
         return str(self)
     
-    def __str__(self)  -> str:
-        config_id = self.id if hasattr(self, "id") else "None"
-        config_token = self.token if hasattr(self, "token") else "None"
-    
-        return f"<Config id={config_id} token='{config_token}'>"
+    def __str__(self)  -> str:    
+        return f"<Config {self.as_dict()}'>"
 
     def __eq__(self, other: object) -> bool:
         if isinstance(other, int): return self.id == other
