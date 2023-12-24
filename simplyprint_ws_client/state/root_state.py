@@ -1,7 +1,9 @@
-from typing import Any, Dict, List, Optional, Set, Type, OrderedDict as OrderedDictType
+from collections import OrderedDict
+from typing import Any, Dict, List, Optional
+from typing import OrderedDict as OrderedDictType
+from typing import Set, Type
 
 from traitlets import HasTraits
-from collections import OrderedDict
 
 from ..events.client_events import ClientEvent
 

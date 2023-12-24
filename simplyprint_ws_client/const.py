@@ -1,6 +1,7 @@
+import importlib.metadata
 from enum import Enum
 from os import environ
-import importlib.metadata
+
 from platformdirs import AppDirs
 
 VERSION = importlib.metadata.version("simplyprint_ws_client") or "development"

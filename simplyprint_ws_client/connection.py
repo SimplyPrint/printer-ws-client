@@ -1,20 +1,18 @@
-
-
-from asyncio import AbstractEventLoop, CancelledError
-from email import message
 import json
 import logging
 import threading
-import time
+from asyncio import AbstractEventLoop, CancelledError
 from typing import Any, Dict, Optional, Union
 
-from aiohttp import ClientConnectorError, ClientSession, ClientWebSocketResponse, WSMsgType, WSServerHandshakeError
+from aiohttp import (ClientConnectorError, ClientSession,
+                     ClientWebSocketResponse, WSMsgType,
+                     WSServerHandshakeError)
 
 from .events import DemandEvent, ServerEvent, get_event
 from .events.client_events import ClientEvent, ClientEventMode
-
 from .events.event import Event
 from .events.event_bus import EventBus
+
 
 class ConnectionEventReceivedEvent(Event):
     event: Union[ServerEvent, DemandEvent]

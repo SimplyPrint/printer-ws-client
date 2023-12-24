@@ -1,14 +1,13 @@
-from asyncio import AbstractEventLoop
 import asyncio
-from enum import Enum
 import logging
+from asyncio import AbstractEventLoop
+from enum import Enum
 from typing import Optional, Type
-
-from click import Option, option
 
 from .client import Client
 from .config import Config, ConfigManager, ConfigManagerType
 from .instance import Instance, MultiPrinter, SinglePrinter
+
 
 class ClientMode(Enum):
     MULTIPRINTER = "mp"

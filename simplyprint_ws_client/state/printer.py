@@ -15,6 +15,7 @@ from .always import Always
 from .models import MaterialModel
 from .root_state import ClientState, RootState, to_event
 
+
 class PrinterCpuFlag(Enum):
     NONE = 0
     THROTTLED = 1

@@ -1,10 +1,12 @@
 from enum import Enum
 from typing import Type
+
 from .config import Config
+from .json import JsonConfigManager
 from .manager import ConfigManager
 from .memory import MemoryConfigManager
 from .sqlite3 import SqliteConfigManager
-from .json import JsonConfigManager
+
 
 class ConfigManagerType(Enum):
     MEMORY = "memory"

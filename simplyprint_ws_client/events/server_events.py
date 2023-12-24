@@ -1,5 +1,5 @@
 from abc import abstractmethod
-from typing import Dict, Type, Any, List, Union, Optional
+from typing import Dict, Type, Any, Optional
 
 from .event import Event
 from ..helpers.intervals import Intervals

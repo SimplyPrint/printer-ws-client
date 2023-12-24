@@ -1,4 +1,3 @@
-from operator import is_
 from typing import Optional
 
 class ConfigMeta(type):

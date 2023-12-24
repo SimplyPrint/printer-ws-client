@@ -1,8 +1,6 @@
 import asyncio
 import aiohttp
 
-from io import BytesIO
-
 from ..state.printer import PrinterFileProgressState, FileProgressState
 
 class FileDownload:

@@ -1,4 +1,3 @@
-from imaplib import Commands
 import logging
 from typing import Any, Dict, Optional, Union, get_args, get_origin
 
