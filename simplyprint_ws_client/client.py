@@ -81,6 +81,13 @@ class Client(ABC, Generic[TConfig]):
             await self.send_event(event)
 
     @abstractmethod
+    async def init(self):
+        """
+        Called when the client is initialized.
+        """
+        ...
+
+    @abstractmethod
     async def tick(self):
         """ 
         Define a continuous task that will be called every "tick"
@@ -93,6 +100,13 @@ class Client(ABC, Generic[TConfig]):
         Optionally can you also send your own events from inside
         the printer context, but you can always interact with the
         send event method externally.
+        """
+        ...
+
+    @abstractmethod
+    async def stop(self):
+        """
+        Called when the client is stopped.
         """
         ...
 
@@ -129,7 +143,7 @@ class DefaultClient(Client[TConfig]):
         self.printer.info.ui = ui
         self.printer.info.ui_version = ui_version
 
-    def setup_sentry(self, sentry_dsn: str, development: bool = False):
+    def setup_sentry(self, sentry_dsn: str, development: bool = True):
         if not self.printer.info.api or not self.printer.info.api_version:
             raise ClientConfigurationException(
                 "You need to set the api and api_version before you can setup sentry")

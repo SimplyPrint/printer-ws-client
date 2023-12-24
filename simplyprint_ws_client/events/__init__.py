@@ -1,10 +1,10 @@
-from .server_events import ServerEvent
-from .demands import DemandEvent
+from typing import Any, Dict, Optional, Type, Union
 
-from . import server_events as Events
+from . import client_events as ClientEvents
 from . import demands as Demands
-
-from typing import Dict, Type, Union, Any, Optional
+from . import server_events as Events
+from .demands import DemandEvent
+from .server_events import ServerEvent
 
 # Construct hashmap of events (sub-hashmap for demands)
 _events: Dict[str, Union[Type[ServerEvent], Dict[str, Type[DemandEvent]]]] = { event.get_name(): event for event in ServerEvent.__subclasses__() if event.get_name() != DemandEvent }

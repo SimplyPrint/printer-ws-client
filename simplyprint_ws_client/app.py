@@ -22,8 +22,8 @@ class ClientMode(Enum):
             raise ValueError("Invalid ClientMode")
 
 class ClientOptions:
-    mode: ClientMode
-    config_manager_type: ConfigManagerType
+    mode: ClientMode = ClientMode.SINGLE
+    config_manager_type: ConfigManagerType = ConfigManagerType.MEMORY
 
     client_t: Optional[Type[Client]] = None
     config_t: Optional[Type[Config]] = None
@@ -31,6 +31,9 @@ class ClientOptions:
     allow_setup: bool = False
     reconnect_timeout = 5.0
     tick_rate = 0.2
+
+    def is_valid(self) -> bool:
+        return self.client_t is not None and self.config_t is not None
 
 class ClientFactory:
     client_t: Optional[Type[Client]] = None
@@ -53,6 +56,9 @@ class ClientApp:
     config_manager: ConfigManager
 
     def __init__(self, options: ClientOptions) -> None:
+        if not options.is_valid():
+            raise ValueError("Invalid options")
+
         self.loop = asyncio.get_event_loop()
 
         config_manager_class = options.config_manager_type.get_class()

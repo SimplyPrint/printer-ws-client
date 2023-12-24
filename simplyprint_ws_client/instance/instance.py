@@ -118,6 +118,10 @@ class Instance(ABC, Generic[TClient, TConfig]):
             except Exception as e:
                 self.logger.exception(e)
 
+        # Stop all clients
+        for client in self.get_clients():
+            await client.stop()
+
     async def consume_client(self, client: TClient):
         # Only consume connected clients
         if not client.connected:
@@ -209,6 +213,8 @@ class Instance(ABC, Generic[TClient, TConfig]):
         
         if not self.connection.is_connected():
             await self.connect()
+
+        await client.init()
 
     async def consume_backlog(self, backlog: List[Any], consumer: Callable[[Any], Awaitable[None]]):
         """

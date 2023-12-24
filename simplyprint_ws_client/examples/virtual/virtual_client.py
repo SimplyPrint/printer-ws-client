@@ -19,11 +19,6 @@ class VirtualClient(DefaultClient[VirtualConfig]):
         self.set_info("Virtual Printer", "0.0.1")
         self.setup_sentry("https://a5aef1defa83433586dd0cf1c1fffe57@o1102514.ingest.sentry.io/6619552")
 
-        self.printer.bed_temperature.actual = 20.0
-        self.printer.tool_temperatures[0].actual = 20.0
-        self.printer.status = PrinterStatus.OPERATIONAL
-
-
     @Events.ConnectEvent.on
     async def on_connect(self, event: Events.ConnectEvent):
         print("Yay i am connected :) :) :)")
@@ -65,6 +60,10 @@ class VirtualClient(DefaultClient[VirtualConfig]):
         self.printer.job_info.started = True
         self.printer.job_info.progress = 0.0
 
+    async def init(self):
+        self.printer.bed_temperature.actual = 20.0
+        self.printer.tool_temperatures[0].actual = 20.0
+        self.printer.status = PrinterStatus.OPERATIONAL
 
     async def tick(self):
         # Update temperatures, printer status and so on with smoothing function
