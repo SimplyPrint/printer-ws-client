@@ -3,7 +3,7 @@ from enum import Enum
 from typing import Any, Dict, Generator, Optional, Tuple, TYPE_CHECKING
 
 from ..helpers.intervals import IntervalException, IntervalTypes
-from ..events.event_bus import Event
+from ..events.event import Event
 
 if TYPE_CHECKING:
     from ..state.printer import PrinterState

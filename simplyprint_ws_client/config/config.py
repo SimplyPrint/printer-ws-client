@@ -27,8 +27,11 @@ class Config(metaclass=ConfigMeta):
     
     id: int
     token: str
-    unique_id: Optional[str]
+    name: Optional[str]
+    in_setup: Optional[bool]
+
     public_ip: Optional[str]
+    unique_id: Optional[str]
 
     def is_pending(self) -> bool:
         return self.id == 0

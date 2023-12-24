@@ -13,7 +13,8 @@ from aiohttp import ClientConnectorError, ClientSession, ClientWebSocketResponse
 from .events import DemandEvent, ServerEvent, get_event
 from .events.client_events import ClientEvent, ClientEventMode
 
-from .events.event_bus import Event,EventBus
+from .events.event import Event
+from .events.event_bus import EventBus
 
 class ConnectionEventReceivedEvent(Event):
     event: Union[ServerEvent, DemandEvent]
@@ -44,7 +45,6 @@ class Connection:
     loop: AbstractEventLoop
     socket: Optional[ClientWebSocketResponse] = None
     session: Optional[ClientSession] = None
-    thread_id: int
 
     # Ensure only a single thread can connect at a time
     _connection_lock: threading.Lock = threading.Lock()
@@ -54,7 +54,6 @@ class Connection:
 
     def __init__(self, loop: AbstractEventLoop) -> None:
         self.loop = loop
-        self.thread_id = threading.get_ident()
         self.event_bus = ConnectionEventBus()
 
     def set_url(self, url: str) -> None:
@@ -62,9 +61,6 @@ class Connection:
 
     async def connect(self, url: Optional[str] = None, session: Optional[ClientSession] = None, timeout: Optional[float] = None) -> None:
         with self._connection_lock:
-            if self.is_connected():
-                return
-
             reconnected = False
 
             if self.socket:

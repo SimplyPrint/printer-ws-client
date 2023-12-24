@@ -10,7 +10,7 @@ class TestConfigManager(unittest.TestCase):
     def test_internal(self):
         config_manager = MemoryConfigManager()
 
-        self.assertEqual(config_manager.name, "config")
+        self.assertEqual(config_manager.name, "printers")
         self.assertEqual(len(config_manager), 0)
 
         config1 = Config(id=1, token="token1")

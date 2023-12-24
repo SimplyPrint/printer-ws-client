@@ -166,10 +166,6 @@ class WebcamSettings(ClientState):
 @to_event(ToolEvent, "active_tool")
 @to_event(MaterialDataEvent, "material_data")
 class PrinterState(RootState):
-    name = Unicode(allow_none=True)
-    connected = Bool()
-    in_setup = Bool()
-
     status: PrinterStatus = TraitletsEnum(PrinterStatus)
     current_display_message: Optional[str] = Unicode()
 
@@ -201,9 +197,6 @@ class PrinterState(RootState):
 
     def __init__(self, extruder_count: int = 1) -> None:
         super().__init__(
-            name="printer",
-            connected=False,
-            in_setup=False,
             status=PrinterStatus.OFFLINE,
             bed_temperature=Temperature(),
             tool_temperatures=[Temperature() for _ in range(extruder_count)],

@@ -2,27 +2,33 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Dict, Generic, List, Optional, Type, TypeVar
 
+from ..const import APP_DIRS
 from .config import Config
 
 TConfig = TypeVar("TConfig", bound=Config)
 
 class ConfigManager(ABC, Generic[TConfig]):
     name: str
-    config_class: Type[Config]
+    config_t: Type[Config]
     configurations: Dict[int, Config]
     base_directory: Path
 
-    def __init__(self, name: str = "config", config_class: Type[Config] = Config, base_directory = ".") -> None:
+    def __init__(self, name: str = "printers", config_t: Type[Config] = Config, base_directory: Optional[str] = None) -> None:
         self.name = name
-        self.config_class = config_class
+        self.config_t = config_t
         self.configurations = {}
-        self.base_directory = Path(base_directory)
+
+        # Default to user config directory if not specified
+        self.base_directory = Path(base_directory or APP_DIRS.user_config_dir)
+
+        if not self.base_directory.exists():
+            self.base_directory.mkdir(parents=True)
 
     def by_id(self, id: int) -> Config:
-        return self.by_other(self.config_class(id=id))
+        return self.by_other(self.config_t(id=id))
 
     def by_token(self, token: str) -> Config:
-        return self.by_other(self.config_class(token=token))
+        return self.by_other(self.config_t(token=token))
 
     def by_other(self, other: Config) -> Config:
         for config in self.configurations.values():

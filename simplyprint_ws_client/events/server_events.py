@@ -1,7 +1,7 @@
 from abc import abstractmethod
 from typing import Dict, Type, Any, List, Union, Optional
 
-from .event_bus import Event
+from .event import Event
 from ..helpers.intervals import Intervals
 from ..state.printer import PrinterSettings, PrinterDisplaySettings
 
@@ -24,10 +24,10 @@ class ServerEvent(Event):
 
     # Better for debugging
     def __str__(self):
-        return f"<{self.get_name()} {self.data}>"
+        return f"<{self.__class__.__base__.__name__} {self.get_name()} {self.data}>"
 
     def __repr__(self):
-        return f"<{self.get_name()} {self.data}>"
+        return f"<{self.__class__.__base__.__name__} {self.get_name()} {self.data}>"
 
     @classmethod
     def get_name(cls) -> Optional[str]:

@@ -8,7 +8,8 @@ from .const import SUPPORTED_SIMPLYPRINT_VERSION
 from .events import demands as Demands
 from .events import server_events as Events
 from .events.client_events import ClientEvent
-from .events.event_bus import Event, EventBus
+from .events.event import Event
+from .events.event_bus import EventBus
 from .helpers.intervals import IntervalTypes
 from .helpers.physical_machine import PhysicalMachine
 from .helpers.sentry import Sentry
@@ -41,6 +42,8 @@ class Client(ABC, Generic[TConfig]):
 
     config: TConfig
     printer: PrinterState
+
+    connected: bool = False
 
     # Usually injected by multiplexer
     sentry: Optional[Sentry]
@@ -98,6 +101,8 @@ class DefaultClient(Client[TConfig]):
     """
     Client with default event handling.
     """
+
+    reconnect_token: Optional[str] = None
 
     def __init__(self, config: TConfig):
         super().__init__(config)
@@ -170,20 +175,23 @@ class DefaultClient(Client[TConfig]):
 
     @Events.ConnectEvent.before
     async def before_connect(self, event: Events.ConnectEvent):
-        self.printer.name = event.printer_name
-        self.printer.in_setup = event.in_setup
-        self.printer.connected = True
+        self.config.name = event.printer_name
+        self.config.in_setup = event.in_setup
+        self.connected = True
+
         self.printer.intervals.update(event.intervals)
 
         self.reconnect_token = event.reconnect_token
 
-        if self.printer.in_setup:
+        if self.config.in_setup:
             self.printer.current_display_message = "In setup with Code: " + event.short_id
+
+        await self.event_bus.emit(ClientConfigChangedEvent())
 
     @Events.SetupCompleteEvent.before
     async def before_setup_complete(self, event: Events.SetupCompleteEvent):
         self.config.id = event.printer_id
-        self.printer.in_setup = False
+        self.config.in_setup = False
         self.printer.current_display_message = "Setup complete"
         await self.event_bus.emit(ClientConfigChangedEvent())
 

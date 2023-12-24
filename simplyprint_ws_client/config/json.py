@@ -22,7 +22,7 @@ class JsonConfigManager(ConfigManager):
             data = json.load(file)
 
             for config in data:
-                self.persist(self.config_class(**config))
+                self.persist(self.config_t(**config))
 
     def deleteStorage(self):
         if not self._json_file.exists():

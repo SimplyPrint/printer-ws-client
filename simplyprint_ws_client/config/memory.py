@@ -4,10 +4,10 @@ from .manager import ConfigManager
 
 class MemoryConfigManager(ConfigManager):
     def flush(self, config: Optional[Config] = None):
-        return
+        ...
     
     def load(self):
-        return
+        ...
     
     def deleteStorage(self):
-        return
+        ...

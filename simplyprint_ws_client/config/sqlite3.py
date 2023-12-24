@@ -43,14 +43,14 @@ class SqliteConfigManager(ConfigManager):
 
         configs = self.db.execute(
             """
-            SELECT id, token, data FROM config
+            SELECT id, token, data FROM printers
             """).fetchall()
 
         for config in configs:
             kwargs = json.loads(config[2])
             kwargs["id"] = config[0]
             kwargs["token"] = config[1]
-            self.persist(self.config_class(**kwargs))
+            self.persist(self.config_t(**kwargs))
     
     def deleteStorage(self):
         if not self._database_file.exists():
@@ -61,7 +61,7 @@ class SqliteConfigManager(ConfigManager):
     def _get_single(self, config: Config):
         return self.db.execute(
             """
-            SELECT id, token FROM config WHERE id= ? AND token= ? LIMIT 1
+            SELECT id, token FROM printers WHERE id= ? AND token= ? LIMIT 1
             """, (config.id, config.token)).fetchone()
 
     def _flush_single(self, config: Config):
@@ -71,7 +71,7 @@ class SqliteConfigManager(ConfigManager):
         if not already_exists:
             self.db.execute(
                 """
-                INSERT INTO config (id, token, data) VALUES (?, ?, ?)
+                INSERT INTO printers (id, token, data) VALUES (?, ?, ?)
                 """, (config.id, config.token, json.dumps(config.as_dict())))
 
             self.db.commit()
@@ -80,24 +80,24 @@ class SqliteConfigManager(ConfigManager):
         
         self.db.execute(
             """
-            UPDATE config SET data= ? WHERE id= ? AND token= ?
+            UPDATE printers SET data= ? WHERE id= ? AND token= ?
             """, (json.dumps(config.as_dict()), config.id, config.token))
 
     def _remove_detached(self):
         # Get all configs from the database
         configs = self.db.execute(
             """
-            SELECT id, token FROM config
+            SELECT id, token FROM printers
             """).fetchall()
         
         # Loop over all configs
         for config in configs:
             # If the config is not in the manager
-            if not self.by_other(self.config_class(id=config[0], token=config[1])):
+            if not self.by_other(self.config_t(id=config[0], token=config[1])):
                 # Remove it from the database
                 self.db.execute(
                     """
-                    DELETE FROM config WHERE id= ? AND token= ?
+                    DELETE FROM printers WHERE id= ? AND token= ?
                     """, (config[0], config[1]))
 
     @property
@@ -117,7 +117,7 @@ class SqliteConfigManager(ConfigManager):
 
         self.db.execute(
             """
-            CREATE TABLE IF NOT EXISTS config (
+            CREATE TABLE IF NOT EXISTS printers (
                 id INTEGER, 
                 token TEXT, 
                 data TEXT, 
@@ -126,5 +126,5 @@ class SqliteConfigManager(ConfigManager):
             """)
         
         self.db.commit()
-        self.logger.info("Created config table")
+        self.logger.info("Created printers table")
         SqliteConfigManager.table_exists = True

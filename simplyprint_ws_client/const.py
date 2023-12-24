@@ -1,7 +1,11 @@
 from enum import Enum
 from os import environ
+import importlib.metadata
+from platformdirs import AppDirs
 
-VERSION = "1.0.0-rc.1"
+VERSION = importlib.metadata.version("simplyprint_ws_client") or "development"
+
+APP_DIRS = AppDirs("SimplyPrint", "SimplyPrint")
 
 class SimplyPrintWsVersion(Enum):
     VERSION_0_1 = "0.1"
@@ -17,8 +21,8 @@ TEST_WEBSOCKET_URL = BASE_URL.format("wss", "testws3", SimplyPrintWsVersion.VERS
 STAG_WEBSOCKET_URL = BASE_URL.format("wss", "wsstaging", SimplyPrintWsVersion.VERSION_0_2.value)
 
 PROD_API_URL = BASE_URL.format("https", "api", "")
-TEST_API_URL = BASE_URL.format("https", "test", "api")
-STAG_API_URL = BASE_URL.format("https", "staging", "api")
+TEST_API_URL = BASE_URL.format("https", "test", "api/")
+STAG_API_URL = BASE_URL.format("https", "staging", "api/")
 
 API_URL = PROD_API_URL if not IS_TESTING else TEST_API_URL
 WEBSOCKET_URL = PROD_WEBSOCKET_URL if not IS_TESTING else TEST_WEBSOCKET_URL

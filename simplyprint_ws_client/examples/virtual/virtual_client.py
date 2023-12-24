@@ -9,7 +9,7 @@ from ...events import Events, Demands
 from .virtual_config import VirtualConfig
 
 
-def expt_smooth(target, actual, alpha, dt):
+def expt_smooth(target, actual, alpha, dt) -> float:
     return actual + (target - actual) * (1.0 - math.exp(-alpha * dt))
 
 class VirtualClient(DefaultClient[VirtualConfig]):
