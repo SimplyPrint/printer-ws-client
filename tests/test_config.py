@@ -1,0 +1,49 @@
+import unittest
+
+from simplyprint_ws_client.config import Config
+
+class TestConfigManager(unittest.TestCase):
+    def test_fields(self):
+        config1 = Config.get_blank()
+        config2 = Config.get_blank()
+
+        self.assertTrue(config1.partial_eq(config1))
+        self.assertTrue(config2.partial_eq(config2))
+        
+        self.assertTrue(config1.is_blank())
+        self.assertTrue(config2.is_default())
+
+        self.assertDictEqual(config1.as_dict(), config2.as_dict())
+
+        self.assertDictEqual(config1.as_dict(), {
+            'id': 0,
+            'token': "0",
+            'name': None,
+            'in_setup': None,
+            'unique_id': config1.unique_id,
+            'public_ip': None,
+        })
+
+        config1.id = 1
+
+        self.assertFalse(config1.partial_eq(config2))
+        self.assertFalse(config2.partial_eq(config1))
+
+        self.assertFalse(config1.is_blank())
+
+        self.assertFalse(config1.is_pending())
+
+        config2.token = "super_cool_token"
+        config2.unique_id = "super_cool_id"
+
+        self.assertFalse(config2.is_blank())
+        self.assertFalse(config2.is_default())
+
+        self.assertTrue(config2.partial_eq(Config(unique_id="super_cool_id")))
+        self.assertTrue(config2.partial_eq(Config(token="super_cool_token")))
+
+        config3 = Config(**{'id': None, 'in_setup': None, 'name': None, 'public_ip': None, 'token': None, 'unique_id': None})
+        self.assertTrue(config3.is_blank())
+
+        config4 = Config(**{'id': None, 'in_setup': None, 'name': None, 'public_ip': None, 'token': None, 'unique_id': '140686326013968'})
+        self.assertFalse(config4.is_blank())

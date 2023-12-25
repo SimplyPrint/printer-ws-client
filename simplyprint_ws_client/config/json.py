@@ -12,7 +12,7 @@ class JsonConfigManager(ConfigManager):
         self._ensure_json_file()
 
         with open(self._json_file, "w") as file:
-            data = [ config.as_dict() for config in self.configurations.values() if not config.is_blank() ]
+            data = [ config.as_dict() for config in self.configurations if not config.is_blank() ]
             json.dump(data, file, indent=4)
 
     def load(self):

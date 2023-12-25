@@ -23,6 +23,8 @@ class ClientMode(Enum):
 
 class ClientOptions:
     mode: ClientMode = ClientMode.SINGLE
+
+    config_name: Optional[str] = "printers"
     config_manager_type: ConfigManagerType = ConfigManagerType.MEMORY
 
     client_t: Optional[Type[Client]] = None
@@ -64,7 +66,7 @@ class ClientApp:
         config_manager_class = options.config_manager_type.get_class()
         instance_class = options.mode.get_class()
 
-        self.config_manager = config_manager_class(config_t=options.config_t)
+        self.config_manager = config_manager_class(name=options.config_name, config_t=options.config_t)
         self.instance = instance_class(loop=self.loop, config_manager=self.config_manager, allow_setup=options.allow_setup, reconnect_timeout=options.reconnect_timeout, tick_rate=options.tick_rate)
         self.client_factory = ClientFactory(client_t=options.client_t, config_t=options.config_t)
     

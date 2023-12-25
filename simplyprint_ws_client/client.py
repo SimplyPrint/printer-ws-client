@@ -77,7 +77,7 @@ class Client(ABC, Generic[TConfig]):
         which are dispatched to the bus.
         """
 
-        for event in self.printer._build_events(self.config.id):
+        for event in self.printer._build_events(self.config.unique_id):
             await self.send_event(event)
 
     @abstractmethod

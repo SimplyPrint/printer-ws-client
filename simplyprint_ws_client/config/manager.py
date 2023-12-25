@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Dict, Generic, List, Optional, Type, TypeVar
+from typing import Dict, Generic, List, Optional, Set, Type, TypeVar
 
 from ..const import APP_DIRS
 from .config import Config
@@ -10,13 +10,13 @@ TConfig = TypeVar("TConfig", bound=Config)
 class ConfigManager(ABC, Generic[TConfig]):
     name: str
     config_t: Type[Config]
-    configurations: Dict[int, Config]
+    configurations: Set[Config]
     base_directory: Path
 
     def __init__(self, name: str = "printers", config_t: Type[Config] = Config, base_directory: Optional[str] = None) -> None:
         self.name = name
         self.config_t = config_t
-        self.configurations = {}
+        self.configurations = set()
 
         # Default to user config directory if not specified
         self.base_directory = Path(base_directory or APP_DIRS.user_config_dir)
@@ -34,29 +34,29 @@ class ConfigManager(ABC, Generic[TConfig]):
         return self.by_other(self.config_t(token=token))
 
     def by_other(self, other: Config) -> Config:
-        for config in self.configurations.values():
+        for config in self.configurations:
             if config.partial_eq(other):
                 return config
             
         return None
 
     def contains(self, other: Config) -> Config:
-        return id(other) in self.configurations
+        return other in self.configurations
 
     def persist(self, config: Config):
         if self.contains(config):
             return
                 
-        self.configurations[id(config)] = config
+        self.configurations.add(config)
 
     def remove(self, config: Config):
         if not self.contains(config):
             return
         
-        del self.configurations[id(config)]
+        self.configurations.remove(config)
 
     def get_all(self) -> List[Config]:
-        return list(self.configurations.values())
+        return list(self.configurations)
     
     def clear(self):
         self.configurations.clear()

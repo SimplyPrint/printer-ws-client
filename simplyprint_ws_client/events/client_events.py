@@ -1,6 +1,6 @@
 from abc import abstractmethod
 from enum import Enum
-from typing import Any, Dict, Generator, Optional, Tuple, TYPE_CHECKING
+from typing import Any, Dict, Generator, Optional, Tuple, TYPE_CHECKING, Union
 
 from ..helpers.intervals import IntervalException, IntervalTypes
 from ..events.event import Event
@@ -67,10 +67,10 @@ class ClientEvent(Event):
     interval_type: Optional[IntervalTypes] = None
     
     state: 'PrinterState'
-    for_client: Optional[int]
+    for_client: Optional[Union[str, int]]
     data: Optional[Dict[str, Any]]
 
-    def __init__(self, state = None, for_client: Optional[int] = None, data: Optional[Dict[str, Any]] = None) -> None:
+    def __init__(self, state = None, for_client: Optional[Union[str, int]] = None, data: Optional[Dict[str, Any]] = None) -> None:
         """
         state (PrinterState): The state of the printer at the time of the event.
         for_client (int): Id of client event belongs to

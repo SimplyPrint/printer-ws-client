@@ -1,5 +1,5 @@
 from collections import OrderedDict
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 from typing import OrderedDict as OrderedDictType
 from typing import Set, Type
 
@@ -118,7 +118,7 @@ class RootState(ClientState):
         """Mark an event as dirty"""
         self._dirty[event] = None
 
-    def _build_events(self, for_client: Optional[int] = None):
+    def _build_events(self, for_client: Optional[Union[str, int]] = None):
         """
         Generator - creates :class:`ClientEvent` instances from dirty
         

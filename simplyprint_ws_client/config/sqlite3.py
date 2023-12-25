@@ -27,7 +27,7 @@ class SqliteConfigManager(ConfigManager):
                 self._remove_detached()
                 return
             
-            for config in self.configurations.values():
+            for config in self.configurations:
                 # Do not flush blank configs
                 if config.is_blank():
                     continue

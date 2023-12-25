@@ -16,9 +16,9 @@ from .events.event_bus import EventBus
 
 class ConnectionEventReceivedEvent(Event):
     event: Union[ServerEvent, DemandEvent]
-    for_client: Optional[int] = None
+    for_client: Optional[Union[str, int]] = None
     
-    def __init__(self, event: Union[ServerEvent, DemandEvent], for_client: Optional[int] = None) -> None:
+    def __init__(self, event: Union[ServerEvent, DemandEvent], for_client: Optional[Union[str, int]] = None) -> None:
         self.event = event
         self.for_client = for_client
 
@@ -178,7 +178,7 @@ class Connection:
 
             name: str = event.get("type", "")
             data: Dict[str, Any] = event.get("data", {})
-            for_client: Optional[int] = event.get("for")
+            for_client: Optional[Union[str, int]] = event.get("for")
             demand: Optional[str] = data.get("demand")
 
             try:

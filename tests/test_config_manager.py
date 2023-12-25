@@ -101,9 +101,11 @@ class TestConfigManager(unittest.TestCase):
         config_manager.deleteStorage()
 
     def test_json_manager(self):
-        self._test_manager(JsonConfigManager())
-        self.assertFalse(JsonConfigManager()._json_file.exists())
+        json_config_manager = JsonConfigManager()
+        self._test_manager(json_config_manager)
+        self.assertFalse(json_config_manager._json_file.exists())
 
     def test_sqlite3_manager(self):
-        self._test_manager(SqliteConfigManager())      
-        self.assertFalse(SqliteConfigManager()._database_file.exists())  
+        sqlite_config_manager = SqliteConfigManager()
+        self._test_manager(sqlite_config_manager)      
+        self.assertFalse(sqlite_config_manager._database_file.exists())  

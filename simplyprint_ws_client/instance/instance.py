@@ -7,6 +7,8 @@ from asyncio import AbstractEventLoop
 from typing import (Any, Awaitable, Callable, Generic, Iterable, List,
                     Optional, Tuple, TypeVar, Union)
 
+from flask import config
+
 from ..client import Client, ClientConfigChangedEvent
 from ..config.config import Config
 from ..config.manager import ConfigManager
@@ -162,12 +164,18 @@ class Instance(ABC, Generic[TClient, TConfig]):
         """
         Events received by SimplyPrint to be ingested.
         """
-        client = self.get_client(Config(id=event.for_client))
 
+        if event.for_client is None:
+            # Internal event
+            return
 
-        if not client and hasattr(event.event, "unique_id"):
-            client = self.get_client(Config(unique_id=event.event.unique_id))
-        
+        if isinstance(event.for_client, str):
+            config = Config(unique_id=event.for_client)
+        else:
+            config = Config(id=event.for_client)
+
+        client = self.get_client(config)   
+
         if not client:
             self.server_event_backlog.append((event,))
             return
@@ -189,6 +197,9 @@ class Instance(ABC, Generic[TClient, TConfig]):
 
         if self.has_client(client):
             raise InstanceException("Client already registered")
+
+        if not client.config.unique_id:
+            raise InstanceException("Client has no unique id")
 
         self.config_manager.persist(client.config)
 
@@ -246,7 +257,7 @@ class Instance(ABC, Generic[TClient, TConfig]):
             return
         
         # If the client is in setup only a certain subset of events are allowed
-        if client.config.is_in_setup() and not event.event_type in ALLOWED_IN_SETUP: 
+        if client.config.in_setup and not event.event_type in ALLOWED_IN_SETUP: 
             return
         
         await self.connection.send_event(event)
