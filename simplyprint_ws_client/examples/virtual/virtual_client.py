@@ -2,7 +2,7 @@ import asyncio
 import math
 
 from ...helpers.file_download import FileDownload
-from ...state.printer import PrinterStatus
+from ...state.printer import FileProgressState, PrinterStatus
 from ...client import DefaultClient
 from ...events import Events, Demands
 
@@ -53,6 +53,7 @@ class VirtualClient(DefaultClient[VirtualConfig]):
         print(event)
         downloader = FileDownload(self.printer.file_progress, asyncio.get_event_loop())
         data = await downloader.download_as_bytes(event.url)
+        self.printer.file_progress.state = FileProgressState.READY
 
     @Demands.StartPrintEvent.on
     async def on_start_print(self, event: Demands.StartPrintEvent):

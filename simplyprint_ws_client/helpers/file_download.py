@@ -12,6 +12,10 @@ class FileDownload:
         self.state = state
 
     async def download_as_bytes(self, url) -> bytes:
+        """ 
+        Download a file with file progress.
+        """
+
         # Chunk the download so we can get progress
         async with aiohttp.ClientSession(loop=self.loop) as session:
             async with session.get(url) as resp:
@@ -37,5 +41,4 @@ class FileDownload:
                     self.state.percent = round((downloaded / size) * 100, 2)
         
         # Return the data as a BytesIO object
-        self.state.state = FileProgressState.READY
         return data
