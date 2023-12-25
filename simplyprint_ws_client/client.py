@@ -215,7 +215,7 @@ class DefaultClient(Client[TConfig]):
 
     @Events.PongEvent.before
     async def before_pong(self, event: Events.PongEvent):
-        self.printer.ping_pong.pong = time.time()
+        self.printer.latency.pong = time.time()
 
     @Events.StreamReceivedEvent.before
     async def before_stream_received(self, event: Events.StreamReceivedEvent):

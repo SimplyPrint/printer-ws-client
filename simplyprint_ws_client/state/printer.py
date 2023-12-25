@@ -184,7 +184,7 @@ class PrinterState(RootState):
     psu_info: PrinterPSUState = Instance(PrinterPSUState)
     settings: PrinterSettings = PrinterSettings()
     firmware: PrinterFirmware = PrinterFirmware()
-    ping_pong: PingPongState = Instance(PingPongState)
+    latency: PingPongState = Instance(PingPongState)
     webcam_info: WebcamState = Instance(WebcamState)
     display_settings: PrinterDisplaySettings = PrinterDisplaySettings()
     file_progress: PrinterFileProgressState = Instance(
@@ -212,7 +212,7 @@ class PrinterState(RootState):
             webcam_settings=WebcamSettings(),
             job_info=JobInfoState(),
             psu_info=PrinterPSUState(),
-            ping_pong=PingPongState(),
+            latency=PingPongState(),
             file_progress=PrinterFileProgressState(),
             filament_sensor=PrinterFilamentSensorState(),
             material_data=[MaterialModel() for _ in range(extruder_count)],

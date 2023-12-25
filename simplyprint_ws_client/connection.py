@@ -131,9 +131,14 @@ class Connection:
             mode = event.on_send()
 
             if mode != ClientEventMode.DISPATCH:
+                """
+                # This debug statement is quite
+                # distracting, it can be enabled.
+
                 self.logger.debug(
                     f"Did not send event {event} with data {message} because of mode {mode.name}")
-                 
+                """
+                    
                 return
             
             await self.socket.send_json(message)

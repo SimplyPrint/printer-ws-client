@@ -30,7 +30,7 @@ class ClientOptions:
 
     allow_setup: bool = False
     reconnect_timeout = 5.0
-    tick_rate = 0.2
+    tick_rate = 1.0
 
     def is_valid(self) -> bool:
         return self.client_t is not None and self.config_t is not None

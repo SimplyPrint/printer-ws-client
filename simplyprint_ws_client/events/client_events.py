@@ -248,7 +248,7 @@ class LatencyEvent(ClientEvent):
     event_type = PrinterEvent.LATENCY
 
     def generate_data(self) -> Generator[Tuple, None, None]:
-        yield "ms", self.ping_pong.pong - self.ping_pong.ping
+        yield "ms", self.state.latency.pong - self.state.latency.ping
 
 class FileProgressEvent(ClientEvent):
     event_type = PrinterEvent.FILE_PROGRESS
