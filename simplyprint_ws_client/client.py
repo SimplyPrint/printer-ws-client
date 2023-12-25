@@ -191,6 +191,7 @@ class DefaultClient(Client[TConfig]):
     async def before_connect(self, event: Events.ConnectEvent):
         self.config.name = event.printer_name
         self.config.in_setup = event.in_setup
+        self.config.short_id = event.short_id
         self.connected = True
 
         self.printer.intervals.update(event.intervals)

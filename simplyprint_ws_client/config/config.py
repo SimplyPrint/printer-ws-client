@@ -36,6 +36,7 @@ class Config(metaclass=ConfigMeta):
 
     name: Optional[str]
     in_setup: Optional[bool]
+    short_id: Optional[str]
     public_ip: Optional[str]
     unique_id: Optional[str]
 

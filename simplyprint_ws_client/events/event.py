@@ -3,7 +3,7 @@ class EventTraits:
         return cls.get_name()
     
     def __repr__(cls) -> str:
-        return f"<{cls.__base__.__name__} {cls.get_name()}>"
+        return f"<{cls.__class__.__base__.__name__} {cls.get_name()}>"
     
     def __eq__(cls, other: object) -> bool:
         if isinstance(other, str): return cls.get_name() == other

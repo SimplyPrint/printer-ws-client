@@ -263,14 +263,19 @@ class FileProgressEvent(ClientEvent):
         """
         yield "state", self.state.file_progress.state.value
 
+        if self.state.file_progress.state.value == "error":
+            yield "message", self.state.file_progress.message or "Unknown error"
+
         for key, value in self.state.file_progress.trait_values().items():
-            if key == "state": continue
+            if key in ["state", "message"]: continue
+
             if self.state.has_changed(self.state.file_progress, key):
                 yield key, value
 
     def on_send(self) -> ClientEventMode:
         # Ensure we never drop file progress updates
         return ClientEventMode.DISPATCH
+
 
 class FilamentSensorEvent(ClientEvent):
     event_type = PrinterEvent.FILAMENT_SENSOR
