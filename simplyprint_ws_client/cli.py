@@ -106,9 +106,9 @@ class ClientCli(CommandBag, click.MultiCommand):
 
     commands: Dict[str, click.Command]
 
-    def __init__(self, options: ClientOptions) -> None:
+    def __init__(self, app: Optional[ClientApp] = None) -> None:
         super().__init__(name="simplyprint", help="SimplyPrint client CLI")
-        self.app = ClientApp(options)
+        self.app = app
         self.commands = {}
 
         # Register commands

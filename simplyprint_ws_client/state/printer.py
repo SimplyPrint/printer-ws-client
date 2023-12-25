@@ -66,7 +66,7 @@ class PrinterInfoData(ClientState):
     python_version = Unicode()
     is_ethernet = Bool()
     ssid = Unicode(allow_none=True)
-    local_ip = Unicode()
+    local_ip = Unicode(allow_none=True)
     hostname = Unicode()
     core_count = Int()
     total_memory = Int()

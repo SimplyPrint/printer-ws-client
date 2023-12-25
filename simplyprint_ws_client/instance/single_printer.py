@@ -4,8 +4,7 @@ from simplyprint_ws_client.const import TEST_WEBSOCKET_URL
 
 from ..client import Client
 from ..connection import ConnectionConnectedEvent, ConnectionReconnectEvent
-from ..events import DemandEvent, ServerEvent
-from ..events.client_events import ClientEvent
+from ..events.client_events import MachineDataEvent, StateChangeEvent
 from .instance import Instance, TClient, TConfig
 
 
@@ -33,19 +32,13 @@ class SinglePrinter(Instance[TClient, TConfig]):
 
     def should_connect(self) -> bool:
         return not self.client is None
-    
-    async def on_client_event(self, client: TClient, event: ClientEvent):
-        if not client.connected:
-            self.client_event_backlog.append((client, event))
-            return
-
-        await self.connection.send_event(event)
-
-    async def on_event(self, client: TClient, event: Union[ServerEvent, DemandEvent]):
-        await client.event_bus.emit(event)
 
     async def on_connect(self, _: ConnectionConnectedEvent):
         await self.consume_backlog(self.client_event_backlog, self.on_client_event)
 
     async def on_reconnect(self, _: ConnectionReconnectEvent):
-        ...
+        # Mark certain events to always be sent to the server
+        self.client.printer.mark_event_as_dirty(MachineDataEvent)
+        self.client.printer.mark_event_as_dirty(StateChangeEvent)
+
+        await self.consume_backlog(self.client_event_backlog, self.on_client_event)

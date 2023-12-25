@@ -59,39 +59,51 @@ class Connection:
 
     async def connect(self, url: Optional[str] = None, session: Optional[ClientSession] = None, timeout: Optional[float] = None) -> None:
         with self._connection_lock:
+            
             reconnected = False
 
             if self.socket:
                 await self.socket.close()
+                await self.session.close()
                 self.socket = None
+                self.session = None
                 reconnected = True
 
             self.url = url or self.url
             self.timeout = timeout or self.timeout
-            self.session = self.session or session or ClientSession(loop=self.loop)
+            self.session = ClientSession(loop=self.loop)
 
+            self.logger.debug(f"{'Connecting' if not reconnected else 'Reconnecting'} to {url or self.url}")
+            
             if not self.url:
                 raise ValueError("No url specified")
 
+            socket = None
+
             try:
-                self.socket = await self.session.ws_connect(self.url, timeout=timeout, autoclose=False, max_msg_size=0, compress=False)
+                socket = await self.session.ws_connect(self.url, timeout=timeout, autoclose=False, max_msg_size=0, compress=False)
             except WSServerHandshakeError as e:
                 self.logger.error(f"Failed to connect to {self.url} with status code {e.status}")
                 return
             except ClientConnectorError:
                 self.logger.error(f"Failed to connect to {self.url}")
                 return
+            except Exception as e:
+                self.logger.exception(e)
+                return
             finally:
-                if not self.socket:
+                if not socket:
                     await self.event_bus.emit(ConnectionDisconnectEvent())
                     return
+                
+            self.socket = socket
 
             if reconnected:
-                await self.event_bus.emit(ConnectionReconnectEvent())
                 self.logger.debug(f"Reconnected to {self.url}")
+                await self.event_bus.emit(ConnectionReconnectEvent())
             else:
-                await self.event_bus.emit(ConnectionConnectedEvent())
                 self.logger.debug(f"Connected to {self.url}")
+                await self.event_bus.emit(ConnectionConnectedEvent())
 
     async def close(self) -> None:
         if self.socket:
@@ -102,6 +114,7 @@ class Connection:
             await self.session.close()
             self.session = None
 
+        self.logger.debug(f"Closed connection to {self.url}")
         await self.event_bus.emit(ConnectionDisconnectEvent())
 
     def is_connected(self) -> bool:
@@ -109,6 +122,7 @@ class Connection:
     
     async def send_event(self, event: ClientEvent) -> None:
         if not self.is_connected():
+            self.logger.debug(f"Did not send event {event} because not connected")
             await self.event_bus.emit(ConnectionDisconnectEvent())
 
         try:
@@ -131,6 +145,7 @@ class Connection:
 
     async def poll_event(self, timeout=None) -> None:
         if not self.is_connected():
+            self.logger.debug(f"Did not poll event because not connected")
             await self.event_bus.emit(ConnectionDisconnectEvent())
             return
 
@@ -138,6 +153,7 @@ class Connection:
             message = await self.socket.receive(timeout=timeout)
 
             if message.type in (WSMsgType.CLOSED, WSMsgType.CLOSING, WSMsgType.CLOSE):
+                self.logger.debug(f"Websocket closed by server with code: {self.socket.close_code} and reason: {message.extra}")
                 await self.event_bus.emit(ConnectionDisconnectEvent())
                 return
             
@@ -172,4 +188,5 @@ class Connection:
             await self.event_bus.emit(ConnectionEventReceivedEvent(event, for_client))
 
         except (CancelledError, TimeoutError, ConnectionResetError):
+            self.logger.debug(f"Websocket closed by server due to timeout.")
             await self.event_bus.emit(ConnectionDisconnectEvent())

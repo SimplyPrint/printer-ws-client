@@ -1,10 +1,11 @@
 import asyncio
 import logging
 import threading
+import time
 from abc import ABC, abstractmethod
 from asyncio import AbstractEventLoop
-import time
-from typing import Any, Awaitable, Generic, Iterable, List, Optional, Tuple, TypeVar, Union, Callable
+from typing import (Any, Awaitable, Callable, Generic, Iterable, List,
+                    Optional, Tuple, TypeVar, Union)
 
 from ..client import Client, ClientConfigChangedEvent
 from ..config.config import Config
@@ -13,11 +14,10 @@ from ..connection import (Connection, ConnectionConnectedEvent,
                           ConnectionDisconnectEvent,
                           ConnectionEventReceivedEvent,
                           ConnectionReconnectEvent)
-
-from ..events.client_events import ClientEvent
+from ..events.client_events import ALLOWED_IN_SETUP, ClientEvent
 from ..events.demands import DemandEvent
-from ..events.server_events import ServerEvent
 from ..events.event_bus import Event, EventBus
+from ..events.server_events import ServerEvent
 from ..helpers.sentry import Sentry
 
 TClient = TypeVar("TClient", bound=Client)
@@ -194,10 +194,6 @@ class Instance(ABC, Generic[TClient, TConfig]):
 
         # Capture generic client events to be sent to SimplyPrint
         async def on_client_event(event: ClientEvent):
-            if not client.connected:
-                self.client_event_backlog.append((client, event))
-                return
-
             await self.on_client_event(client, event)
         
         client.event_bus.on_generic(ClientEvent, on_client_event)
@@ -232,6 +228,28 @@ class Instance(ABC, Generic[TClient, TConfig]):
             await consumer(*args)
 
             seek_pointer += 1
+
+    async def on_event(self, client: TClient, event: Union[ServerEvent, DemandEvent]):
+        """
+        Called when a client event is received.
+        """
+
+        await client.event_bus.emit(event)
+    
+    async def on_client_event(self, client: Client[TConfig], event: ClientEvent):
+        """
+        Called when a client event is received.
+        """
+
+        if not client.connected:
+            self.client_event_backlog.append((client, event))
+            return
+        
+        # If the client is in setup only a certain subset of events are allowed
+        if client.config.is_in_setup() and not event.event_type in ALLOWED_IN_SETUP: 
+            return
+        
+        await self.connection.send_event(event)
 
     @abstractmethod
     def get_clients(self) -> Iterable[TClient]:
@@ -294,18 +312,3 @@ class Instance(ABC, Generic[TClient, TConfig]):
         """
         ...
 
-    @abstractmethod
-    async def on_event(self, client: TClient, event: Union[ServerEvent, DemandEvent]):
-        """
-        Called when a client event is received.
-
-        Here the instance can implement custom event handling.
-        """
-        ...
-
-    @abstractmethod
-    async def on_client_event(self, client: TClient, event: ClientEvent):
-        """ 
-        Events a client wants to send to SimplyPrint.
-        """
-        pass

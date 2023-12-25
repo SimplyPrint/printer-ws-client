@@ -10,6 +10,7 @@ if TYPE_CHECKING:
 
 class PrinterEvent(Enum):
     PING = "ping"
+    KEEPALIVE = "keepalive"
     LATENCY = "latency"
     TOOL = "tool"
     STATUS = "state_change"
@@ -43,6 +44,18 @@ class PrinterEvent(Enum):
     LOGS_SENT = "logs_sent"
     FILAMENT_SENSOR = "filament_sensor"
     MATERIAL_DATA = "material_data"
+
+ALLOWED_IN_SETUP = [
+    PrinterEvent.PING,
+    PrinterEvent.KEEPALIVE,
+    PrinterEvent.CONNECTION,
+    PrinterEvent.STATUS,
+    PrinterEvent.SHUTDOWN,
+    PrinterEvent.INFO,
+    PrinterEvent.FIRMWARE,
+    PrinterEvent.FIRMWARE_WARNING,
+    PrinterEvent.INSTALLED_PLUGINS,
+]
 
 class ClientEventMode(Enum):
     DISPATCH = 0

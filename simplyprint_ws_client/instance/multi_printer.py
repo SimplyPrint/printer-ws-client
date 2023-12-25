@@ -17,9 +17,11 @@ from .instance import Instance, TClient, TConfig
 class MultiPrinterException(RuntimeError):
     pass
 
+
 class MultiPrinterClientEvents(Enum):
     ADD_PRINTER = "add_connection"
     REMOVE_PRINTER = "remove_connection"
+
 
 class MultiPrinterAddPrinterEvent(ClientEvent):
     event_type = MultiPrinterClientEvents.ADD_PRINTER
@@ -42,6 +44,7 @@ class MultiPrinterRemovePrinterEvent(ClientEvent):
             "pid": config.id,
         })
 
+
 class MultiPrinter(Instance[TClient, TConfig]):
     clients: Set[Client[TConfig]]
     # List of unique ids pending a response from add connection
@@ -50,19 +53,19 @@ class MultiPrinter(Instance[TClient, TConfig]):
     def __init__(self, loop: AbstractEventLoop, config_manager: ConfigManager[TConfig], **kwargs) -> None:
         super().__init__(loop, config_manager, **kwargs)
 
-        self.event_bus.on(MultiPrinterAddResponseEvent, self.on_printer_added_response)
+        self.event_bus.on(MultiPrinterAddResponseEvent,
+                          self.on_printer_added_response)
 
         self.connection.set_url(f"{TEST_WEBSOCKET_URL}/mp/0/0")
         self.clients = set()
         self.pending_unique_set = set()
-
 
     async def add_client(self, client: TClient) -> None:
         self.clients.add(client)
 
         if not self.connection.is_connected():
             return
-        
+
         await self._send_add_printer(client)
 
     async def remove_client(self, client: TClient) -> None:
@@ -89,19 +92,9 @@ class MultiPrinter(Instance[TClient, TConfig]):
     def should_connect(self) -> bool:
         return len(self.clients) > 0
 
-    async def on_client_event(self, client: TClient, event: ClientEvent):
-        if not client.connected:
-            self.client_event_backlog.append((client, event))
-            return
-
-        await self.connection.send_event(event)
-
-    async def on_event(self, client: TClient, event: Union[ServerEvent, DemandEvent]):
-        await client.event_bus.emit(event)
-
     async def on_printer_added_response(self, client: TClient, event: MultiPrinterAddResponseEvent):
         self.pending_unique_set.remove(client.config.get_unique_id())
-        
+
         if event.status:
             client.config.id = event.printer_id
             self.config_manager.flush(client.config)
@@ -111,6 +104,7 @@ class MultiPrinter(Instance[TClient, TConfig]):
             client.printer.mark_event_as_dirty(StateChangeEvent)
 
             await self.consume_backlog(self.server_event_backlog, self.on_recieved_event)
+            await self.consume_backlog(self.client_event_backlog, self.on_client_event)
         else:
             self.clients.remove(client)
 
@@ -132,6 +126,7 @@ class MultiPrinter(Instance[TClient, TConfig]):
         for client in self.clients:
             client.connected = False
             await self._send_add_printer(client)
+
 
     async def _send_add_printer(self, client: TClient):
         if client.config.get_unique_id() in self.pending_unique_set:

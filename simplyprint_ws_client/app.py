@@ -55,11 +55,11 @@ class ClientApp:
     client_factory: ClientFactory
     config_manager: ConfigManager
 
-    def __init__(self, options: ClientOptions) -> None:
+    def __init__(self, loop: AbstractEventLoop, options: ClientOptions) -> None:
         if not options.is_valid():
             raise ValueError("Invalid options")
 
-        self.loop = asyncio.get_event_loop()
+        self.loop = loop
 
         config_manager_class = options.config_manager_type.get_class()
         instance_class = options.mode.get_class()

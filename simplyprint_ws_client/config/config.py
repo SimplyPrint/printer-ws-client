@@ -54,6 +54,9 @@ class Config(metaclass=ConfigMeta):
 
         return self.is_pending() and len(self.token) < 2 and is_blank
 
+    def is_in_setup(self) -> bool:
+        return self.in_setup if hasattr(self, "in_setup") else False
+
     def __init__(self, **kwargs) -> None:            
         for key in kwargs:
             setattr(self, key, kwargs[key])
