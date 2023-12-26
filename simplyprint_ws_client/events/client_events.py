@@ -232,7 +232,6 @@ class ShutdownEvent(ClientEvent):
 
 class StreamEvent(ClientEvent):
     event_type = PrinterEvent.STREAM
-    interval_type = IntervalTypes.WEBCAM
 
     def generate_data(self) -> Generator[Tuple, None, None]:
         yield "base", self.data.get("base")
