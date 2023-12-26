@@ -142,7 +142,8 @@ class Connection:
                 return
             
             await self.socket.send_json(message)
-            self.logger.debug(f"Sent event {event} with data {message}")
+
+            self.logger.debug(f"Sent event {event.get_name()}" if len(str(message)) > 1000 else f"Sent event {event} with data {message}")
             
         except ConnectionResetError as e:
             self.logger.error(f"Failed to send event {event}: {e}")
@@ -163,7 +164,7 @@ class Connection:
                 return
             
             if message.type == WSMsgType.ERROR:
-                self.logger.error(f"Websocket error: {str(message.data)}")
+                self.logger.error(f"Websocket error: {message.data}")
                 await self.event_bus.emit(ConnectionDisconnectEvent())
                 return
             
@@ -188,7 +189,7 @@ class Connection:
                 return
 
             self.logger.debug(
-                f"Recieved event {event} with data {message.data} for client {for_client}")
+                f"Recieved event {event.get_name()} with data {message.data} for client {for_client}")
             
             await self.event_bus.emit(ConnectionEventReceivedEvent(event, for_client))
 
