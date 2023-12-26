@@ -20,6 +20,7 @@ class TestConfigManager(unittest.TestCase):
             'token': "0",
             'name': None,
             'in_setup': None,
+            'short_id': None,
             'unique_id': config1.unique_id,
             'public_ip': None,
         })
@@ -42,8 +43,8 @@ class TestConfigManager(unittest.TestCase):
         self.assertTrue(config2.partial_eq(Config(unique_id="super_cool_id")))
         self.assertTrue(config2.partial_eq(Config(token="super_cool_token")))
 
-        config3 = Config(**{'id': None, 'in_setup': None, 'name': None, 'public_ip': None, 'token': None, 'unique_id': None})
+        config3 = Config(**{'id': None, 'in_setup': None, 'short_id': None, 'name': None, 'public_ip': None, 'token': None, 'unique_id': None})
         self.assertTrue(config3.is_blank())
 
-        config4 = Config(**{'id': None, 'in_setup': None, 'name': None, 'public_ip': None, 'token': None, 'unique_id': '140686326013968'})
+        config4 = Config(**{'id': None, 'in_setup': None, 'short_id': None, 'name': None, 'public_ip': None, 'token': None, 'unique_id': '140686326013968'})
         self.assertFalse(config4.is_blank())

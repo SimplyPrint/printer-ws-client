@@ -1,6 +1,10 @@
 import uuid
 from typing import Optional
 
+try:
+    from typing import Self
+except ImportError:
+    from typing_extensions import Self
 
 class ConfigMeta(type):
     """ 
@@ -93,12 +97,13 @@ class Config(metaclass=ConfigMeta):
 
         return True
 
-    @staticmethod
-    def get_blank() -> 'Config':
-        return Config(id=0, token="0")
+    @classmethod
+    def get_blank(cls) -> Self:
+        return cls(id=0, token="0")
     
-    def get_new(self) -> 'Config':
-        return Config(id=self.id, token=self.token, unique_id=str(uuid.uuid4()))
+    @classmethod
+    def get_new(cls) -> Self:
+        return cls(id=0, token="0", unique_id=str(uuid.uuid4()))
 
     def __repr__(self) -> str:
         return str(self)

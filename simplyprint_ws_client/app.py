@@ -82,9 +82,15 @@ class ClientApp:
 
         self.logger.debug("Client instance has stopped")
 
+    async def _delete_client(self, client: Client):
+        await self.instance.delete_client(client)
+
     async def _add_new_client(self, config: Optional[Config]):
         client = self.client_factory.create_client(config=config)
         await self.instance.register_client(client)
+    
+    def delete_client(self, client: Client):
+        self.loop.create_task(self._delete_client(client))
     
     def add_new_client(self, config: Optional[Config]):
         self.loop.create_task(self._add_new_client(config))

@@ -102,7 +102,7 @@ class Instance(ABC, Generic[TClient, TConfig]):
     def stop(self) -> None:
         self._stop_event.set()
         self.loop.stop()
-    
+
     async def consume_clients(self):
         while not self._stop_event.is_set():
             dt = time.time()
@@ -189,6 +189,19 @@ class Instance(ABC, Generic[TClient, TConfig]):
 
         self.config_manager.flush(client.config)
 
+    async def delete_client(self, client: TClient):
+        """
+        Deletes a client from the instance.
+        """
+
+        if not self.has_client(client):
+            raise InstanceException("Client not registered")
+
+        await self.remove_client(client)
+        
+        self.config_manager.remove(client.config)
+        self.config_manager.flush()
+        
     async def register_client(self, client: TClient):
         """
         Adds some default event handling for a client.

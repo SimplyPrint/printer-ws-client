@@ -3,6 +3,7 @@ from collections import namedtuple
 
 from datetime import datetime, timedelta
 from typing import Dict, Union, List
+
 try:
     from typing import Self
 except ImportError:
