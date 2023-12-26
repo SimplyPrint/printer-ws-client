@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import time
 from abc import ABC, abstractmethod
 from typing import Generic, Optional, TypeVar
@@ -45,7 +46,6 @@ class Client(ABC, Generic[TConfig]):
 
     connected: bool = False
 
-    # Usually injected by multiplexer
     sentry: Optional[Sentry]
     physical_machine: Optional[PhysicalMachine]
 
@@ -72,11 +72,6 @@ class Client(ABC, Generic[TConfig]):
         event.for_client = self.config.unique_id
         await self.event_bus.emit(event)
 
-    async def send_ping(self):
-        self.printer.latency.ping = time.time()
-        await self.send_event(PingEvent(self.printer))
-
-
     async def consume_state(self):
         """
         Consumes the state of a client to produce client events
@@ -84,7 +79,7 @@ class Client(ABC, Generic[TConfig]):
         """
 
         for event in self.printer._build_events(self.config.unique_id):
-            await self.send_event(event)
+            await self.event_bus.emit(event)
 
     @abstractmethod
     async def init(self):
@@ -122,16 +117,36 @@ class DefaultClient(Client[TConfig]):
     Client with default event handling.
     """
 
+    logger: logging.Logger = logging.getLogger("simplyprint.client")
+
     reconnect_token: Optional[str] = None
 
     def __init__(self, config: TConfig):
         super().__init__(config)
 
         self.physical_machine = PhysicalMachine()
-        
-        self.printer.observe(self._on_display_message,
+
+        # Default M117 behaviour.
+        def _on_display_message(change):
+            message = change['new']
+
+            if self.printer.display_settings.branding:
+                if len(message) > 7:
+                    message = f"[SP] {message}"
+                else:
+                    message = f"[SimplyPrint] {message}"
+
+            # Pass on to gcode handling (Printer firmware)
+            gcode_event = Demands.GcodeEvent(name="demand", demand=Demands.GcodeEvent.demand, data={
+                "list": ["M117 {}".format(message.replace('\n', ''))]
+            })
+
+            asyncio.create_task(self.event_bus.emit(gcode_event))
+            
+        self.printer.observe(_on_display_message,
                              "current_display_message")
 
+        # Set information about the physical machine
         for k, v in self.physical_machine.get_info().items():
             self.printer.info.set_trait(k, v)
 
@@ -160,21 +175,12 @@ class DefaultClient(Client[TConfig]):
         self.sentry.sentry_dsn = sentry_dsn
         self.sentry.development = development
 
-    def _on_display_message(self, change):
-        message = change['new']
+    def setup_logging(self, logger: logging.Logger):
+        self.logger = logger
 
-        if self.printer.display_settings.branding:
-            if len(message) > 7:
-                message = f"[SP] {message}"
-            else:
-                message = f"[SimplyPrint] {message}"
-
-        # Pass on to gcode handling (Printer firmware)
-        gcode_event = Demands.GcodeEvent(name="demand", demand=Demands.GcodeEvent.demand, data={
-            "list": ["M117 {}".format(message.replace('\n', ''))]
-        })
-
-        asyncio.create_task(self.event_bus.emit(gcode_event))
+    async def send_ping(self):
+        self.printer.latency.ping = time.time()
+        await self.send_event(PingEvent(self.printer))
 
     @Demands.SystemRestartEvent.on
     async def on_system_restart(self, event: Demands.SystemRestartEvent):

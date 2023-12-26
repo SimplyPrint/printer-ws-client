@@ -40,6 +40,7 @@ class PhysicalMachine:
             "python_version": self.python_version(),
             "machine": self.machine(),
             "os": self.os(),
+            "mac": self.mac_address(),
             "is_ethernet": self.is_ethernet(),
             "ssid": self.ssid(),
             "hostname": self.hostname(),
@@ -103,6 +104,13 @@ class PhysicalMachine:
 
     def os(self) -> str:
         return platform.system()
+    
+    def mac_address(self) -> str:
+        # Use netifaces
+        try:
+            return netifaces.ifaddresses(netifaces.gateways()["default"][netifaces.AF_INET][1])[netifaces.AF_LINK][0]["addr"]
+        except Exception:
+            return None
 
     def is_ethernet(self) -> bool:
         try:

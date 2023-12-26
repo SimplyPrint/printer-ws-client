@@ -90,4 +90,4 @@ class SimplyPrintUrl:
 IS_TESTING = bool(environ.get("IS_TESTING")) or bool(
     environ.get("DEV_MODE")) or bool(environ.get("DEBUG"))
 
-SIMPLYPRINT_URL = SimplyPrintUrl(SimplyPrintVersion.TESTING if IS_TESTING else SimplyPrintVersion.PRODUCTION)
+SIMPLYPRINT_URL = SimplyPrintUrl(SimplyPrintVersion.TESTING)

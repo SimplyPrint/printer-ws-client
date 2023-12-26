@@ -276,7 +276,6 @@ class FileProgressEvent(ClientEvent):
         # Ensure we never drop file progress updates
         return ClientEventMode.DISPATCH
 
-
 class FilamentSensorEvent(ClientEvent):
     event_type = PrinterEvent.FILAMENT_SENSOR
 

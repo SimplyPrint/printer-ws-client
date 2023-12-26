@@ -2,11 +2,13 @@ import asyncio
 import logging
 from asyncio import AbstractEventLoop
 from enum import Enum
+from logging.handlers import RotatingFileHandler
 from typing import Optional, Type
 
 from .client import Client
 from .config import Config, ConfigManager, ConfigManagerType
 from .instance import Instance, MultiPrinter, SinglePrinter
+from .const import APP_DIRS
 
 
 class ClientMode(Enum):
@@ -24,7 +26,7 @@ class ClientMode(Enum):
 class ClientOptions:
     mode: ClientMode = ClientMode.SINGLE
 
-    config_name: Optional[str] = "printers"
+    name: Optional[str] = "printers"
     config_manager_type: ConfigManagerType = ConfigManagerType.MEMORY
 
     client_t: Optional[Type[Client]] = None
@@ -66,10 +68,18 @@ class ClientApp:
         config_manager_class = options.config_manager_type.get_class()
         instance_class = options.mode.get_class()
 
-        self.config_manager = config_manager_class(name=options.config_name, config_t=options.config_t)
+        self.config_manager = config_manager_class(name=options.name, config_t=options.config_t)
         self.instance = instance_class(loop=self.loop, config_manager=self.config_manager, allow_setup=options.allow_setup, reconnect_timeout=options.reconnect_timeout, tick_rate=options.tick_rate)
         self.client_factory = ClientFactory(client_t=options.client_t, config_t=options.config_t)
     
+        log_file = APP_DIRS.user_log_path / f"{options.name}.log"
+        
+        if not log_file.parent.exists():
+            log_file.parent.mkdir(parents=True)
+
+        # handler = RotatingFileHandler(log_file, maxBytes=1024 * 1024 * 10, backupCount=5)
+        # logging.basicConfig()
+
     async def run(self):
         # Register all clients
         for config in self.config_manager.get_all():
