@@ -1,6 +1,6 @@
 from typing import Iterable, Optional, Union
 
-from simplyprint_ws_client.const import TEST_WEBSOCKET_URL
+from simplyprint_ws_client.const import SIMPLYPRINT_URL
 
 from ..client import Client
 from ..connection import ConnectionConnectedEvent, ConnectionReconnectEvent
@@ -14,7 +14,8 @@ class SinglePrinter(Instance[TClient, TConfig]):
 
     async def add_client(self, client: TClient) -> None:
         self.connection.set_url(
-            f"{TEST_WEBSOCKET_URL}/p/{client.config.id}/{client.config.token}")
+            str(SIMPLYPRINT_URL.ws_url / "p" / client.config.id / client.config.token))
+        
         self.client = client
 
     def get_client(self, _: TConfig) -> Union[TClient, None]:

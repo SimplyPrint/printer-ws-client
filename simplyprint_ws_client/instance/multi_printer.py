@@ -6,7 +6,7 @@ from ..client import Client
 from ..config.config import Config
 from ..config.manager import ConfigManager
 from ..connection import ConnectionConnectedEvent, ConnectionReconnectEvent
-from ..const import TEST_WEBSOCKET_URL
+from ..const import SIMPLYPRINT_URL
 from ..events.client_events import (ClientEvent, MachineDataEvent,
                                     StateChangeEvent)
 from ..events.server_events import MultiPrinterAddResponseEvent
@@ -55,7 +55,7 @@ class MultiPrinter(Instance[TClient, TConfig]):
         self.event_bus.on(MultiPrinterAddResponseEvent,
                           self.on_printer_added_response)
 
-        self.connection.set_url(f"{TEST_WEBSOCKET_URL}/mp/0/0")
+        self.connection.set_url(str(SIMPLYPRINT_URL.ws_url / "mp" / 0 / 0))
         self.clients = dict()
         self.pending_unique_set = set()
 
@@ -70,7 +70,7 @@ class MultiPrinter(Instance[TClient, TConfig]):
     async def remove_client(self, client: TClient) -> None:
         if not self.has_client(client):
             return
-        
+
         self.clients.pop(client.config.unique_id)
 
         if not self.connection.is_connected():
@@ -113,7 +113,7 @@ class MultiPrinter(Instance[TClient, TConfig]):
 
             await self.consume_backlog(self.server_event_backlog, self.on_recieved_event)
             await self.consume_backlog(self.client_event_backlog, self.on_client_event)
-        else:            
+        else:
             self.clients.pop(client.config.unique_id, None)
 
         # Do not propegate event further.
@@ -134,7 +134,6 @@ class MultiPrinter(Instance[TClient, TConfig]):
         for client in self.clients.values():
             client.connected = False
             await self._send_add_printer(client)
-
 
     async def _send_add_printer(self, client: TClient):
         if client.config.unique_id in self.pending_unique_set:
