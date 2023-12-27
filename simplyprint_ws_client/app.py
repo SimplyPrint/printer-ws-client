@@ -1,14 +1,14 @@
-import asyncio
 import logging
 from asyncio import AbstractEventLoop
 from enum import Enum
 from logging.handlers import RotatingFileHandler
-from typing import Optional, Type
+from typing import NamedTuple, Optional, Type
+from os import environ
 
 from .client import Client
 from .config import Config, ConfigManager, ConfigManagerType
 from .instance import Instance, MultiPrinter, SinglePrinter
-from .const import APP_DIRS
+from .const import APP_DIRS, SimplyPrintUrl, SimplyPrintVersion
 
 
 class ClientMode(Enum):
@@ -23,8 +23,9 @@ class ClientMode(Enum):
         else:
             raise ValueError("Invalid ClientMode")
 
-class ClientOptions:
+class ClientOptions(NamedTuple):
     mode: ClientMode = ClientMode.SINGLE
+    backend: Optional[SimplyPrintVersion] = None
 
     name: Optional[str] = "printers"
     config_manager_type: ConfigManagerType = ConfigManagerType.MEMORY
@@ -35,7 +36,7 @@ class ClientOptions:
     allow_setup: bool = False
     reconnect_timeout = 5.0
     tick_rate = 1.0
-
+        
     def is_valid(self) -> bool:
         return self.client_t is not None and self.config_t is not None
 
@@ -64,6 +65,10 @@ class ClientApp:
             raise ValueError("Invalid options")
 
         self.loop = loop
+        
+        # Set correct simplyprint version
+        if options.backend:
+            SimplyPrintUrl.set_current(options.backend)
 
         config_manager_class = options.config_manager_type.get_class()
         instance_class = options.mode.get_class()

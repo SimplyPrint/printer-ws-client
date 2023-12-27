@@ -6,7 +6,7 @@ from ..client import Client
 from ..config.config import Config
 from ..config.manager import ConfigManager
 from ..connection import ConnectionConnectedEvent, ConnectionReconnectEvent
-from ..const import SIMPLYPRINT_URL
+from ..const import SimplyPrintUrl
 from ..events.client_events import (ClientEvent, MachineDataEvent,
                                     StateChangeEvent)
 from ..events.server_events import MultiPrinterAddResponseEvent
@@ -55,7 +55,7 @@ class MultiPrinter(Instance[TClient, TConfig]):
         self.event_bus.on(MultiPrinterAddResponseEvent,
                           self.on_printer_added_response)
 
-        self.connection.set_url(str(SIMPLYPRINT_URL.ws_url / "mp" / 0 / 0))
+        self.connection.set_url(str(SimplyPrintUrl.current().ws_url / "mp" / 0 / 0))
         self.clients = dict()
         self.pending_unique_set = set()
 

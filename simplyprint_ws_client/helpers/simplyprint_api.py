@@ -1,12 +1,12 @@
 import aiohttp
 import base64
-from ..const import SIMPLYPRINT_URL, VERSION
+from ..const import SimplyPrintUrl, VERSION
 
 class SimplyPrintApi:
     @staticmethod
     async def post_snapshot(id: str, image_data: bytes):
 
-        endpoint = SIMPLYPRINT_URL.api_url / "jobs" / "ReceiveSnapshot"
+        endpoint = SimplyPrintUrl.current().api_url / "jobs" / "ReceiveSnapshot"
         
         data = {
             "id": id,

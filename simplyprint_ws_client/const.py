@@ -67,9 +67,19 @@ class UrlBuilder(NamedTuple):
         return self._replace(path=f"{self.path}/{other}")
 
 class SimplyPrintUrl:
+    _current_url: "SimplyPrintUrl" = None
+        
     def __init__(self, version: SimplyPrintVersion) -> None:
         self.version = version
-
+    
+    @staticmethod
+    def current():
+        return SimplyPrintUrl._current_url
+    
+    @staticmethod
+    def set_current(version: SimplyPrintVersion = SimplyPrintVersion.PRODUCTION):
+        SimplyPrintUrl._current_url = SimplyPrintUrl(version)
+    
     @property
     def root_url(self) -> UrlBuilder:
         return UrlBuilder("https", DomainBuilder(self.version.root_subdomain))
@@ -90,4 +100,6 @@ class SimplyPrintUrl:
 IS_TESTING = bool(environ.get("IS_TESTING")) or bool(
     environ.get("DEV_MODE")) or bool(environ.get("DEBUG"))
 
-SIMPLYPRINT_URL = SimplyPrintUrl(SimplyPrintVersion.TESTING)
+value = environ.get("SIMPLYPRINT_VERSION", (SimplyPrintVersion.TESTING if IS_TESTING else SimplyPrintVersion.PRODUCTION).value)
+
+SimplyPrintUrl.set_current(SimplyPrintVersion(value))
