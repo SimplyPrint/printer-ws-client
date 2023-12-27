@@ -1,6 +1,7 @@
 import asyncio
 import aiohttp
 
+from typing import Callable, Optional
 from ..client import Client
 from ..state.printer import PrinterFileProgressState, FileProgressState
 
@@ -14,7 +15,7 @@ class FileDownload:
         self.client = client
         self.state = client.printer.file_progress
 
-    async def download_as_bytes(self, url) -> bytes:
+    async def download_as_bytes(self, url, clamp_progress: Optional[Callable] = None) -> bytes:
         """ 
         Download a file with file progress.
         """
@@ -41,7 +42,10 @@ class FileDownload:
                     downloaded += len(chunk)
 
                     self.state.state = FileProgressState.DOWNLOADING
-                    self.state.percent = int(round((downloaded / size) * 100, 2))
+
+                    total_percentage = int((downloaded / size) * 100)
+                    
+                    self.state.percent = clamp_progress(total_percentage) if clamp_progress else total_percentage
                     
                     # Ensure we send events to SimplyPrint
                     await self.client.consume_state()
