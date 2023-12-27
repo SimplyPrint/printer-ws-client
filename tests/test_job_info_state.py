@@ -51,11 +51,28 @@ class TestJobInfoState(unittest.TestCase):
         state = TestState()
         state.status = PrinterStatus.PRINTING
 
-        self.assertEqual(state.get_event_types(), [
-            StateChangeEvent,
-        ])
+        self.assertEqual(state.get_event_types(), [StateChangeEvent])
         
         self.assertEqual(state.status, PrinterStatus.PRINTING)
+
+        _ = list(state._build_events())
+
+        self.assertEqual(state.get_event_types(), [])
+
+        state.mark_event_as_dirty(StateChangeEvent)
+
+        self.assertEqual(state.get_event_types(), [StateChangeEvent])
+
+        event = next(state._build_events())
+
+        self.assertEqual(event.__class__, StateChangeEvent)
+
+        event_data = dict(event.generate_data())
+
+        self.assertEqual(event_data.keys(), set(["new"]))
+
+        self.assertEqual(event_data["new"], PrinterStatus.PRINTING.value)
+        
 
     def test_combined_ordering(self):
         state = TestState()
