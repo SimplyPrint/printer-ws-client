@@ -16,7 +16,8 @@ from ..connection import (Connection, ConnectionConnectedEvent,
                           ConnectionDisconnectEvent,
                           ConnectionEventReceivedEvent,
                           ConnectionReconnectEvent)
-from ..events.client_events import ALLOWED_IN_SETUP, ClientEvent
+from ..events.client_events import (ALLOWED_IN_SETUP, ClientEvent,
+                                    MachineDataEvent, StateChangeEvent)
 from ..events.demands import DemandEvent
 from ..events.event_bus import Event, EventBus
 from ..events.server_events import ServerEvent
@@ -235,6 +236,9 @@ class Instance(ABC, Generic[TClient, TConfig]):
             await self.connect()
 
         await client.init()
+    
+        client.printer.mark_event_as_dirty(StateChangeEvent)
+        client.printer.mark_event_as_dirty(MachineDataEvent)
 
     async def consume_backlog(self, backlog: List[Any], consumer: Callable[[Any], Awaitable[None]]):
         """
