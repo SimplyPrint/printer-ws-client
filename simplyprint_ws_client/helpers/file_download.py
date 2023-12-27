@@ -41,7 +41,7 @@ class FileDownload:
                     downloaded += len(chunk)
 
                     self.state.state = FileProgressState.DOWNLOADING
-                    self.state.percent = round((downloaded / size) * 100, 2)
+                    self.state.percent = int(round((downloaded / size) * 100, 2))
                     
                     # Ensure we send events to SimplyPrint
                     await self.client.consume_state()
