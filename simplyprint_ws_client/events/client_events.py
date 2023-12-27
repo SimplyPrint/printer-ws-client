@@ -309,7 +309,7 @@ class MaterialDataEvent(ClientEvent):
     def generate_data(self) -> Generator[Tuple, None, None]:
         if self.state.has_changed(self.state, "material_data"):
             if len(self.state.material_data) == 0: return
-            yield "materials", [material.trait_values() for material in self.state.material_data]
+            yield "materials", [material.trait_values() if material is not None else material for material in self.state.material_data]
             self.has_changes = True
 
     def on_send(self) -> ClientEventMode:

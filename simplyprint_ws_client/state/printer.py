@@ -194,7 +194,7 @@ class PrinterState(RootState):
     webcam_settings: WebcamSettings = Instance(WebcamSettings)
 
     active_tool: Optional[int] = Integer(None, allow_none=True)
-    material_data: List[MaterialModel] = TraitletsList(Instance(MaterialModel))
+    material_data: List[MaterialModel] = TraitletsList(Instance(MaterialModel, allow_none=True))
 
     def __init__(self, extruder_count: int = 1) -> None:
         super().__init__(

@@ -70,7 +70,7 @@ class TestJobInfoState(unittest.TestCase):
             MaterialModel(type="PLA", color="blue", hex="#0000FF", ext=2),
             MaterialModel(type="PLA", color="white", hex="#FFFFFF", ext=3)
         ]
-        state.active_tool = 0
+        state.active_tool = None
 
         event_types, events = state.get_events()
         self.assertEqual(event_types, [MaterialDataEvent, ToolEvent])
@@ -78,4 +78,4 @@ class TestJobInfoState(unittest.TestCase):
         event_tool: ToolEvent = events[1]
 
         self.assertDictEqual(dict(event_material.generate_data()), {'materials': [{'color': 'red', 'ext': 0, 'hex': '#FF0000', 'type': 'PLA'}, {'color': 'green', 'ext': 1, 'hex': '#00FF00', 'type': 'PLA'}, {'color': 'blue', 'ext': 2, 'hex': '#0000FF', 'type': 'PLA'}, {'color': 'white', 'ext': 3, 'hex': '#FFFFFF', 'type': 'PLA'}]})
-        self.assertDictEqual(dict(event_tool.generate_data()), {'new': 0})
+        self.assertDictEqual(dict(event_tool.generate_data()), {'new': None})
