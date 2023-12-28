@@ -111,7 +111,6 @@ class Client(ABC, Generic[TConfig]):
         """
         ...
 
-
 class DefaultClient(Client[TConfig]):
     """
     Client with default event handling.
@@ -121,6 +120,8 @@ class DefaultClient(Client[TConfig]):
 
     reconnect_token: Optional[str] = None
 
+    requested_snapshots: int = 0
+        
     def __init__(self, config: TConfig):
         super().__init__(config)
 
@@ -179,6 +180,9 @@ class DefaultClient(Client[TConfig]):
         self.logger = logger
 
     async def send_ping(self):
+        if not self.printer.intervals.is_ready(IntervalTypes.PING):
+            return
+        
         self.printer.latency.ping = time.time()
         await self.send_event(PingEvent(self.printer))
 
@@ -250,5 +254,8 @@ class DefaultClient(Client[TConfig]):
 
     @Demands.WebcamSnapshotEvent.before
     async def before_webcam_snapshot(self, event: Demands.WebcamSnapshotEvent):
+        self.logger.debug(f"Got request to take webcam snapshot {event} and {self.requested_snapshots}")
+        self.requested_snapshots += 1
+            
         if event.timer is not None:
             self.printer.intervals.set(IntervalTypes.WEBCAM.value, event.timer)

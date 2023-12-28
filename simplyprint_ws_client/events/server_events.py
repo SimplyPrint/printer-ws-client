@@ -51,7 +51,7 @@ class ServerEvent(Event):
         we later can extract the event type from the function.
         """
         func._event = cls
-        func._pre = 0
+        func._pre = 1
         return func
     
     @classmethod
@@ -61,7 +61,7 @@ class ServerEvent(Event):
         This calls the actual handler, and has to return the event.
         """
         func._event = cls
-        func._pre = 1
+        func._pre = 0
         return func
 
 class ErrorEvent(ServerEvent):

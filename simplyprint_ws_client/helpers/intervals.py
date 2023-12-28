@@ -1,3 +1,4 @@
+import asyncio
 from enum import Enum
 from collections import namedtuple
 
@@ -68,6 +69,17 @@ class Intervals:
         
         return datetime.now() - self.last_updates[t.name] > timedelta(seconds=self.intervals[t.name])
     
+    async def wait_until_ready(self, t: IntervalType):
+        if not t.name in self.intervals:
+            return
+
+        ready_in_seconds = self.intervals[t.name] - (datetime.now() - self.last_updates[t.name]).total_seconds()
+
+        if ready_in_seconds <= 0.0:
+            return
+        
+        await asyncio.sleep(ready_in_seconds)
+
     def use(self, t: IntervalType):
         if not self.is_ready(t):
             raise IntervalException(f"Interval {t.name} is not ready until {self.last_updates[t.name] + timedelta(seconds=self.intervals[t.name])} (now: {datetime.now()})")

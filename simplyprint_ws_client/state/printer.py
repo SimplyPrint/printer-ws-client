@@ -56,21 +56,21 @@ class PrinterFileProgressState(ClientState):
 
 @to_event(MachineDataEvent)
 class PrinterInfoData(ClientState):
-    ui = Unicode()
-    ui_version = Unicode()
-    api = Unicode()
-    api_version = Unicode()
-    machine = Unicode()
-    os = Unicode()
-    sp_version = Unicode()
-    python_version = Unicode()
+    ui = Unicode(allow_none=True)
+    ui_version = Unicode(allow_none=True)
+    api = Unicode(allow_none=True)
+    api_version = Unicode(allow_none=True)
+    machine = Unicode(allow_none=True)
+    os = Unicode(allow_none=True)
+    sp_version = Unicode(allow_none=True)
+    python_version = Unicode(allow_none=True)
     is_ethernet = Bool()
     ssid = Unicode(allow_none=True)
     local_ip = Unicode(allow_none=True)
-    hostname = Unicode()
+    hostname = Unicode(allow_none=True)
     core_count = Int()
     total_memory = Int()
-    mac = Unicode()
+    mac = Unicode(allow_none=True)
 
 class PrinterDisplaySettings(ClientState):
     enabled: bool = Bool()
@@ -122,7 +122,7 @@ class JobInfoState(ClientState):
     layer: Optional[int] = Int()
     time: Optional[float] = Float()  # Time left in seconds
     filament: Optional[float] = Float()  # Filament usage
-    filename: Optional[str] = Unicode()
+    filename: Optional[str] = Unicode(allow_none=True)
 
     started: bool = Always(Bool())
     finished: bool = Always(Bool())

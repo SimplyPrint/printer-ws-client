@@ -199,6 +199,7 @@ class Instance(ABC, Generic[TClient, TConfig]):
             raise InstanceException("Client not registered")
 
         await self.remove_client(client)
+        await client.stop()
         
         self.config_manager.remove(client.config)
         self.config_manager.flush()
