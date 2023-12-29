@@ -217,6 +217,7 @@ class Instance(ABC, Generic[TClient, TConfig]):
             raise InstanceException("Client has no unique id")
 
         self.config_manager.persist(client.config)
+        self.config_manager.flush(client.config)
 
         # Capture generic client events to be sent to SimplyPrint
         async def on_client_event(event: ClientEvent):
