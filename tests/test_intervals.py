@@ -1,7 +1,5 @@
 import unittest
 
-from sympy import Interval
-
 from simplyprint_ws_client.helpers.intervals import IntervalException, IntervalTypes, Intervals
 
 class TimeControlledIntervals(Intervals):
