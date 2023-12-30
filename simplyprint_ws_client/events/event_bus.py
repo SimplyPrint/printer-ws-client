@@ -84,7 +84,7 @@ class EventBus(Generic[TEvent]):
 
         if isinstance(event, self.event_klass):
             args = (event, *args)
-
+        
         for listener in self.listeners[event]:
             # The listener may return the modified event parameter in
             # the case the emitted event was of a event class type.

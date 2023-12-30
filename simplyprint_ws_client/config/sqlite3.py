@@ -110,7 +110,7 @@ class SqliteConfigManager(ConfigManager):
         """
 
         if not SqliteConfigManager.db or not self._database_file.exists():
-            SqliteConfigManager.db = sqlite3.connect(self._database_file.as_posix(), check_same_thread=False)
+            SqliteConfigManager.db = sqlite3.connect(self._database_file, check_same_thread=False)
 
         if SqliteConfigManager.table_exists:
             return

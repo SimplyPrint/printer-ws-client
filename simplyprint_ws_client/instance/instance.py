@@ -7,8 +7,6 @@ from asyncio import AbstractEventLoop
 from typing import (Any, Awaitable, Callable, Generic, Iterable, List,
                     Optional, Tuple, TypeVar, Union)
 
-from flask import config
-
 from ..client import Client, ClientConfigChangedEvent
 from ..config.config import Config
 from ..config.manager import ConfigManager
@@ -26,8 +24,10 @@ from ..helpers.sentry import Sentry
 TClient = TypeVar("TClient", bound=Client)
 TConfig = TypeVar("TConfig", bound=Config)
 
+
 class InstanceException(Exception):
     ...
+
 
 class Instance(ABC, Generic[TClient, TConfig]):
     """
@@ -66,19 +66,22 @@ class Instance(ABC, Generic[TClient, TConfig]):
     server_event_backlog: List[Tuple[ConnectionEventReceivedEvent]]
     client_event_backlog: List[Tuple[TClient, ClientEvent]]
 
-    def __init__(self, loop: AbstractEventLoop, config_manager: ConfigManager[TConfig], allow_setup = False, reconnect_timeout = 5.0, tick_rate = 1.0) -> None:
+    def __init__(self, loop: AbstractEventLoop, config_manager: ConfigManager[TConfig], allow_setup=False, reconnect_timeout=5.0, tick_rate=1.0) -> None:
         self.loop = loop or asyncio.get_event_loop()
         self.connection = Connection(self.loop)
         self.config_manager = config_manager
 
         self.connection.event_bus.on(ConnectionConnectedEvent, self.on_connect)
-        self.connection.event_bus.on(ConnectionDisconnectEvent, self.on_disconnect)
-        self.connection.event_bus.on(ConnectionReconnectEvent, self.on_reconnect)
-        self.connection.event_bus.on(ConnectionEventReceivedEvent, self.on_recieved_event)
+        self.connection.event_bus.on(
+            ConnectionDisconnectEvent, self.on_disconnect)
+        self.connection.event_bus.on(
+            ConnectionReconnectEvent, self.on_reconnect)
+        self.connection.event_bus.on(
+            ConnectionEventReceivedEvent, self.on_recieved_event)
 
         self._stop_event = threading.Event()
         self.event_bus = EventBus()
-        
+
         self.server_event_backlog = []
         self.client_event_backlog = []
 
@@ -88,10 +91,10 @@ class Instance(ABC, Generic[TClient, TConfig]):
 
         self.event_bus.on(ServerEvent, self.on_event, generic=True)
 
-    async def run(self) -> None:        
+    async def run(self) -> None:
         if self.sentry and self.sentry.sentry_dsn is not None:
             self.sentry.initialize_sentry()
-        
+
         if not self.connection.is_connected():
             await self.connect()
 
@@ -117,7 +120,7 @@ class Instance(ABC, Generic[TClient, TConfig]):
                     await self.consume_client(client)
 
                 await asyncio.sleep(max(0, self.tick_rate - (time.time() - dt)))
-                
+
             except Exception as e:
                 self.logger.exception(e)
 
@@ -145,9 +148,10 @@ class Instance(ABC, Generic[TClient, TConfig]):
         if not self.should_connect():
             self.logger.info("No clients to connect - not connecting")
             return
-        
+
         if self.connection.is_connected():
-            self.logger.info("Already connected - not connecting, call connection connect manually to force a reconnect")
+            self.logger.info(
+                "Already connected - not connecting, call connection connect manually to force a reconnect")
             return
 
         await self.connection.connect()
@@ -157,7 +161,8 @@ class Instance(ABC, Generic[TClient, TConfig]):
         for client in self.get_clients():
             client.connected = False
 
-        self.logger.info(f"Disconnected from server - reconnecting in {self.reconnect_timeout} seconds")
+        self.logger.info(
+            f"Disconnected from server - reconnecting in {self.reconnect_timeout} seconds")
         await asyncio.sleep(self.reconnect_timeout)
         await self.connect()
 
@@ -175,12 +180,12 @@ class Instance(ABC, Generic[TClient, TConfig]):
         else:
             config = Config(id=event.for_client)
 
-        client = self.get_client(config)   
+        client = self.get_client(config)
 
         if not client:
             self.server_event_backlog.append((event,))
             return
-        
+
         await self.event_bus.emit(event.event, client)
 
     async def on_client_config_changed(self, client: TClient):
@@ -200,10 +205,10 @@ class Instance(ABC, Generic[TClient, TConfig]):
 
         await self.remove_client(client)
         await client.stop()
-        
+
         self.config_manager.remove(client.config)
         self.config_manager.flush()
-        
+
     async def register_client(self, client: TClient):
         """
         Adds some default event handling for a client.
@@ -222,7 +227,7 @@ class Instance(ABC, Generic[TClient, TConfig]):
         # Capture generic client events to be sent to SimplyPrint
         async def on_client_event(event: ClientEvent):
             await self.on_client_event(event, client)
-        
+
         client.event_bus.on(ClientEvent, on_client_event, generic=True)
 
         async def on_client_config_changed(_: ClientConfigChangedEvent):
@@ -233,12 +238,12 @@ class Instance(ABC, Generic[TClient, TConfig]):
 
         await self.add_client(client)
         await self.consume_backlog(self.server_event_backlog, self.on_recieved_event)
-        
+
         if not self.connection.is_connected():
             await self.connect()
 
         await client.init()
-    
+
         client.printer.mark_event_as_dirty(StateChangeEvent)
         client.printer.mark_event_as_dirty(MachineDataEvent)
 
@@ -262,23 +267,31 @@ class Instance(ABC, Generic[TClient, TConfig]):
     async def on_event(self, event: Union[ServerEvent, DemandEvent], client: TClient):
         """
         Called when a client event is received.
+
+        Do not wait for client handlers to run as they will block the event loop.
         """
 
-        await client.event_bus.emit(event)
-    
+        if not isinstance(event, ServerEvent):
+            raise InstanceException(f"Expected ServerEvent but got {event}")
+
+        asyncio.create_task(client.event_bus.emit(event))
+
     async def on_client_event(self, event: ClientEvent, client: Client[TConfig]):
         """
         Called when a client event is received.
         """
 
+        if not isinstance(event, ClientEvent):
+            raise InstanceException(f"Expected ClientEvent but got {event}")
+
         if not client.connected:
             self.client_event_backlog.append((event, client))
             return
-        
+
         # If the client is in setup only a certain subset of events are allowed
-        if client.config.in_setup and not event.event_type in ALLOWED_IN_SETUP: 
+        if client.config.in_setup and not event.event_type in ALLOWED_IN_SETUP:
             return
-        
+
         await self.connection.send_event(event)
 
     @abstractmethod
@@ -341,4 +354,3 @@ class Instance(ABC, Generic[TClient, TConfig]):
         Here it is the instances job to re-add any clients to the connection
         """
         ...
-

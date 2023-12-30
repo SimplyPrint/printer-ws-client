@@ -133,7 +133,6 @@ class DefaultClient(Client[TConfig]):
         super().__init__(config)
 
         self.logger = logging.getLogger(ClientName.from_client(self))
-
         self.physical_machine = PhysicalMachine()
 
         # Default M117 behaviour.
@@ -219,7 +218,6 @@ class DefaultClient(Client[TConfig]):
         self.config.name = event.printer_name
         self.config.in_setup = event.in_setup
         self.config.short_id = event.short_id
-        self.connected = True
 
         self.printer.intervals.update(event.intervals)
 

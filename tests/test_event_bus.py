@@ -1,4 +1,3 @@
-import asyncio
 import unittest
 from simplyprint_ws_client.events.client_events import ClientEvent
 
@@ -47,10 +46,10 @@ class TestEventBus(unittest.IsolatedAsyncioTestCase):
         if not isinstance(event, ServerEvent):
             raise Exception("Event is not a ServerEvent")
 
-    async def on_test(self, event_type, event: CustomEvent):
+    async def on_test(self, event: CustomEvent):
         self.called_test += 1
 
-    def on_other(self, event_type, event: CustomEvent):
+    def on_other(self, event: CustomEvent):
         self.called_other += 1
 
     def on_custom(self, event: CustomEvent):

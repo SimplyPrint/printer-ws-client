@@ -62,17 +62,23 @@ class Intervals:
             if isinstance(t, str): t = self._get_type_from_str(t)
             self.intervals[t.name] = interval
 
+    def time_until_ready(self, t: IntervalType) -> float:
+        if t.name not in self.intervals:
+            return 0.0
+
+        return (datetime.now() - self.last_updates[t.name]).total_seconds()
+        
     def is_ready(self, t: IntervalType) -> bool:
         if t.name not in self.intervals:
             return True 
         
-        return datetime.now() - self.last_updates[t.name] > timedelta(seconds=self.intervals[t.name])
-    
+        return self.time_until_ready(t) <= 0.0
+        
     async def wait_until_ready(self, t: IntervalType):
         if not t.name in self.intervals:
             return
 
-        ready_in_seconds = self.intervals[t.name] - (datetime.now() - self.last_updates[t.name]).total_seconds()
+        ready_in_seconds = self.time_until_ready(t)
 
         if ready_in_seconds <= 0.0:
             return
@@ -81,7 +87,7 @@ class Intervals:
 
     def use(self, t: IntervalType):
         if not self.is_ready(t):
-            raise IntervalException(f"Interval {t.name} is not ready until {self.last_updates[t.name] + timedelta(seconds=self.intervals[t.name])} (now: {datetime.now()})")
+            raise IntervalException(f"Interval {t.name} is not ready until {self.time_until_ready(t)} (now: {datetime.now()})")
 
         self.last_updates[t.name] = datetime.now()
 

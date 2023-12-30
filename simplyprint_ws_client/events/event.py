@@ -1,20 +1,15 @@
 class EventTraits:
-    def __str__(cls):
-        return cls.get_name()
-    
-    def __repr__(cls) -> str:
-        return f"<{cls.__class__.__base__.__name__} {cls.get_name()}>"
-    
     def __eq__(cls, other: object) -> bool:
         if isinstance(other, str): return cls.get_name() == other
         if isinstance(other, Event): return cls.get_name() == other.get_name()
         if isinstance(other, EventTraits): return cls.get_name() == other.get_name()
         return False
     
+    def __str__(cls) -> str:
+        return cls.get_name()
+    
     def __hash__(cls) -> int:
-        if cls.get_name() is None: return hash(cls.__class__)
-
-        return hash(cls.get_name())
+        return hash(cls.__name__ if isinstance(cls, type) else cls.__class__.__name__)
 
 class EventType(EventTraits, type):
     ...
