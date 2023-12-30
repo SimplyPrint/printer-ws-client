@@ -9,7 +9,7 @@ from aiohttp import (ClientConnectorError, ClientSession,
                      WSServerHandshakeError)
 
 from .events import DemandEvent, ServerEvent, get_event
-from .events.client_events import ClientEvent, ClientEventMode
+from .events.client_events import ClientEvent, ClientEventMode, StreamEvent
 from .events.event import Event
 from .events.event_bus import EventBus
 
@@ -131,13 +131,13 @@ class Connection:
             mode = event.on_send()
 
             if mode != ClientEventMode.DISPATCH:
-                """
+                #"""
                 # This debug statement is quite
                 # distracting, it can be enabled.
 
                 self.logger.debug(
-                    f"Did not send event {event} because of mode {mode.name}")
-                """
+                    f"Did not send event {event} because of mode {mode.name} ready in {event.state.intervals.time_until_ready(event.interval_type.value) if event.interval_type else 'what'}")
+                #"""
                     
                 return
             

@@ -1,5 +1,6 @@
 import asyncio
 import heapq
+import traceback
 from typing import (Callable, Dict, Generator, Generic, Hashable, List,
                     Optional, TypeVar, Union, get_args)
 
@@ -44,6 +45,9 @@ class EventBusListeners:
         self.listeners = []
 
     def add(self, listener: Callable, priority: int) -> None:
+        if self.contains(listener):
+            raise ValueError("Listener already registered")
+                                        
         heapq.heappush(self.listeners, (priority,
                        EventBusListener(priority, listener)))
 
@@ -52,6 +56,13 @@ class EventBusListeners:
             if reg_listener == listener:
                 del self.listeners[i]
                 break
+    
+    def contains(self, listener: Callable) -> bool:
+        for _, reg_listener in self.listeners:
+            if reg_listener == listener:
+                return True
+        
+        return False
 
     def __iter__(self) -> Generator[EventBusListener, None, None]:
         for _, listener in self.listeners:
@@ -165,6 +176,7 @@ class EventBus(Generic[TEvent]):
 
         self.listeners[event_type].add(listener, priority=priority)
 
+        
     def _iterate_subclasses(self, klass: type) -> Generator[type, None, None]:
         """Perform class introspection to construct listeners generically"""
         if not issubclass(klass, self.event_klass):
@@ -173,7 +185,5 @@ class EventBus(Generic[TEvent]):
 
         for subclass in klass.__subclasses__():
             yield from self._iterate_subclasses(subclass)
-            yield subclass
 
-        # Include the class itself
         yield klass

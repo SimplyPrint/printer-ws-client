@@ -15,7 +15,7 @@ from ..connection import (Connection, ConnectionConnectedEvent,
                           ConnectionEventReceivedEvent,
                           ConnectionReconnectEvent)
 from ..events.client_events import (ALLOWED_IN_SETUP, ClientEvent,
-                                    MachineDataEvent, StateChangeEvent)
+                                    MachineDataEvent, StateChangeEvent, StreamEvent)
 from ..events.demands import DemandEvent
 from ..events.event_bus import Event, EventBus
 from ..events.server_events import ServerEvent
@@ -283,10 +283,6 @@ class Instance(ABC, Generic[TClient, TConfig]):
 
         if not isinstance(event, ClientEvent):
             raise InstanceException(f"Expected ClientEvent but got {event}")
-
-        if not client.connected:
-            self.client_event_backlog.append((event, client))
-            return
 
         # If the client is in setup only a certain subset of events are allowed
         if client.config.in_setup and not event.event_type in ALLOWED_IN_SETUP:

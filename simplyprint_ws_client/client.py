@@ -8,7 +8,7 @@ from .config import Config
 from .const import SUPPORTED_SIMPLYPRINT_VERSION
 from .events import demands as Demands
 from .events import server_events as Events
-from .events.client_events import ClientEvent, PingEvent
+from .events.client_events import ClientEvent, PingEvent, StreamEvent
 from .events.event import Event
 from .events.event_bus import EventBus
 from .helpers.intervals import IntervalTypes
@@ -78,6 +78,7 @@ class Client(ABC, Generic[TConfig]):
         """
 
         event.for_client = self.config.unique_id
+
         await self.event_bus.emit(event)
 
     async def consume_state(self):
@@ -192,7 +193,7 @@ class DefaultClient(Client[TConfig]):
 
         self.printer.latency.ping = time.time()
         await self.send_event(PingEvent(self.printer))
-    
+
     def on_any_event(self, event: Event):
         self.logger.debug(f"Got event {event}")
 

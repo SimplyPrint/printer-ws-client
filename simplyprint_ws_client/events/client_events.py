@@ -8,6 +8,7 @@ from ..events.event import Event
 if TYPE_CHECKING:
     from ..state.printer import PrinterState
 
+
 class PrinterEvent(Enum):
     PING = "ping"
     KEEPALIVE = "keepalive"
@@ -45,6 +46,7 @@ class PrinterEvent(Enum):
     FILAMENT_SENSOR = "filament_sensor"
     MATERIAL_DATA = "material_data"
 
+
 ALLOWED_IN_SETUP = [
     PrinterEvent.PING,
     PrinterEvent.KEEPALIVE,
@@ -57,20 +59,22 @@ ALLOWED_IN_SETUP = [
     PrinterEvent.INSTALLED_PLUGINS,
 ]
 
+
 class ClientEventMode(Enum):
     DISPATCH = 0
     RATELIMIT = 1
     CANCEL = 2
 
+
 class ClientEvent(Event):
     event_type: PrinterEvent
     interval_type: Optional[IntervalTypes] = None
-    
+
     state: 'PrinterState'
     for_client: Optional[Union[str, int]]
     data: Optional[Dict[str, Any]]
 
-    def __init__(self, state = None, for_client: Optional[Union[str, int]] = None, data: Optional[Dict[str, Any]] = None) -> None:
+    def __init__(self, state=None, for_client: Optional[Union[str, int]] = None, data: Optional[Dict[str, Any]] = None) -> None:
         """
         state (PrinterState): The state of the printer at the time of the event.
         for_client (int): Id of client event belongs to
@@ -104,31 +108,35 @@ class ClientEvent(Event):
 
     def as_dict(self) -> Dict[str, Any]:
         return dict(self.generate())
-    
+
     def on_send(self) -> ClientEventMode:
         if self.interval_type is not None:
             try:
                 self.state.intervals.use(self.interval_type.value)
-            except IntervalException:
-                return ClientEventMode.RATELIMIT    
-    
+            except IntervalException as e:
+                return ClientEventMode.RATELIMIT
+
         return ClientEventMode.DISPATCH
+
 
 class GcodeScriptsEvent(ClientEvent):
     event_type = PrinterEvent.GCODE_SCRIPTS
 
+
 class MachineDataEvent(ClientEvent):
     event_type = PrinterEvent.INFO
-    
+
     def generate_data(self) -> Generator[Tuple, None, None]:
         for key, value in self.state.info.trait_values().items():
             yield key, value
-    
+
+
 class WebcamStatusEvent(ClientEvent):
     event_type = PrinterEvent.WEBCAM_STATUS
 
     def generate_data(self) -> Generator[Tuple, None, None]:
         yield "connected", self.state.webcam_info.connected
+
 
 class WebcamEvent(ClientEvent):
     event_type = PrinterEvent.WEBCAM
@@ -138,11 +146,14 @@ class WebcamEvent(ClientEvent):
             if self.state.has_changed(self.state.webcam_settings, key):
                 yield key, value
 
+
 class InstalledPluginsEvent(ClientEvent):
     event_type = PrinterEvent.INSTALLED_PLUGINS
 
+
 class SoftwareUpdatesEvent(ClientEvent):
     event_type = PrinterEvent.SOFTWARE_UPDATES
+
 
 class FirmwareEvent(ClientEvent):
     event_type = PrinterEvent.FIRMWARE
@@ -152,6 +163,7 @@ class FirmwareEvent(ClientEvent):
             if self.state.has_changed(self.state.firmware, key):
                 yield f"firmware_{key}", value
 
+
 class FirmwareWarningEvent(ClientEvent):
     event_type = PrinterEvent.FIRMWARE_WARNING
 
@@ -159,11 +171,13 @@ class FirmwareWarningEvent(ClientEvent):
         for key, value in self.state.firmware.trait_values().items():
             yield key, value
 
+
 class ToolEvent(ClientEvent):
     event_type = PrinterEvent.TOOL
 
     def generate_data(self) -> Generator[Tuple, None, None]:
         yield "new", self.state.active_tool
+
 
 class TemperatureEvent(ClientEvent):
     event_type = PrinterEvent.TEMPERATURES
@@ -186,20 +200,24 @@ class TemperatureEvent(ClientEvent):
 
         return super().on_send()
 
+
 class AmbientTemperatureEvent(ClientEvent):
     event_type = PrinterEvent.AMBIENT
 
     def generate_data(self) -> Generator[Tuple, None, None]:
         yield "new", round(self.state.ambient_temperature.ambient)
 
+
 class ConnectionEvent(ClientEvent):
     event_type = PrinterEvent.CONNECTION
+
 
 class StateChangeEvent(ClientEvent):
     event_type = PrinterEvent.STATUS
 
     def generate_data(self) -> Generator[Tuple, None, None]:
         yield "new", self.state.status.value
+
 
 class JobInfoEvent(ClientEvent):
     event_type = PrinterEvent.JOB_INFO
@@ -212,23 +230,29 @@ class JobInfoEvent(ClientEvent):
                 if key in ["started", "finished", "cancelled", "failed"]:
                     # Only send updates in terms of true, since they
                     # are mutually exclusive.
-                    if not value: continue
-        
+                    if not value:
+                        continue
+
                 yield key, value if key != 'progress' else round(value)
-    
+
     def on_send(self) -> ClientEventMode:
         # Ensure we never drop job status updates
         return ClientEventMode.DISPATCH
 
 # TODO in the future
+
+
 class AiResponseEvent(ClientEvent):
     event_type = PrinterEvent.AI_RESP
+
 
 class PrinterErrorEvent(ClientEvent):
     event_type = PrinterEvent.PRINTER_ERROR
 
+
 class ShutdownEvent(ClientEvent):
     event_type = PrinterEvent.SHUTDOWN
+
 
 class StreamEvent(ClientEvent):
     event_type = PrinterEvent.STREAM
@@ -237,6 +261,7 @@ class StreamEvent(ClientEvent):
     def generate_data(self) -> Generator[Tuple, None, None]:
         yield "base", self.data.get("base")
 
+
 class PingEvent(ClientEvent):
     event_type = PrinterEvent.PING
     interval_type = IntervalTypes.PING
@@ -244,11 +269,13 @@ class PingEvent(ClientEvent):
     def generate_data(self) -> Generator[Tuple, None, None]:
         ...
 
+
 class LatencyEvent(ClientEvent):
     event_type = PrinterEvent.LATENCY
 
     def generate_data(self) -> Generator[Tuple, None, None]:
         yield "ms", self.state.latency.ping - self.state.latency.pong
+
 
 class FileProgressEvent(ClientEvent):
     event_type = PrinterEvent.FILE_PROGRESS
@@ -267,7 +294,8 @@ class FileProgressEvent(ClientEvent):
             yield "message", self.state.file_progress.message or "Unknown error"
 
         for key, value in self.state.file_progress.trait_values().items():
-            if key in ["state", "message"]: continue
+            if key in ["state", "message"]:
+                continue
 
             if self.state.has_changed(self.state.file_progress, key):
                 yield key, value
@@ -276,17 +304,20 @@ class FileProgressEvent(ClientEvent):
         # Ensure we never drop file progress updates
         return ClientEventMode.DISPATCH
 
+
 class FilamentSensorEvent(ClientEvent):
     event_type = PrinterEvent.FILAMENT_SENSOR
 
     def generate_data(self) -> Generator[Tuple, None, None]:
         yield "state", self.state.filament_sensor.state
 
+
 class PowerControllerEvent(ClientEvent):
     event_type = PrinterEvent.PSU
 
     def generate_data(self) -> Generator[Tuple, None, None]:
         yield "on", self.state.psu_info.on
+
 
 class CpuInfoEvent(ClientEvent):
     event_type = PrinterEvent.CPU_INFO
@@ -297,11 +328,14 @@ class CpuInfoEvent(ClientEvent):
             if self.state.has_changed(self.state.cpu_info, key):
                 yield key, value
 
+
 class MeshDataEvent(ClientEvent):
     event_type = PrinterEvent.MESH_DATA
 
+
 class LogsSentEvent(ClientEvent):
     event_type = PrinterEvent.LOGS_SENT
+
 
 class MaterialDataEvent(ClientEvent):
     event_type = PrinterEvent.MATERIAL_DATA
@@ -309,12 +343,13 @@ class MaterialDataEvent(ClientEvent):
 
     def generate_data(self) -> Generator[Tuple, None, None]:
         if self.state.has_changed(self.state, "material_data"):
-            if len(self.state.material_data) == 0: return
+            if len(self.state.material_data) == 0:
+                return
             yield "materials", [material.trait_values() if material is not None else material for material in self.state.material_data]
             self.has_changes = True
 
     def on_send(self) -> ClientEventMode:
         if self.has_changes:
             return ClientEventMode.DISPATCH
-        
+
         return ClientEventMode.CANCEL
