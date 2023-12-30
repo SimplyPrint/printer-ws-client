@@ -11,9 +11,10 @@ TEvent = TypeVar('TEvent', bound=object)
 class EventBusListener:
     priority: int
     handler: Callable
+    is_async: bool
 
     async def __call__(self, *args, **kwargs):
-        if not asyncio.iscoroutinefunction(self.handler):
+        if not self.is_async:
             return self.handler(*args, **kwargs)
 
         return await self.handler(*args, **kwargs)
@@ -21,6 +22,7 @@ class EventBusListener:
     def __init__(self, priority: int, handler: Callable) -> None:
         self.priority = priority
         self.handler = handler
+        self.is_async = asyncio.iscoroutinefunction(handler)
 
     def __lt__(self, other: 'EventBusListener') -> bool:
         return self.priority < other.priority
@@ -80,10 +82,60 @@ class EventBus(Generic[TEvent]):
         if not event in self.listeners:
             return
 
-        for listener in self.listeners[event]:
-            if ret := await listener(event, *args, **kwargs) and ret is not None:
-                event = ret
+        if isinstance(event, self.event_klass):
+            args = (event, *args)
 
+        for listener in self.listeners[event]:
+            # The listener may return the modified event parameter in
+            # the case the emitted event was of a event class type.
+            # this will replace the event parameter with the modified one.
+            ret = await listener(*args, **kwargs)
+
+            if (
+                ret is not None
+                and isinstance(event, self.event_klass)
+                and isinstance(ret, self.event_klass)
+            ):
+                args = (ret, *args[1:])
+
+    def emit_sync(self, event: Union[Hashable, TEvent], *args, **kwargs):
+        """
+        Skip all async listeners and only emit to synchronous listeners.
+        """
+
+        if not event in self.listeners:
+            return
+
+        if isinstance(event, self.event_klass):
+            args = (event, *args)
+
+        for listener in self.listeners[event]:
+            if listener.is_async:
+                continue
+
+            ret = listener.handler(*args, **kwargs)
+
+            if (
+                ret is not None
+                and isinstance(event, self.event_klass)
+                and isinstance(ret, self.event_klass)
+            ):
+                args = (ret, *args[1:])
+
+    def emit_task(self, event: Union[Hashable, TEvent], *args, **kwargs) -> asyncio.Task:
+        """Allows for synchronous emitting of events. Useful cross-thread communication."""
+        return asyncio.create_task(self.emit(event, *args, **kwargs))
+
+    def emit_wrap(self, event: Union[Hashable, TEvent], sync_only = False):
+        """
+        Returns a curried function that emits the given event with any arguments passed to it.
+        
+        When sync_only is specified the function will only invoke synchronous listeners. 
+        """
+        
+        emit_func = self.emit_sync if sync_only else self.emit
+        return lambda *args, **kwargs: emit_func(event, *args, **kwargs)
+        
     def on(self, event_type: Hashable, listener: Optional[Callable] = None, priority: int = 0, generic: bool = False):
         if listener is None:
             return lambda listener: self._register_listeners(event_type, listener, priority, generic)

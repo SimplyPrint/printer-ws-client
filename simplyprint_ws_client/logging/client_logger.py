@@ -1,5 +1,10 @@
 import logging
-from typing_extensions import Self
+
+try:
+    from typing import Self
+except ImportError:
+    from typing_extensions import Self
+
 from .client_handler import ClientHandler
 from .client_name import ClientName
 

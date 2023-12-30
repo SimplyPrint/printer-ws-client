@@ -1,11 +1,14 @@
 from typing import TYPE_CHECKING, List
-from typing_extensions import Self
 
-from sympy import im
+try:
+    from typing import Self
+except ImportError:
+    from typing_extensions import Self
 
 if TYPE_CHECKING:
     from ..client import Client
     from ..config import Config
+
 
 class ClientName(str):
     stack: List[str]
