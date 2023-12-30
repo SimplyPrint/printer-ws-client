@@ -1,10 +1,8 @@
 import uuid
 from typing import Optional
 
-try:
-    from typing import Self
-except ImportError:
-    from typing_extensions import Self
+from typing_extensions import Self
+
 
 class ConfigMeta(type):
     """ 
@@ -106,9 +104,6 @@ class Config(metaclass=ConfigMeta):
         return cls(id=0, token="0", unique_id=str(uuid.uuid4()))
 
     def __repr__(self) -> str:
-        return str(self)
-
-    def __str__(self) -> str:
         return f"<Config {self.as_dict()}'>"
 
     def __eq__(self, other: object) -> bool:

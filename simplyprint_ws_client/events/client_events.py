@@ -83,7 +83,7 @@ class ClientEvent(Event):
     @classmethod
     def get_name(cls) -> Optional[str]:
         if cls is ClientEvent:
-            return None
+            return ClientEvent.__name__
 
         return cls.event_type.value
 

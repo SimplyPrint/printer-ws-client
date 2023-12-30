@@ -18,7 +18,7 @@ class ServerEvent(Event):
         self.data = data
 
         if self.event_type != event_type:
-            raise ServerEventError(f"Event type {type} does not match event name {self.event_type}")
+            raise ServerEventError(f"Event type {event_type} does not match event name {self.event_type}")
         
         self.on_event()
 
@@ -30,9 +30,9 @@ class ServerEvent(Event):
         return f"<{self.__class__.__base__.__name__} {self.get_name()} {self.data}>"
 
     @classmethod
-    def get_name(cls) -> Optional[str]:
+    def get_name(cls) -> str:
         if cls is ServerEvent:
-            return None
+            return ServerEvent.__name__
 
         return cls.event_type
 

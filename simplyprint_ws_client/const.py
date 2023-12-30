@@ -2,7 +2,7 @@ from collections import namedtuple
 import importlib.metadata
 from enum import Enum
 from os import environ
-from typing import NamedTuple, Optional
+from typing import NamedTuple, Optional, Tuple
 from urllib.parse import urlunparse
 from platformdirs import AppDirs
 
@@ -65,6 +65,20 @@ class UrlBuilder(NamedTuple):
     
     def __truediv__(self, other: str) -> "UrlBuilder":
         return self._replace(path=f"{self.path}/{other}")
+
+    # When adding with a tuple add to query
+    def __add__(self, other: Tuple[str, Optional[str]]) -> "UrlBuilder":
+        qs = "&" if self.query else ""
+
+        if not isinstance(other, tuple) or len(other) not in (1, 2):
+            raise ValueError("Can only add tuples of length 1 or 2")
+
+        if other[1] is not None:
+            qs += f"{other[0]}={other[1]}"
+        else:
+            qs += other[0]
+
+        return self._replace(query=f"{self.query}{qs}")
 
 class SimplyPrintUrl:
     _current_url: "SimplyPrintUrl" = None

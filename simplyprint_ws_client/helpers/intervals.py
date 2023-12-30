@@ -1,14 +1,10 @@
 import asyncio
-from enum import Enum
 from collections import namedtuple
-
 from datetime import datetime, timedelta
-from typing import Dict, Union, List
+from enum import Enum
+from typing import Dict, List, Union
 
-try:
-    from typing import Self
-except ImportError:
-    from typing_extensions import Self
+from typing_extensions import Self
 
 IntervalType = namedtuple('IntervalType', ['name', 'default_timing'])
 

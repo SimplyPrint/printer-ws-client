@@ -14,11 +14,13 @@ from .events.event_bus import EventBus
 from .helpers.intervals import IntervalTypes
 from .helpers.physical_machine import PhysicalMachine
 from .helpers.sentry import Sentry
+from .logging import *
 from .state.printer import PrinterState
 
 
 class ClientConfigurationException(Exception):
     ...
+
 
 class ClientEventBus(EventBus[Event]):
     """ 
@@ -28,10 +30,13 @@ class ClientEventBus(EventBus[Event]):
     """
     ...
 
+
 class ClientConfigChangedEvent(Event):
     ...
 
+
 TConfig = TypeVar("TConfig", bound=Config)
+
 
 class Client(ABC, Generic[TConfig]):
     """
@@ -63,6 +68,9 @@ class Client(ABC, Generic[TConfig]):
             if hasattr(attr, "_event"):
                 event_cls = attr._event
                 self.event_bus.on(event_cls, attr, attr._pre)
+
+    def __str__(self) -> str:
+        return str(self.config)
 
     async def send_event(self, event: ClientEvent):
         """
@@ -111,19 +119,20 @@ class Client(ABC, Generic[TConfig]):
         """
         ...
 
+
 class DefaultClient(Client[TConfig]):
     """
     Client with default event handling.
     """
 
-    logger: logging.Logger = logging.getLogger("simplyprint.client")
-
+    logger: logging.Logger
     reconnect_token: Optional[str] = None
-
     requested_snapshots: int = 0
-        
+
     def __init__(self, config: TConfig):
         super().__init__(config)
+
+        self.logger = logging.getLogger(ClientName.from_client(self))
 
         self.physical_machine = PhysicalMachine()
 
@@ -143,7 +152,7 @@ class DefaultClient(Client[TConfig]):
             })
 
             asyncio.create_task(self.event_bus.emit(gcode_event))
-            
+
         self.printer.observe(_on_display_message,
                              "current_display_message")
 
@@ -153,7 +162,9 @@ class DefaultClient(Client[TConfig]):
 
         self.printer.info.sp_version = SUPPORTED_SIMPLYPRINT_VERSION
 
-    def set_info(self, name, version = "0.0.1"):
+        self.event_bus.on(Events.ServerEvent, self.on_any_event, generic=True)
+
+    def set_info(self, name, version="0.0.1"):
         self.set_api_info(name, version)
         self.set_ui_info(name, version)
 
@@ -176,15 +187,15 @@ class DefaultClient(Client[TConfig]):
         self.sentry.sentry_dsn = sentry_dsn
         self.sentry.development = development
 
-    def setup_logging(self, logger: logging.Logger):
-        self.logger = logger
-
     async def send_ping(self):
         if not self.printer.intervals.is_ready(IntervalTypes.PING):
             return
-        
+
         self.printer.latency.ping = time.time()
         await self.send_event(PingEvent(self.printer))
+    
+    def on_any_event(self, event: Event):
+        self.logger.debug(f"Got event {event}")
 
     @Demands.SystemRestartEvent.on
     async def on_system_restart(self, event: Demands.SystemRestartEvent):
@@ -254,8 +265,10 @@ class DefaultClient(Client[TConfig]):
 
     @Demands.WebcamSnapshotEvent.before
     async def before_webcam_snapshot(self, event: Demands.WebcamSnapshotEvent):
-        self.logger.debug(f"Got request to take webcam snapshot {event} and {self.requested_snapshots}")
+        self.logger.debug(
+            f"Got request to take webcam snapshot {event} and {self.requested_snapshots}")
+
         self.requested_snapshots += 1
-            
+
         if event.timer is not None:
             self.printer.intervals.set(IntervalTypes.WEBCAM.value, event.timer)

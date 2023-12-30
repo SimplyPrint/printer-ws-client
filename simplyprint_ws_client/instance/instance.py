@@ -86,7 +86,7 @@ class Instance(ABC, Generic[TClient, TConfig]):
         self.reconnect_timeout = reconnect_timeout
         self.tick_rate = tick_rate
 
-        self.event_bus.on_generic(ServerEvent, self.on_event)
+        self.event_bus.on(ServerEvent, self.on_event, generic=True)
 
     async def run(self) -> None:        
         if self.sentry and self.sentry.sentry_dsn is not None:
@@ -221,9 +221,9 @@ class Instance(ABC, Generic[TClient, TConfig]):
 
         # Capture generic client events to be sent to SimplyPrint
         async def on_client_event(event: ClientEvent):
-            await self.on_client_event(client, event)
+            await self.on_client_event(event, client)
         
-        client.event_bus.on_generic(ClientEvent, on_client_event)
+        client.event_bus.on(ClientEvent, on_client_event, generic=True)
 
         async def on_client_config_changed(_: ClientConfigChangedEvent):
             await self.on_client_config_changed(client)
@@ -259,20 +259,20 @@ class Instance(ABC, Generic[TClient, TConfig]):
 
             seek_pointer += 1
 
-    async def on_event(self, client: TClient, event: Union[ServerEvent, DemandEvent]):
+    async def on_event(self, event: Union[ServerEvent, DemandEvent], client: TClient):
         """
         Called when a client event is received.
         """
 
         await client.event_bus.emit(event)
     
-    async def on_client_event(self, client: Client[TConfig], event: ClientEvent):
+    async def on_client_event(self, event: ClientEvent, client: Client[TConfig]):
         """
         Called when a client event is received.
         """
 
         if not client.connected:
-            self.client_event_backlog.append((client, event))
+            self.client_event_backlog.append((event, client))
             return
         
         # If the client is in setup only a certain subset of events are allowed

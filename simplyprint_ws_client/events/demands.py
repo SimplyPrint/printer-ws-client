@@ -16,7 +16,7 @@ class DemandEvent(ServerEvent):
     @classmethod
     def get_name(cls) -> Optional[str]:
         if cls is DemandEvent:
-            return None
+            return DemandEvent.__name__
 
         return cls.demand or cls.event_type
 
@@ -132,13 +132,33 @@ class HasGcodeChangesEvent(DemandEvent):
         self.scripts = self.data.get("scripts")
 
 class PsuControlEvent(DemandEvent):
-    demand = ["psu_on", "psu_off", "psu_keepalive"]
+    demand = "psu_keepalive"
 
     def on_event(self):
-        self.on: bool = self.demand != "psu_off"
+        self.on: bool = True
 
+class PsuOnControlEvent(PsuControlEvent):
+    demand = "psu_on"
+
+    def on_event(self):
+        self.on: bool = True
+
+class PsuOffControlEvent(PsuControlEvent):
+    demand = "psu_off"
+
+    def on_event(self):
+        self.on: bool = False
+    
 class DisableWebsocketEvent(DemandEvent):
     demand = "disable_websocket"
 
     def on_event(self):
         self.websocket_ready: bool = self.data.get("websocket_ready", False)
+
+class SendLogsEvent(DemandEvent):
+    demand = "send_logs"
+
+    def on_event(self):
+        self.token: str = self.data.get("token", "")
+        self.logs: List[str] = self.data.get("logs", "")
+        self.max_body = self.data.get("max_body", 100000000)

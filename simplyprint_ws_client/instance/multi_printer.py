@@ -100,7 +100,7 @@ class MultiPrinter(Instance[TClient, TConfig]):
     def should_connect(self) -> bool:
         return len(self.clients) > 0
 
-    async def on_printer_added_response(self, client: TClient, event: MultiPrinterAddResponseEvent):
+    async def on_printer_added_response(self, event: MultiPrinterAddResponseEvent, client: TClient):
         self.pending_unique_set.remove(client.config.unique_id)
 
         if event.status:
