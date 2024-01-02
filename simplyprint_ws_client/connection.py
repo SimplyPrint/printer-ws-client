@@ -1,6 +1,6 @@
+import asyncio
 import json
 import logging
-import threading
 from asyncio import AbstractEventLoop, CancelledError
 from typing import Any, Dict, Optional, Union
 
@@ -17,19 +17,23 @@ from .events.event_bus import EventBus
 class ConnectionEventReceivedEvent(Event):
     event: Union[ServerEvent, DemandEvent]
     for_client: Optional[Union[str, int]] = None
-    
+
     def __init__(self, event: Union[ServerEvent, DemandEvent], for_client: Optional[Union[str, int]] = None) -> None:
         self.event = event
         self.for_client = for_client
 
+
 class ConnectionConnectedEvent(Event):
     ...
+
 
 class ConnectionDisconnectEvent(Event):
     ...
 
+
 class ConnectionReconnectEvent(Event):
     ...
+
 
 class ConnectionEventBus(EventBus[Event]):
     ...
@@ -45,7 +49,7 @@ class Connection:
     session: Optional[ClientSession] = None
 
     # Ensure only a single thread can connect at a time
-    _connection_lock: threading.Lock = threading.Lock()
+    connection_lock: asyncio.Lock
 
     url: Optional[str] = None
     timeout: float = 5.0
@@ -53,13 +57,13 @@ class Connection:
     def __init__(self, loop: AbstractEventLoop) -> None:
         self.loop = loop
         self.event_bus = ConnectionEventBus()
+        self.connection_lock = asyncio.Lock()
 
     def set_url(self, url: str) -> None:
         self.url = url
 
     async def connect(self, url: Optional[str] = None, session: Optional[ClientSession] = None, timeout: Optional[float] = None) -> None:
-        with self._connection_lock:
-            
+        async with self.connection_lock:
             reconnected = False
 
             if self.socket:
@@ -73,8 +77,9 @@ class Connection:
             self.timeout = timeout or self.timeout
             self.session = ClientSession(loop=self.loop)
 
-            self.logger.debug(f"{'Connecting' if not reconnected else 'Reconnecting'} to {url or self.url}")
-            
+            self.logger.debug(
+                f"{'Connecting' if not reconnected else 'Reconnecting'} to {url or self.url}")
+
             if not self.url:
                 raise ValueError("No url specified")
 
@@ -83,19 +88,17 @@ class Connection:
             try:
                 socket = await self.session.ws_connect(self.url, timeout=timeout, autoclose=False, max_msg_size=0, compress=False)
             except WSServerHandshakeError as e:
-                self.logger.error(f"Failed to connect to {self.url} with status code {e.status}")
-                return
+                self.logger.error(
+                    f"Failed to connect to {self.url} with status code {e.status}")
             except ClientConnectorError:
                 self.logger.error(f"Failed to connect to {self.url}")
-                return
             except Exception as e:
                 self.logger.exception(e)
+
+            if socket is None or socket.closed:
+                self.event_bus.emit_task(ConnectionDisconnectEvent())
                 return
-            finally:
-                if not socket:
-                    await self.event_bus.emit(ConnectionDisconnectEvent())
-                    return
-                
+
             self.socket = socket
 
             if reconnected:
@@ -115,14 +118,16 @@ class Connection:
             self.session = None
 
         self.logger.debug(f"Closed connection to {self.url}")
+
         await self.event_bus.emit(ConnectionDisconnectEvent())
 
     def is_connected(self) -> bool:
         return self.socket is not None and not self.socket.closed
-    
+
     async def send_event(self, event: ClientEvent) -> None:
         if not self.is_connected():
-            self.logger.debug(f"Did not send event {event} because not connected")
+            self.logger.debug(
+                f"Did not send event {event} because not connected")
             await self.event_bus.emit(ConnectionDisconnectEvent())
 
         try:
@@ -131,20 +136,21 @@ class Connection:
             mode = event.on_send()
 
             if mode != ClientEventMode.DISPATCH:
-                #"""
+                # """
                 # This debug statement is quite
                 # distracting, it can be enabled.
 
                 self.logger.debug(
                     f"Did not send event {event} because of mode {mode.name} ready in {event.state.intervals.time_until_ready(event.interval_type.value) if event.interval_type else 'what'}")
-                #"""
-                    
+                # """
+
                 return
-            
+
             await self.socket.send_json(message)
 
-            self.logger.debug(f"Sent event {event.get_name()}" if len(str(message)) > 1000 else f"Sent event {event} with data {message}")
-            
+            self.logger.debug(f"Sent event {event.get_name()}" if len(
+                str(message)) > 1000 else f"Sent event {event} with data {message}")
+
         except ConnectionResetError as e:
             self.logger.error(f"Failed to send event {event}: {e}")
             await self.event_bus.emit(ConnectionDisconnectEvent())
@@ -159,15 +165,16 @@ class Connection:
             message = await self.socket.receive(timeout=timeout)
 
             if message.type in (WSMsgType.CLOSED, WSMsgType.CLOSING, WSMsgType.CLOSE):
-                self.logger.debug(f"Websocket closed by server with code: {self.socket.close_code} and reason: {message.extra}")
+                self.logger.debug(
+                    f"Websocket closed by server with code: {self.socket.close_code} and reason: {message.extra}")
                 await self.event_bus.emit(ConnectionDisconnectEvent())
                 return
-            
+
             if message.type == WSMsgType.ERROR:
                 self.logger.error(f"Websocket error: {message.data}")
                 await self.event_bus.emit(ConnectionDisconnectEvent())
                 return
-            
+
             if message.type == WSMsgType.BINARY:
                 message.data = message.data.decode("utf-8")
 
@@ -190,7 +197,7 @@ class Connection:
 
             self.logger.debug(
                 f"Recieved event {event.get_name()} with data {message.data} for client {for_client}")
-            
+
             await self.event_bus.emit(ConnectionEventReceivedEvent(event, for_client))
 
         except (CancelledError, TimeoutError, ConnectionResetError):

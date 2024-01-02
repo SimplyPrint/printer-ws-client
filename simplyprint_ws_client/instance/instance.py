@@ -15,7 +15,7 @@ from ..connection import (Connection, ConnectionConnectedEvent,
                           ConnectionEventReceivedEvent,
                           ConnectionReconnectEvent)
 from ..events.client_events import (ALLOWED_IN_SETUP, ClientEvent,
-                                    MachineDataEvent, StateChangeEvent, StreamEvent)
+                                    MachineDataEvent, StateChangeEvent)
 from ..events.demands import DemandEvent
 from ..events.event_bus import Event, EventBus
 from ..events.server_events import ServerEvent
@@ -61,6 +61,7 @@ class Instance(ABC, Generic[TClient, TConfig]):
     _stop_event: threading.Event
 
     event_bus: EventBus[Event]
+    disconnect_lock: asyncio.Lock
 
     # Queues to synchronize events between threads / coroutines
     server_event_backlog: List[Tuple[ConnectionEventReceivedEvent]]
@@ -81,6 +82,7 @@ class Instance(ABC, Generic[TClient, TConfig]):
 
         self._stop_event = threading.Event()
         self.event_bus = EventBus()
+        self.disconnect_lock = asyncio.Lock()
 
         self.server_event_backlog = []
         self.client_event_backlog = []
@@ -157,14 +159,20 @@ class Instance(ABC, Generic[TClient, TConfig]):
         await self.connection.connect()
 
     async def on_disconnect(self, _: ConnectionDisconnectEvent):
-        # Mark all printers as disconnected
-        for client in self.get_clients():
-            client.connected = False
+        async with self.disconnect_lock:
+            if self.connection.is_connected():
+                return
 
-        self.logger.info(
-            f"Disconnected from server - reconnecting in {self.reconnect_timeout} seconds")
-        await asyncio.sleep(self.reconnect_timeout)
-        await self.connect()
+            # Mark all printers as disconnected
+            for client in self.get_clients():
+                client.connected = False
+
+            self.logger.info(
+                f"Disconnected from server - reconnecting in {self.reconnect_timeout} seconds")
+            
+            await asyncio.sleep(self.reconnect_timeout)
+
+            await self.connect()
 
     async def on_recieved_event(self, event: ConnectionEventReceivedEvent):
         """
