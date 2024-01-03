@@ -1,3 +1,4 @@
+import logging
 import re
 
 from logging.handlers import TimedRotatingFileHandler
@@ -18,7 +19,8 @@ if TYPE_CHECKING:
 
 
 class ClientHandler(TimedRotatingFileHandler):
-    loggers: dict[str, 'ClientHandler'] = {}
+    formatter = logging.Formatter('%(asctime)s | %(levelname)s | %(message)s', '%m-%d-%Y %H:%M:%S')
+    handlers: dict[str, 'ClientHandler'] = {}
 
     @classmethod
     def slugify(cls, name: str) -> str:
@@ -44,7 +46,7 @@ class ClientHandler(TimedRotatingFileHandler):
         log_name = cls.slugify(name.peek() or "main")
         log_file = log_folder / f"{log_name}.log"
 
-        return cls._cache_logger(
+        return cls._create_handler(
             log_file,
             when="midnight",
             backupCount=3,
@@ -54,13 +56,16 @@ class ClientHandler(TimedRotatingFileHandler):
     @classmethod
     def root_handler(cls, options: 'ClientOptions') -> Self:
         main_log_file = APP_DIRS.user_log_path / f"{cls.slugify(options.name)}.log"
-        return cls._cache_logger(main_log_file, when="midnight", backupCount=3, delay=True)
+        return cls._create_handler(main_log_file, when="midnight", backupCount=3, delay=True)
 
     @classmethod
-    def _cache_logger(cls, file_path: Path, *args, **kwargs):
+    def _create_handler(cls, file_path: Path, *args, **kwargs):
         file_key = str(file_path)
 
-        if file_key not in cls.loggers:
-            cls.loggers[file_key] = cls(file_key, *args, **kwargs)
+        if file_key not in cls.handlers:
+            cls.handlers[file_key] = cls(file_key, *args, **kwargs)
 
-        return cls.loggers[file_key]
+        handler = cls.handlers[file_key]
+        handler.setFormatter(cls.formatter)
+
+        return handler

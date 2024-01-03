@@ -76,6 +76,6 @@ class TestClientLogging(unittest.TestCase):
 
         child_logger.log(logging.DEBUG, random_uuid)
         self.assertTrue(random_uuid in stream_output.read())
+        self.assertTrue(f'{random_uuid}\n' in child_content.read())
         self.assertEqual(main_content.read(), '')
-        self.assertEqual(child_content.read(), f'{random_uuid}\n')
         self.assertEqual(child_content_2.read(), '')
