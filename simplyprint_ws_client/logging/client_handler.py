@@ -1,9 +1,8 @@
 import re
+
 from logging.handlers import TimedRotatingFileHandler
 from pathlib import Path
 from typing import TYPE_CHECKING
-
-from ..app import ClientOptions
 
 try:
     from typing import Self
@@ -15,6 +14,7 @@ from ..const import APP_DIRS
 if TYPE_CHECKING:
     from ..config import Config
     from .client_name import ClientName
+    from ..app import ClientOptions
 
 
 class ClientHandler(TimedRotatingFileHandler):
@@ -52,7 +52,7 @@ class ClientHandler(TimedRotatingFileHandler):
         )
 
     @classmethod
-    def root_handler(cls, options: ClientOptions) -> Self:
+    def root_handler(cls, options: 'ClientOptions') -> Self:
         main_log_file = APP_DIRS.user_log_path / f"{cls.slugify(options.name)}.log"
         return cls._cache_logger(main_log_file, when="midnight", backupCount=3, delay=True)
 
