@@ -3,6 +3,8 @@ from logging.handlers import TimedRotatingFileHandler
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from ..app import ClientOptions
+
 try:
     from typing import Self
 except ImportError:
@@ -16,9 +18,18 @@ if TYPE_CHECKING:
 
 
 class ClientHandler(TimedRotatingFileHandler):
+    loggers: dict[str, 'ClientHandler'] = {}
 
-    @staticmethod
-    def get_log_folder(config: 'Config') -> Path:
+    @classmethod
+    def slugify(cls, name: str) -> str:
+        # Slugify the log name
+        name = re.sub(r'[^\w\s-]', '', name)
+        name = re.sub(r'[\s_-]+', '-', name)
+        name = re.sub(r'^-+|-+$', '', name)
+        return name
+
+    @classmethod
+    def get_log_folder(cls, config: 'Config') -> Path:
         log_folder = APP_DIRS.user_log_path / config.unique_id
 
         if not log_folder.exists():
@@ -26,15 +37,30 @@ class ClientHandler(TimedRotatingFileHandler):
 
         return log_folder
 
-    @staticmethod
-    def from_client_name(name: 'ClientName') -> Self:
-        log_folder = ClientHandler.get_log_folder(name.getConfig())
+    @classmethod
+    def from_client_name(cls, name: 'ClientName') -> Self:
+        log_folder = cls.get_log_folder(name.getConfig())
 
-        log_name = name.peek() or "main"
+        log_name = cls.slugify(name.peek() or "main")
+        log_file = log_folder / f"{log_name}.log"
 
-        # Slugify the log name
-        log_name = re.sub(r'[^\w\s-]', '', log_name)
-        log_name = re.sub(r'[\s_-]+', '-', log_name)
-        log_name = re.sub(r'^-+|-+$', '', log_name)
+        return cls._cache_logger(
+            log_file,
+            when="midnight",
+            backupCount=3,
+            delay=True
+        )
 
-        return ClientHandler(log_folder / f"{log_name}.log", when="midnight", backupCount=3)
+    @classmethod
+    def root_handler(cls, options: ClientOptions) -> Self:
+        main_log_file = APP_DIRS.user_log_path / f"{cls.slugify(options.name)}.log"
+        return cls._cache_logger(main_log_file, when="midnight", backupCount=3, delay=True)
+
+    @classmethod
+    def _cache_logger(cls, file_path: Path, *args, **kwargs):
+        file_key = str(file_path)
+
+        if file_key not in cls.loggers:
+            cls.loggers[file_key] = cls(file_key, *args, **kwargs)
+
+        return cls.loggers[file_key]
