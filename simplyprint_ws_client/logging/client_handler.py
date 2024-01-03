@@ -63,9 +63,7 @@ class ClientHandler(TimedRotatingFileHandler):
         file_key = str(file_path)
 
         if file_key not in cls.handlers:
-            cls.handlers[file_key] = cls(file_key, *args, **kwargs)
+            handler = cls.handlers[file_key] = cls(file_path, *args, **kwargs)
+            handler.setFormatter(cls.formatter)
 
-        handler = cls.handlers[file_key]
-        handler.setFormatter(cls.formatter)
-
-        return handler
+        return cls.handlers[file_key]
