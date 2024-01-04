@@ -51,14 +51,14 @@ class Config(metaclass=ConfigMeta):
                 continue
 
             setattr(self, key, kwargs[key])
-    
+
         for slot in self.__slots__:
             if not hasattr(self, slot):
                 setattr(self, slot, None)
 
     def is_pending(self) -> bool:
-        return self.id == 0 or self.id is None
-    
+        return self.id == 0 or self.id is None or self.in_setup
+
     def is_default(self) -> bool:
         return self.is_pending() and (self.token is None or len(self.token) < 2)
 
@@ -80,14 +80,15 @@ class Config(metaclass=ConfigMeta):
         return self.is_default() and is_blank
 
     def as_dict(self) -> dict:
-        return dict(sorted([(slot, getattr(self, slot)) for slot in self.__slots__ if hasattr(self, slot)], key=lambda x: x[0]))
+        return dict(
+            sorted([(slot, getattr(self, slot)) for slot in self.__slots__ if hasattr(self, slot)], key=lambda x: x[0]))
 
     def partial_eq(self, other: 'Config') -> bool:
         # Loop over all slots in other
         for slot in other.__slots__:
             if not hasattr(other, slot) or getattr(other, slot) is None:
                 continue
-            
+
             # Skip default values
             if hasattr(other.__class__, slot) and getattr(other, slot) == getattr(other.__class__, slot):
                 continue
@@ -101,7 +102,7 @@ class Config(metaclass=ConfigMeta):
     @classmethod
     def get_blank(cls) -> Self:
         return cls(id=0, token="0")
-    
+
     @classmethod
     def get_new(cls) -> Self:
         return cls(id=0, token="0", unique_id=str(uuid.uuid4()))
@@ -112,10 +113,10 @@ class Config(metaclass=ConfigMeta):
     def __eq__(self, other: object) -> bool:
         if isinstance(other, int):
             return self.id == other
-        
+
         if isinstance(other, Config):
             return id(self) == id(other)
-    
+
         return False
 
     def __hash__(self) -> int:

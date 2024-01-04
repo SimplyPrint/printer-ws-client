@@ -10,6 +10,3 @@ TBD
 
 ## TODO
 
-Cleanup multiplexer.py and fix disconnect flow.
-
-Currently there is a disconnection bug once in a while which needs to be resolved
