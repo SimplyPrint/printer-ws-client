@@ -2,8 +2,8 @@ from abc import abstractmethod
 from enum import Enum
 from typing import Any, Dict, Generator, Optional, Tuple, TYPE_CHECKING, Union
 
-from ..helpers.intervals import IntervalException, IntervalTypes
 from ..events.event import Event
+from ..helpers.intervals import IntervalException, IntervalTypes
 
 if TYPE_CHECKING:
     from ..state.printer import PrinterState
@@ -74,7 +74,8 @@ class ClientEvent(Event):
     for_client: Optional[Union[str, int]]
     data: Optional[Dict[str, Any]]
 
-    def __init__(self, state=None, for_client: Optional[Union[str, int]] = None, data: Optional[Dict[str, Any]] = None) -> None:
+    def __init__(self, state=None, for_client: Optional[Union[str, int]] = None,
+                 data: Optional[Dict[str, Any]] = None) -> None:
         """
         state (PrinterState): The state of the printer at the time of the event.
         for_client (int): Id of client event belongs to
@@ -193,7 +194,8 @@ class TemperatureEvent(ClientEvent):
 
     def on_send(self) -> ClientEventMode:
         # If we have a target temperature, send it more often (use IntervalTypes.TEMPS_TARGET)
-        if self.state.bed_temperature.target is not None or any([tool.target is not None for tool in self.state.tool_temperatures]):
+        if self.state.bed_temperature.target is not None or any(
+                [tool.target is not None for tool in self.state.tool_temperatures]):
             self.interval_type = IntervalTypes.TEMPS_TARGET
         else:
             self.interval_type = IntervalTypes.TEMPS
@@ -238,6 +240,7 @@ class JobInfoEvent(ClientEvent):
     def on_send(self) -> ClientEventMode:
         # Ensure we never drop job status updates
         return ClientEventMode.DISPATCH
+
 
 # TODO in the future
 
@@ -292,13 +295,10 @@ class FileProgressEvent(ClientEvent):
 
         if self.state.file_progress.state.value == "error":
             yield "message", self.state.file_progress.message or "Unknown error"
+            return
 
-        for key, value in self.state.file_progress.trait_values().items():
-            if key in ["state", "message"]:
-                continue
-
-            if self.state.has_changed(self.state.file_progress, key):
-                yield key, value
+        if self.state.has_changed(self.state.file_progress, "percent"):
+            yield "percent", self.state.file_progress.percent
 
     def on_send(self) -> ClientEventMode:
         # Ensure we never drop file progress updates
@@ -345,7 +345,8 @@ class MaterialDataEvent(ClientEvent):
         if self.state.has_changed(self.state, "material_data"):
             if len(self.state.material_data) == 0:
                 return
-            yield "materials", [material.trait_values() if material is not None else material for material in self.state.material_data]
+            yield "materials", [material.trait_values() if material is not None else material for material in
+                                self.state.material_data]
             self.has_changes = True
 
     def on_send(self) -> ClientEventMode:

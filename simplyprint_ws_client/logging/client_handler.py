@@ -25,7 +25,7 @@ class ClientHandler(TimedRotatingFileHandler):
     @classmethod
     def slugify(cls, name: str) -> str:
         # Slugify the log name
-        name = re.sub(r'[^\w\s-]', '', name)
+        name = re.sub(r'[^\w\s.-]', '', name)
         name = re.sub(r'[\s_-]+', '-', name)
         name = re.sub(r'^-+|-+$', '', name)
         return name
