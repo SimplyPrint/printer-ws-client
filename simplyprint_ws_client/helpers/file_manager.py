@@ -1,8 +1,9 @@
 import base64
 import pathlib
 import string
+from typing import List, NamedTuple, Generator
+
 import time
-from typing import List, NamedTuple
 
 File = NamedTuple("File", [("name", str), ("size", int), ("last_modified", int)])
 
@@ -29,19 +30,19 @@ class FileManager:
     def get_file_path_by_id(self, file_id: str, extension: str = ".gcode") -> pathlib.Path:
         return pathlib.Path(self.base_path).joinpath(file_id + extension)
 
-    def get_files_to_remove(self, files: List[File], total_disk_space: int, total_disk_usage: int):
+    def get_files_to_remove(self, files: List[File], total_disk_space: int, total_disk_usage: int) -> Generator[File, None, None]:
         # Sort files by last modified
-        files.sort(key=lambda file: file.last_modified)
+        files.sort(key=lambda f: f.last_modified)
         time_now = time.time()
-        
+
         for file in reversed(files):
-            if self.max_age > 0 and time_now - file.last_modified > self.max_age:
+            if 0 < self.max_age < time_now - file.last_modified:
                 files.remove(file)
                 total_disk_usage -= file.size
                 yield file
 
         for file in reversed(files):
-            if self.max_size > 0 and file.size > self.max_size:
+            if 0 < self.max_size < file.size:
                 files.remove(file)
                 total_disk_usage -= file.size
                 yield file
@@ -49,7 +50,7 @@ class FileManager:
         if self.least_remaing_space_percentage > 0:
             space_left = total_disk_space - total_disk_usage
             space_required = total_disk_space * self.least_remaing_space_percentage
-            
+
             while len(files) > 0 and space_required > space_left:
                 file = files.pop(0)
                 total_disk_usage -= file.size

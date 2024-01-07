@@ -1,14 +1,12 @@
 import logging
 from asyncio import AbstractEventLoop
 from enum import Enum
-from logging.handlers import RotatingFileHandler
 from typing import NamedTuple, Optional, Type
-from os import environ
 
 from .client import Client
 from .config import Config, ConfigManager, ConfigManagerType
-from .instance import Instance, MultiPrinter, SinglePrinter
 from .const import APP_DIRS, SimplyPrintUrl, SimplyPrintVersion
+from .instance import Instance, MultiPrinter, SinglePrinter
 
 
 class ClientMode(Enum):
@@ -23,6 +21,7 @@ class ClientMode(Enum):
         else:
             raise ValueError("Invalid ClientMode")
 
+
 class ClientOptions(NamedTuple):
     mode: ClientMode = ClientMode.SINGLE
     backend: Optional[SimplyPrintVersion] = None
@@ -36,9 +35,10 @@ class ClientOptions(NamedTuple):
     allow_setup: bool = False
     reconnect_timeout = 5.0
     tick_rate = 1.0
-        
+
     def is_valid(self) -> bool:
         return self.client_t is not None and self.config_t is not None
+
 
 class ClientFactory:
     client_t: Optional[Type[Client]] = None
@@ -50,6 +50,7 @@ class ClientFactory:
 
     def create_client(self, *args, config: Optional[Config] = None, **kwargs) -> Client:
         return self.client_t(*args, config=config or self.config_t.get_blank(), **kwargs)
+
 
 class ClientApp:
     loop: AbstractEventLoop
@@ -65,7 +66,7 @@ class ClientApp:
             raise ValueError("Invalid options")
 
         self.loop = loop
-        
+
         # Set correct simplyprint version
         if options.backend:
             SimplyPrintUrl.set_current(options.backend)
@@ -74,11 +75,13 @@ class ClientApp:
         instance_class = options.mode.get_class()
 
         self.config_manager = config_manager_class(name=options.name, config_t=options.config_t)
-        self.instance = instance_class(loop=self.loop, config_manager=self.config_manager, allow_setup=options.allow_setup, reconnect_timeout=options.reconnect_timeout, tick_rate=options.tick_rate)
+        self.instance = instance_class(loop=self.loop, config_manager=self.config_manager,
+                                       allow_setup=options.allow_setup, reconnect_timeout=options.reconnect_timeout,
+                                       tick_rate=options.tick_rate)
         self.client_factory = ClientFactory(client_t=options.client_t, config_t=options.config_t)
-    
+
         log_file = APP_DIRS.user_log_path / f"{options.name}.log"
-        
+
         if not log_file.parent.exists():
             log_file.parent.mkdir(parents=True)
 
@@ -103,10 +106,10 @@ class ClientApp:
     async def _add_new_client(self, config: Optional[Config]):
         client = self.client_factory.create_client(config=config)
         await self.instance.register_client(client)
-    
+
     def delete_client(self, client: Client):
         self.loop.create_task(self._delete_client(client))
-    
+
     def add_new_client(self, config: Optional[Config]):
         self.loop.create_task(self._add_new_client(config))
 

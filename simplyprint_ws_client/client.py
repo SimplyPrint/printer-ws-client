@@ -8,7 +8,7 @@ from .config import Config
 from .const import SUPPORTED_SIMPLYPRINT_VERSION
 from .events import demands as Demands
 from .events import server_events as Events
-from .events.client_events import ClientEvent, PingEvent, StreamEvent
+from .events.client_events import ClientEvent, PingEvent
 from .events.event import Event
 from .events.event_bus import EventBus
 from .helpers.intervals import IntervalTypes
