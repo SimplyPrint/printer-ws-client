@@ -50,7 +50,7 @@ class GcodeEvent(DemandEvent):
 
 
 class WebcamTestEvent(DemandEvent):
-    demand = "webcam_test"
+    demand = "test_webcam"
 
 
 class WebcamSnapshotEvent(DemandEvent):

@@ -299,7 +299,7 @@ class FileProgressEvent(ClientEvent):
             return
 
         # Only send percent as a field if we are downloading.
-        if self.state.file_progress.trait_values() == "downloading" and self.state.has_changed(
+        if self.state.file_progress.state.value == "downloading" and self.state.has_changed(
                 self.state.file_progress, "percent"):
             yield "percent", self.state.file_progress.percent
 

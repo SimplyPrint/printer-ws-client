@@ -124,8 +124,8 @@ class JobInfoState(ClientState):
     layer: Optional[int] = Int()
     time: Optional[float] = Float()  # Time left in seconds
     filament: Optional[float] = Float()  # Filament usage
-    filename: Optional[str] = Always(Unicode(allow_none=True))
-
+    filename: Optional[str] = Unicode(allow_none=True)
+    
     started: bool = Always(Bool())
     finished: bool = Always(Bool())
     cancelled: bool = Always(Bool())

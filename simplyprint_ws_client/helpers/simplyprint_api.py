@@ -1,14 +1,17 @@
-from typing import Optional
-import aiohttp
 import base64
+from typing import Optional
+
+import aiohttp
+
 from ..const import SimplyPrintUrl, VERSION
+
 
 class SimplyPrintApi:
     @staticmethod
     async def post_snapshot(id: str, image_data: bytes):
 
         endpoint = SimplyPrintUrl.current().api_url / "jobs" / "ReceiveSnapshot"
-        
+
         data = {
             "id": id,
             "image": base64.b64encode(image_data).decode("utf-8"),
@@ -19,15 +22,15 @@ class SimplyPrintApi:
         async with aiohttp.ClientSession() as session:
             async with session.post(str(endpoint), json=data, headers=headers, timeout=45) as response:
                 if response.status != 200:
-                    raise Exception(f"Failed to post snapshot: {await response.text()}")    
+                    raise Exception(f"Failed to post snapshot: {await response.text()}")
 
     @staticmethod
     async def post_logs(
-        printer_id: int,
-        token: str,
-        main_log_file: Optional[str] = None,
-        plugin_log_file: Optional[str] = None,
-        serial_log_file: Optional[str] = None    
+            printer_id: int,
+            token: str,
+            main_log_file: Optional[str] = None,
+            plugin_log_file: Optional[str] = None,
+            serial_log_file: Optional[str] = None
     ):
         # Request /printers/ReceiveLogs with the token as post data
         # And each of the files as multipart/form-data
@@ -53,5 +56,5 @@ class SimplyPrintApi:
             async with session.post(str(endpoint), data=data, headers=headers, timeout=45) as response:
                 if response.status != 200:
                     raise Exception(f"Failed to post logs: {await response.text()}")
-                
+
                 return await response.json()

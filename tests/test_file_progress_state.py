@@ -1,10 +1,11 @@
 import unittest
 
-from traitlets import Enum, Instance
-from simplyprint_ws_client.events.client_events import FileProgressEvent, StateChangeEvent
-from simplyprint_ws_client.state.printer import FileProgressState, PrinterFileProgressState
+from traitlets import Instance
 
+from simplyprint_ws_client.events.client_events import FileProgressEvent
+from simplyprint_ws_client.state.printer import FileProgressState, PrinterFileProgressState
 from simplyprint_ws_client.state.root_state import RootState
+
 
 class TestState(RootState):
     file_progress: PrinterFileProgressState = Instance(PrinterFileProgressState)
@@ -13,6 +14,7 @@ class TestState(RootState):
         super().__init__(
             file_progress=PrinterFileProgressState(),
         )
+
 
 class TestJobInfoState(unittest.TestCase):
     def test_basic_state(self):
@@ -37,16 +39,15 @@ class TestJobInfoState(unittest.TestCase):
         self.assertIsInstance(event, FileProgressEvent)
         self.assertDictEqual(dict(event.generate_data()), {
             'state': 'ready',
-            'percent': 100.0,
         })
 
         state.file_progress.state = FileProgressState.ERROR
         state.file_progress.message = "Something went wrong"
 
         event = next(state._build_events())
-        
+
         self.assertIsInstance(event, FileProgressEvent)
-        
+
         self.assertDictEqual(dict(event.generate_data()), {
             'state': 'error',
             'message': "Something went wrong",

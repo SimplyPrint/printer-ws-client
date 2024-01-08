@@ -9,7 +9,7 @@ from aiohttp import (ClientConnectorError, ClientSession,
                      WSServerHandshakeError)
 
 from .events import DemandEvent, ServerEvent, get_event
-from .events.client_events import ClientEvent, ClientEventMode, StreamEvent
+from .events.client_events import ClientEvent, ClientEventMode
 from .events.event import Event
 from .events.event_bus import EventBus
 
@@ -62,7 +62,7 @@ class Connection:
     def set_url(self, url: str) -> None:
         self.url = url
 
-    async def connect(self, url: Optional[str] = None, session: Optional[ClientSession] = None, timeout: Optional[float] = None) -> None:
+    async def connect(self, url: Optional[str] = None, timeout: Optional[float] = None) -> None:
         async with self.connection_lock:
             reconnected = False
 
@@ -86,7 +86,8 @@ class Connection:
             socket = None
 
             try:
-                socket = await self.session.ws_connect(self.url, timeout=timeout, autoclose=False, max_msg_size=0, compress=False)
+                socket = await self.session.ws_connect(self.url, timeout=timeout, autoclose=False, max_msg_size=0,
+                                                       compress=False)
             except WSServerHandshakeError as e:
                 self.logger.error(
                     f"Failed to connect to {self.url} with status code {e.status}")
@@ -125,7 +126,7 @@ class Connection:
         return self.socket is not None and not self.socket.closed
 
     async def send_event(self, event: ClientEvent) -> None:
-        if not self.is_connected():
+        while not self.is_connected():
             self.logger.debug(
                 f"Did not send event {event} because not connected")
             await self.event_bus.emit(ConnectionDisconnectEvent())
