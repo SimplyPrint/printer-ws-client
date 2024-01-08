@@ -224,7 +224,6 @@ class StateChangeEvent(ClientEvent):
 class JobInfoEvent(ClientEvent):
     event_type = PrinterEvent.JOB_INFO
     interval_type = IntervalTypes.JOB
-    force_dispatch: bool = False
 
     def generate_data(self) -> Generator[Tuple, None, None]:
         for key, value in self.state.job_info.trait_values().items():
@@ -290,6 +289,8 @@ class FileProgressEvent(ClientEvent):
 
         But since we always send the state you can update any other fields you want to send and still 
         achieve the same result.
+
+        TODO: Make enum accessible beyond circular import so we do not have to use literals.
         """
         yield "state", self.state.file_progress.state.value
 
@@ -297,7 +298,9 @@ class FileProgressEvent(ClientEvent):
             yield "message", self.state.file_progress.message or "Unknown error"
             return
 
-        if self.state.has_changed(self.state.file_progress, "percent"):
+        # Only send percent as a field if we are downloading.
+        if self.state.file_progress.trait_values() == "downloading" and self.state.has_changed(
+                self.state.file_progress, "percent"):
             yield "percent", self.state.file_progress.percent
 
     def on_send(self) -> ClientEventMode:

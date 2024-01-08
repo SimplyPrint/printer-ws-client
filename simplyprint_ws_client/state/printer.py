@@ -1,5 +1,4 @@
-from enum import Enum
-from typing import List, Optional
+from typing import List
 
 from traitlets import Bool
 from traitlets import Enum as TraitletsEnum
@@ -7,13 +6,13 @@ from traitlets import Float, Instance, Int, Integer
 from traitlets import List as TraitletsList
 from traitlets import Unicode, observe
 
+from .always import Always
+from .models import MaterialModel
+from .root_state import ClientState, RootState, to_event
 from ..events.client_events import *
 from ..helpers.ambient_check import AmbientTemperatureState
 from ..helpers.intervals import Intervals
 from ..helpers.temperature import Temperature
-from .always import Always
-from .models import MaterialModel
-from .root_state import ClientState, RootState, to_event
 
 
 class PrinterCpuFlag(Enum):
@@ -72,11 +71,13 @@ class PrinterInfoData(ClientState):
     total_memory = Int()
     mac = Unicode(allow_none=True)
 
+
 class PrinterDisplaySettings(ClientState):
     enabled: bool = Bool()
     branding: bool = Bool()
     while_printing_type: int = Int()
     show_status: bool = Bool()
+
 
 class PrinterSettings(ClientState):
     has_psu: bool = Bool()
@@ -115,6 +116,7 @@ class PrinterFilamentSensorState(ClientState):
 class PrinterPSUState(ClientState):
     on: bool = Bool()
 
+
 @to_event(JobInfoEvent)
 class JobInfoState(ClientState):
     progress: Optional[float] = Float()
@@ -122,7 +124,7 @@ class JobInfoState(ClientState):
     layer: Optional[int] = Int()
     time: Optional[float] = Float()  # Time left in seconds
     filament: Optional[float] = Float()  # Filament usage
-    filename: Optional[str] = Unicode(allow_none=True)
+    filename: Optional[str] = Always(Unicode(allow_none=True))
 
     started: bool = Always(Bool())
     finished: bool = Always(Bool())
@@ -130,10 +132,10 @@ class JobInfoState(ClientState):
     failed: bool = Always(Bool())
 
     @observe("started", "finished", "cancelled", "failed")
-    def _on_job_state_change(self, change):        # If one changes, set the others to false
+    def _on_job_state_change(self, change):  # If one changes, set the others to false
         if not change["new"]:
             return
-        
+
         for key in ["started", "finished", "cancelled", "failed"]:
             # Only set "True" values to "False"
             # As undefined values can stay undefined
@@ -156,11 +158,13 @@ class PingPongState(ClientState):
 class WebcamState(ClientState):
     connected: bool = Bool()
 
+
 @to_event(WebcamEvent)
 class WebcamSettings(ClientState):
     flipH: bool = Bool()
     flipV: bool = Bool()
     rotate90: bool = Bool()
+
 
 @to_event(StateChangeEvent, "status")
 @to_event(ConnectionEvent, "connected")
@@ -175,7 +179,7 @@ class PrinterState(RootState):
 
     ambient_temperature: AmbientTemperatureState = Instance(
         AmbientTemperatureState)
-    
+
     intervals: Intervals = Instance(Intervals)
 
     info: PrinterInfoData = Instance(PrinterInfoData)
@@ -228,12 +232,11 @@ class PrinterState(RootState):
         if self.active_tool is not None and self.active_tool >= count:
             self.active_tool = None
 
-        if count > len(self.material_data) :
+        if count > len(self.material_data):
             for _ in range(count - len(self.material_data)):
                 self.material_data.append(MaterialModel())
         else:
             self.material_data = self.material_data[:count]
-       
 
     def is_heating(self) -> bool:
         for tool in self.tool_temperatures:
