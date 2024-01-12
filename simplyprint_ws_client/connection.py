@@ -91,8 +91,10 @@ class Connection:
             except WSServerHandshakeError as e:
                 self.logger.error(
                     f"Failed to connect to {self.url} with status code {e.status}")
-            except ClientConnectorError:
+                self.logger.exception(e)
+            except ClientConnectorError as e:
                 self.logger.error(f"Failed to connect to {self.url}")
+                self.logger.exception(e)
             except Exception as e:
                 self.logger.exception(e)
 
