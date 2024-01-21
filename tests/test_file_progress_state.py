@@ -26,7 +26,7 @@ class TestJobInfoState(unittest.TestCase):
 
         self.assertIsInstance(event, FileProgressEvent)
 
-        self.assertDictEqual(dict(event.generate_data()), {
+        self.assertDictEqual(dict(event.build()), {
             'state': 'downloading',
             'percent': 50.0,
         })
@@ -37,7 +37,7 @@ class TestJobInfoState(unittest.TestCase):
         event = next(state._build_events())
 
         self.assertIsInstance(event, FileProgressEvent)
-        self.assertDictEqual(dict(event.generate_data()), {
+        self.assertDictEqual(dict(event.build()), {
             'state': 'ready',
         })
 
@@ -48,7 +48,7 @@ class TestJobInfoState(unittest.TestCase):
 
         self.assertIsInstance(event, FileProgressEvent)
 
-        self.assertDictEqual(dict(event.generate_data()), {
+        self.assertDictEqual(dict(event.build()), {
             'state': 'error',
             'message': "Something went wrong",
         })

@@ -8,7 +8,8 @@ from aiohttp import (ClientConnectorError, ClientSession,
                      ClientWebSocketResponse, WSMsgType,
                      WSServerHandshakeError)
 
-from .events import DemandEvent, ServerEvent, get_event
+from .client import Client
+from .events import DemandEvent, ServerEvent, EventFactory
 from .events.client_events import ClientEvent, ClientEventMode
 from .events.event import Event
 from .events.event_bus import EventBus
@@ -127,29 +128,29 @@ class Connection:
     def is_connected(self) -> bool:
         return self.socket is not None and not self.socket.closed
 
-    async def send_event(self, event: ClientEvent) -> None:
+    async def send_event(self, client: Client, event: ClientEvent) -> None:
         while not self.is_connected():
             self.logger.debug(
                 f"Did not send event {event} because not connected")
             await self.event_bus.emit(ConnectionDisconnectEvent())
 
         try:
-            message = event.as_dict()
-
-            mode = event.on_send()
+            mode = event.get_client_mode(client)
 
             if mode != ClientEventMode.DISPATCH:
                 # """
                 # This debug statement is quite
                 # distracting, it can be enabled.
-
-                self.logger.debug(
-                    f"Did not send event {event} because of mode {mode.name} ready in {event.state.intervals.time_until_ready(event.interval_type.value) if event.interval_type else 'what'}")
+                self.logger.debug(f"Did not send event {event} because of mode {mode.name}")
                 # """
 
                 return
 
+            message = event.as_dict()
+
             await self.socket.send_json(message)
+
+            event.on_sent()
 
             self.logger.debug(f"Sent event {event.get_name()}" if len(
                 str(message)) > 1000 else f"Sent event {event} with data {message}")
@@ -193,7 +194,7 @@ class Connection:
             demand: Optional[str] = data.get("demand")
 
             try:
-                event: ServerEvent = get_event(name, demand, data)
+                event: ServerEvent = EventFactory.get_event(name, demand, data)
             except KeyError as e:
                 self.logger.error(f"Unknown event type {e.args[0]}")
                 return

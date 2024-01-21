@@ -67,7 +67,7 @@ class TestJobInfoState(unittest.TestCase):
 
         self.assertEqual(event.__class__, StateChangeEvent)
 
-        event_data = dict(event.generate_data())
+        event_data = dict(event.build())
 
         self.assertEqual(event_data.keys(), set(["new"]))
 
@@ -110,6 +110,6 @@ class TestJobInfoState(unittest.TestCase):
 
         self.assertEqual(event.__class__, JobInfoEvent)
 
-        event_data = dict(event.generate_data())
+        event_data = dict(event.build())
 
         self.assertEqual(event_data.keys(), set(["finished"]))

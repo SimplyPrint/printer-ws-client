@@ -1,7 +1,8 @@
 import asyncio
-import time
 from enum import Enum
 from typing import Dict, List, Union, NamedTuple
+
+import time
 
 try:
     from typing import Self
@@ -13,8 +14,9 @@ class IntervalException(ValueError):
     pass
 
 
-# An interval can be refered to by its name, its IntervalType or its IntervalTypes
+# An interval can be referred to by its name, its IntervalType or its IntervalTypes
 IntervalTypeRef = Union[str, 'IntervalType', 'IntervalTypes']
+
 
 class IntervalType(NamedTuple):
     """And interval has a name and a timing, here we can define the default timing"""
@@ -23,6 +25,7 @@ class IntervalType(NamedTuple):
 
     def __hash__(self) -> int:
         return hash(self.name)
+
 
 class IntervalTypes(Enum):
     """A list of all the intervals that can be used"""
@@ -130,7 +133,7 @@ class Intervals:
             return t.default_timing
 
         ms_until_ready = self.intervals[t] - \
-            (self.now() - self.last_updates[t])
+                         (self.now() - self.last_updates[t])
 
         # Convert to seconds
         return ms_until_ready / 1000.0
@@ -161,7 +164,6 @@ class Intervals:
             raise IntervalException(
                 f"Interval did not become ready in time: {ready_in_seconds} seconds remaning {self.time_until_ready(t)}")
 
-        
     def use(self, t: IntervalTypeRef):
         """Update the last update time for an interval"""
 

@@ -1,2 +1,2 @@
 from .always import Always
-from .root_state import DEFAULT_EVENT, ClientState, RootState, to_event
+from .state import DEFAULT_EVENT, ClientState, State, to_event

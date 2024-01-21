@@ -1,10 +1,11 @@
+from typing import Callable, List, Optional, Tuple
+
 from traitlets import Float, Int
 
-from ..state.root_state import ClientState, to_event
-from ..events.client_events import AmbientTemperatureEvent
-
 from .temperature import Temperature
-from typing import Callable, List, Optional, Tuple
+from ..events.client_events import AmbientTemperatureEvent
+from ..state import ClientState, to_event
+
 
 class AmbientCheck:
     AMBIENT_CHECK_TIME = 5.0 * 60.0
@@ -12,7 +13,8 @@ class AmbientCheck:
     CHECK_INTERVAL = 5.0
 
     @staticmethod
-    def detect(on_changed: Callable[[int], None], tools: List[Temperature], initial_sample: Optional[float] = None, ambient: float = 0) -> Tuple[Optional[float], int, float]:
+    def detect(on_changed: Callable[[int], None], tools: List[Temperature], initial_sample: Optional[float] = None,
+               ambient: float = 0) -> Tuple[Optional[float], int, float]:
         if len(tools) == 0:
             return None, round(ambient), AmbientCheck.CHECK_INTERVAL
 
@@ -33,7 +35,8 @@ class AmbientCheck:
             else:
                 return tool0.actual, round(ambient), AmbientCheck.SAMPLE_CHACK_TIME
 
-@to_event(AmbientTemperatureEvent, "ambient")            
+
+@to_event(AmbientTemperatureEvent, "ambient")
 class AmbientTemperatureState(ClientState):
     initial_sample: Optional[float] = Float(allow_none=True)
     ambient: int = Int()
@@ -47,4 +50,7 @@ class AmbientTemperatureState(ClientState):
         It is up to the implementation to decide when to invoke the check or respect the update_interval, the entire state is self contained
         and requires the tool_temperatures to be passed in from the PrinterState, but it handles triggering the appropriate events.
         """
-        (self.initial_sample, self.ambient, self.update_interval) = AmbientCheck.detect(self.on_changed_callback, tool_temperatures, self.initial_sample, self.ambient)
+        (self.initial_sample, self.ambient, self.update_interval) = AmbientCheck.detect(self.on_changed_callback,
+                                                                                        tool_temperatures,
+                                                                                        self.initial_sample,
+                                                                                        self.ambient)

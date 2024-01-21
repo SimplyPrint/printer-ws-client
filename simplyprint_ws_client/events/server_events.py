@@ -3,8 +3,6 @@ from typing import Dict, Type, Any, Optional
 
 from .event import Event
 from ..helpers.intervals import Intervals
-from ..state.printer import PrinterSettings, PrinterDisplaySettings
-
 
 class ServerEventError(ValueError):
     pass
@@ -112,6 +110,10 @@ class PrinterSettingsEvent(ServerEvent):
 
     def on_event(self):
         self.event_type = self.data.get("name", "")
+
+        # Import here to avoid circular imports
+        from ..state.printer import PrinterSettings, PrinterDisplaySettings
+
         self.printer_settings = PrinterSettings(has_psu=self.data.get("has_psu", False), has_filament_sensor=self.data.get("has_filament_sensor", False))
         self.display_settings = PrinterDisplaySettings(**self.data.get("display", {}))
 

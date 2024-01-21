@@ -1,11 +1,12 @@
 import asyncio
 import logging
 import threading
-import time
 from abc import ABC, abstractmethod
 from asyncio import AbstractEventLoop
 from typing import (Any, Awaitable, Callable, Generic, Iterable, List,
-                    Optional, Tuple, TypeVar, Union)
+                    Optional, Tuple, TypeVar, Union, Dict)
+
+import time
 
 from ..client import Client, ClientConfigChangedEvent
 from ..config.config import Config
@@ -14,9 +15,9 @@ from ..connection import (Connection, ConnectionConnectedEvent,
                           ConnectionDisconnectEvent,
                           ConnectionEventReceivedEvent,
                           ConnectionReconnectEvent)
-from ..events.client_events import (ALLOWED_IN_SETUP, ClientEvent,
+from ..events.client_events import (ClientEvent,
                                     MachineDataEvent, StateChangeEvent)
-from ..events.demands import DemandEvent
+from ..events.demand_events import DemandEvent
 from ..events.event_bus import Event, EventBus
 from ..events.server_events import ServerEvent
 from ..helpers.sentry import Sentry
@@ -67,7 +68,8 @@ class Instance(ABC, Generic[TClient, TConfig]):
     server_event_backlog: List[Tuple[ConnectionEventReceivedEvent]]
     client_event_backlog: List[Tuple[TClient, ClientEvent]]
 
-    def __init__(self, loop: AbstractEventLoop, config_manager: ConfigManager[TConfig], allow_setup=False, reconnect_timeout=5.0, tick_rate=1.0) -> None:
+    def __init__(self, loop: AbstractEventLoop, config_manager: ConfigManager[TConfig], allow_setup=False,
+                 reconnect_timeout=5.0, tick_rate=1.0) -> None:
         self.loop = loop or asyncio.get_event_loop()
         self.connection = Connection(self.loop)
         self.config_manager = config_manager
@@ -110,6 +112,8 @@ class Instance(ABC, Generic[TClient, TConfig]):
         self.loop.stop()
 
     async def consume_clients(self):
+        client_tasks: Dict[TClient, asyncio.Task] = {}
+
         while not self._stop_event.is_set():
             dt = time.time()
 
@@ -119,9 +123,15 @@ class Instance(ABC, Generic[TClient, TConfig]):
                     continue
 
                 for client in self.get_clients():
-                    await self.consume_client(client)
+                    prev_task = client_tasks.get(client)
 
-                await asyncio.sleep(max(0, self.tick_rate - (time.time() - dt)))
+                    if prev_task is not None and not prev_task.done():
+                        continue
+
+                    task = asyncio.create_task(self.consume_client(client))
+                    client_tasks[client] = task
+
+                await asyncio.sleep(max(0.0, self.tick_rate - (time.time() - dt)))
 
             except Exception as e:
                 self.logger.exception(e)
@@ -135,8 +145,21 @@ class Instance(ABC, Generic[TClient, TConfig]):
         if not client.connected:
             return
 
-        await client.tick()
-        await client.consume_state()
+        try:
+            async with asyncio.timeout(5.0):
+                await client.tick()
+
+        except asyncio.TimeoutError:
+            client.logger.warning(f"Client timed out while ticking")
+
+        events_to_process = client.printer.get_dirty_events()
+
+        try:
+            async with asyncio.timeout(5.0):
+                await client.consume_state()
+
+        except asyncio.TimeoutError:
+            client.logger.warning(f"Client timed out while consuming state {events_to_process}")
 
     async def poll_events(self) -> None:
         while not self._stop_event.is_set():
@@ -169,7 +192,7 @@ class Instance(ABC, Generic[TClient, TConfig]):
 
             self.logger.info(
                 f"Disconnected from server - reconnecting in {self.reconnect_timeout} seconds")
-            
+
             await asyncio.sleep(self.reconnect_timeout)
 
             await self.connect()
@@ -293,10 +316,10 @@ class Instance(ABC, Generic[TClient, TConfig]):
             raise InstanceException(f"Expected ClientEvent but got {event}")
 
         # If the client is in setup only a certain subset of events are allowed
-        if client.config.in_setup and not event.event_type in ALLOWED_IN_SETUP:
+        if client.config.in_setup and not event.event_type.is_allowed_in_setup():
             return
 
-        await self.connection.send_event(event)
+        await self.connection.send_event(client, event)
 
     @abstractmethod
     def get_clients(self) -> Iterable[TClient]:

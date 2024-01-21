@@ -1,14 +1,16 @@
-from typing import List, Optional
 import unittest
+from typing import List, Optional
 
 from traitlets import Instance, Integer, List as TraitletsList
-from simplyprint_ws_client.events.client_events import MaterialDataEvent, ToolEvent
-from simplyprint_ws_client.state import RootState, to_event
-from simplyprint_ws_client.state.models import MaterialModel
 
-@to_event(MaterialDataEvent, "material_data")
+from simplyprint_ws_client.events.client_events import MaterialDataEvent, ToolEvent
+from simplyprint_ws_client.state import State, to_event
+from simplyprint_ws_client.state.printer import MaterialModel
+
+
 @to_event(ToolEvent, "active_tool")
-class TestState(RootState):
+@to_event(MaterialDataEvent, "material_data")
+class TestState(State):
     active_tool: Optional[int] = Integer(None, allow_none=True)
     material_data: List[MaterialModel] = TraitletsList(Instance(MaterialModel))
 
@@ -21,6 +23,7 @@ class TestState(RootState):
     def get_events(self):
         events = list(self._build_events())
         return list(map(lambda x: x.__class__, events)), events
+
 
 class TestJobInfoState(unittest.TestCase):
     def test_basic_state(self):
@@ -35,7 +38,8 @@ class TestJobInfoState(unittest.TestCase):
         event_types, events = state.get_events()
         self.assertEqual(event_types, [MaterialDataEvent, ToolEvent])
         event: MaterialDataEvent = events[0]
-        self.assertDictEqual(dict(event.generate_data()), {'materials': [{'color': 'red', 'ext': 0, 'hex': '#FF0000', 'type': 'PLA'}]})
+        self.assertDictEqual(dict(event.build()),
+                             {'materials': [{'color': 'red', 'ext': 0, 'hex': '#FF0000', 'type': 'PLA'}]})
 
         event_types, events = state.get_events()
         self.assertEqual(event_types, [])
@@ -47,7 +51,7 @@ class TestJobInfoState(unittest.TestCase):
         self.assertEqual(event_types, [ToolEvent])
         event: ToolEvent = events[0]
 
-        self.assertDictEqual(dict(event.generate_data()), {'new': 1})
+        self.assertDictEqual(dict(event.build()), {'new': 1})
 
         # Add 3 more materials
         state.material_data = [
@@ -61,7 +65,11 @@ class TestJobInfoState(unittest.TestCase):
         self.assertEqual(event_types, [MaterialDataEvent])
         event: MaterialDataEvent = events[0]
 
-        self.assertDictEqual(dict(event.generate_data()), {'materials': [{'color': 'red', 'ext': 0, 'hex': '#FF0000', 'type': 'PLA'}, {'color': 'green', 'ext': 1, 'hex': '#00FF00', 'type': 'PLA'}, {'color': 'blue', 'ext': 2, 'hex': '#0000FF', 'type': 'PLA'}, {'color': 'white', 'ext': 3, 'hex': '#FFFFFF', 'type': 'PLA'}]})
+        self.assertDictEqual(dict(event.build()), {
+            'materials': [{'color': 'red', 'ext': 0, 'hex': '#FF0000', 'type': 'PLA'},
+                          {'color': 'green', 'ext': 1, 'hex': '#00FF00', 'type': 'PLA'},
+                          {'color': 'blue', 'ext': 2, 'hex': '#0000FF', 'type': 'PLA'},
+                          {'color': 'white', 'ext': 3, 'hex': '#FFFFFF', 'type': 'PLA'}]})
 
         # Change both
         state.material_data = [
@@ -77,5 +85,9 @@ class TestJobInfoState(unittest.TestCase):
         event_material: MaterialDataEvent = events[0]
         event_tool: ToolEvent = events[1]
 
-        self.assertDictEqual(dict(event_material.generate_data()), {'materials': [{'color': 'red', 'ext': 0, 'hex': '#FF0000', 'type': 'PLA'}, {'color': 'green', 'ext': 1, 'hex': '#00FF00', 'type': 'PLA'}, {'color': 'blue', 'ext': 2, 'hex': '#0000FF', 'type': 'PLA'}, {'color': 'white', 'ext': 3, 'hex': '#FFFFFF', 'type': 'PLA'}]})
-        self.assertDictEqual(dict(event_tool.generate_data()), {'new': None})
+        self.assertDictEqual(dict(event_material.build()), {
+            'materials': [{'color': 'red', 'ext': 0, 'hex': '#FF0000', 'type': 'PLA'},
+                          {'color': 'green', 'ext': 1, 'hex': '#00FF00', 'type': 'PLA'},
+                          {'color': 'blue', 'ext': 2, 'hex': '#0000FF', 'type': 'PLA'},
+                          {'color': 'white', 'ext': 3, 'hex': '#FFFFFF', 'type': 'PLA'}]})
+        self.assertDictEqual(dict(event_tool.build()), {'new': None})

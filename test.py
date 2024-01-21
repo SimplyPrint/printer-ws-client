@@ -1,17 +1,24 @@
-from typing import TypedDict, Unpack
+from traitlets import Int, Instance, Unicode
+
+from simplyprint_ws_client.state import Always
+from simplyprint_ws_client.state.state import State, ClientState
 
 
-class TConfig(TypedDict):
-    name: str
-    id: str
-    token: str
+class T(ClientState):
+    i: int = Int()
+    a: str = Always(Unicode())
 
 
-class ExtendedConfig:
-    cool: bool
+class TestState(State):
+    l: T = Instance(T)
+    i: int = Int()
 
 
-def func(*args, **kwargs: Unpack[TConfig]):
-    print(kwargs)
+s = TestState(i=10, l=T(i=11))
 
-
+s.i = 11
+s.l.i = 12
+s.l.a = "test"
+s.l.a = "test"
+s.l.a = "test"
+s.l = T(i=13)

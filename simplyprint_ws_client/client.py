@@ -1,17 +1,18 @@
 import asyncio
 import logging
-import time
 from abc import ABC, abstractmethod
 from typing import Generic, Optional, TypeVar
 
+import time
+
 from .config import Config
 from .const import SUPPORTED_SIMPLYPRINT_VERSION
-from .events import demands as Demands
+from .events import demand_events as Demands
 from .events import server_events as Events
 from .events.client_events import ClientEvent, PingEvent
 from .events.event import Event
 from .events.event_bus import EventBus
-from .helpers.intervals import IntervalTypes
+from .helpers.intervals import IntervalTypes, Intervals
 from .helpers.physical_machine import PhysicalMachine
 from .helpers.sentry import Sentry
 from .logging import *
@@ -47,6 +48,7 @@ class Client(ABC, Generic[TConfig]):
     """
 
     config: TConfig
+    intervals: Intervals
     printer: PrinterState
 
     connected: bool = False
@@ -58,8 +60,8 @@ class Client(ABC, Generic[TConfig]):
 
     def __init__(self, config: TConfig):
         self.config = config
+        self.intervals = Intervals()
         self.printer = PrinterState()
-
         self.event_bus = ClientEventBus()
 
         # Recover handles from the class
@@ -74,11 +76,10 @@ class Client(ABC, Generic[TConfig]):
 
     async def send_event(self, event: ClientEvent):
         """
-        Wrapper method to send an client event to the server.
+        Wrapper method to send a client event to the server.
         """
 
         event.for_client = self.config.unique_id
-
         await self.event_bus.emit(event)
 
     async def consume_state(self):
@@ -87,8 +88,8 @@ class Client(ABC, Generic[TConfig]):
         which are dispatched to the bus.
         """
 
-        for event in self.printer._build_events(self.config.unique_id):
-            await self.event_bus.emit(event)
+        for client_event in self.printer.iter_dirty_events():
+            await self.send_event(client_event.from_state(self.printer))
 
     @abstractmethod
     async def init(self):
@@ -188,11 +189,11 @@ class DefaultClient(Client[TConfig]):
         self.sentry.development = development
 
     async def send_ping(self):
-        if not self.printer.intervals.is_ready(IntervalTypes.PING):
+        if not self.intervals.is_ready(IntervalTypes.PING):
             return
 
         self.printer.latency.ping = time.time()
-        await self.send_event(PingEvent(self.printer))
+        await self.send_event(PingEvent())
 
     def on_any_event(self, event: Event):
         self.logger.debug(f"Got event {event}")
@@ -220,7 +221,7 @@ class DefaultClient(Client[TConfig]):
         self.config.in_setup = event.in_setup
         self.config.short_id = event.short_id
 
-        self.printer.intervals.update(event.intervals)
+        self.intervals.update(event.intervals)
 
         self.reconnect_token = event.reconnect_token
 
@@ -238,7 +239,7 @@ class DefaultClient(Client[TConfig]):
 
     @Events.IntervalChangeEvent.before
     async def before_interval_change(self, event: Events.IntervalChangeEvent):
-        self.printer.intervals.update(event.intervals)
+        self.intervals.update(event.intervals)
 
     @Events.PongEvent.before
     async def before_pong(self, event: Events.PongEvent):
@@ -270,4 +271,4 @@ class DefaultClient(Client[TConfig]):
         self.requested_snapshots += 1
 
         if event.timer is not None:
-            self.printer.intervals.set(IntervalTypes.WEBCAM.value, event.timer)
+            self.intervals.set(IntervalTypes.WEBCAM.value, event.timer)

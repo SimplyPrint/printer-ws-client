@@ -2,6 +2,7 @@ from asyncio import AbstractEventLoop
 from enum import Enum
 from typing import Dict, Iterable, Optional, Set
 
+from .instance import Instance, TClient, TConfig
 from ..client import Client
 from ..config.config import Config
 from ..config.manager import ConfigManager
@@ -10,7 +11,6 @@ from ..const import SimplyPrintUrl
 from ..events.client_events import (ClientEvent, MachineDataEvent,
                                     StateChangeEvent)
 from ..events.server_events import MultiPrinterAddResponseEvent
-from .instance import Instance, TClient, TConfig
 
 
 class MultiPrinterException(RuntimeError):
@@ -26,7 +26,7 @@ class MultiPrinterAddPrinterEvent(ClientEvent):
     event_type = MultiPrinterClientEvents.ADD_PRINTER
 
     def __init__(self, config: Config, allow_setup: bool = False) -> None:
-        super().__init__(None, None, {
+        super().__init__({
             "pid": config.id if not config.in_setup else 0,
             "token": config.token,
             "unique_id": config.unique_id,
@@ -39,7 +39,7 @@ class MultiPrinterRemovePrinterEvent(ClientEvent):
     event_type = MultiPrinterClientEvents.REMOVE_PRINTER
 
     def __init__(self, config: Config) -> None:
-        super().__init__(None, None, {
+        super().__init__({
             "pid": config.id,
         })
 
@@ -116,7 +116,7 @@ class MultiPrinter(Instance[TClient, TConfig]):
         else:
             self.clients.pop(client.config.unique_id, None)
 
-        # Do not propegate event further.
+        # Do not propagate event further.
         event.stop_event()
 
     async def on_connect(self, _: ConnectionConnectedEvent):
@@ -141,7 +141,7 @@ class MultiPrinter(Instance[TClient, TConfig]):
                 f"Cannot add printer with unique id {client.config.unique_id} as it is already in use")
 
         self.pending_unique_set.add(client.config.unique_id)
-        await self.connection.send_event(MultiPrinterAddPrinterEvent(client.config, self.allow_setup))
+        await self.connection.send_event(client, MultiPrinterAddPrinterEvent(client.config, self.allow_setup))
 
     async def _send_remove_printer(self, client: TClient):
-        await self.connection.send_event(MultiPrinterRemovePrinterEvent(client.config))
+        await self.connection.send_event(client, MultiPrinterRemovePrinterEvent(client.config))

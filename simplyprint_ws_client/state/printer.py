@@ -1,17 +1,19 @@
-from typing import List
+from enum import Enum
+from typing import List, Optional, Union
 
 from traitlets import Bool
 from traitlets import Enum as TraitletsEnum
 from traitlets import Float, Instance, Int, Integer
 from traitlets import List as TraitletsList
 from traitlets import Unicode, observe
+from traitlets import Union as TraitletsUnion
 
 from .always import Always
-from .models import MaterialModel
-from .root_state import ClientState, RootState, to_event
-from ..events.client_events import *
+from .state import State, ClientState, to_event
+from ..events.client_events import CpuInfoEvent, FileProgressEvent, MachineDataEvent, FirmwareEvent, \
+    FirmwareWarningEvent, FilamentSensorEvent, PowerControllerEvent, JobInfoEvent, LatencyEvent, WebcamStatusEvent, \
+    WebcamEvent, MaterialDataEvent, StateChangeEvent, ConnectionEvent, ToolEvent
 from ..helpers.ambient_check import AmbientTemperatureState
-from ..helpers.intervals import Intervals
 from ..helpers.temperature import Temperature
 
 
@@ -125,7 +127,7 @@ class JobInfoState(ClientState):
     time: Optional[float] = Float()  # Time left in seconds
     filament: Optional[float] = Float()  # Filament usage
     filename: Optional[str] = Unicode(allow_none=True)
-    
+
     started: bool = Always(Bool())
     finished: bool = Always(Bool())
     cancelled: bool = Always(Bool())
@@ -166,11 +168,18 @@ class WebcamSettings(ClientState):
     rotate90: bool = Bool()
 
 
+@to_event(MaterialDataEvent)
+class MaterialModel(ClientState):
+    type: Optional[Union[str, int]] = TraitletsUnion([Int(), Unicode()], allow_none=True)
+    color: Optional[str] = Unicode(None, allow_none=True)
+    hex: Optional[str] = Unicode(None, allow_none=True)
+    ext: Optional[int] = Integer(None, allow_none=True)
+
+
 @to_event(StateChangeEvent, "status")
 @to_event(ConnectionEvent, "connected")
 @to_event(ToolEvent, "active_tool")
-@to_event(MaterialDataEvent, "material_data")
-class PrinterState(RootState):
+class PrinterState(State):
     status: PrinterStatus = TraitletsEnum(PrinterStatus)
     current_display_message: Optional[str] = Unicode()
 
@@ -179,9 +188,6 @@ class PrinterState(RootState):
 
     ambient_temperature: AmbientTemperatureState = Instance(
         AmbientTemperatureState)
-
-    intervals: Intervals = Instance(Intervals)
-
     info: PrinterInfoData = Instance(PrinterInfoData)
     cpu_info: CpuInfoState = Instance(CpuInfoState)
     job_info: JobInfoState = Instance(JobInfoState)
@@ -206,7 +212,6 @@ class PrinterState(RootState):
             bed_temperature=Temperature(),
             tool_temperatures=[Temperature() for _ in range(extruder_count)],
             ambient_temperature=AmbientTemperatureState(),
-            intervals=Intervals(),
             info=PrinterInfoData(),
             settings=PrinterSettings(),
             display_settings=PrinterDisplaySettings(),
@@ -223,6 +228,9 @@ class PrinterState(RootState):
         )
 
     def set_extruder_count(self, count: int) -> None:
+        if count < 1:
+            raise ValueError("Extruder count must be at least 1")
+
         if count > len(self.tool_temperatures):
             for _ in range(count - len(self.tool_temperatures)):
                 self.tool_temperatures.append(Temperature())
