@@ -206,11 +206,11 @@ class PrinterState(State):
     active_tool: Optional[int] = Integer(None, allow_none=True)
     material_data: List[MaterialModel] = TraitletsList(Instance(MaterialModel, allow_none=True))
 
-    def __init__(self, extruder_count: int = 1) -> None:
+    def __init__(self, nozzle_count: int = 1, extruder_count: int = 1) -> None:
         super().__init__(
             status=PrinterStatus.OFFLINE,
             bed_temperature=Temperature(),
-            tool_temperatures=[Temperature() for _ in range(extruder_count)],
+            tool_temperatures=[Temperature() for _ in range(nozzle_count)],
             ambient_temperature=AmbientTemperatureState(),
             info=PrinterInfoData(),
             settings=PrinterSettings(),
@@ -227,22 +227,27 @@ class PrinterState(State):
             material_data=[MaterialModel() for _ in range(extruder_count)],
         )
 
-    def set_extruder_count(self, count: int) -> None:
+    def set_nozzle_count(self, count: int) -> None:
         if count < 1:
-            raise ValueError("Extruder count must be at least 1")
+            raise ValueError("Nozzle count must be at least 1")
 
         if count > len(self.tool_temperatures):
             for _ in range(count - len(self.tool_temperatures)):
-                self.tool_temperatures.append(Temperature())
+                self.tool_temperatures.append(model := Temperature())
+                model.set_root_state(self)
         else:
             self.tool_temperatures = self.tool_temperatures[:count]
 
+    def set_extruder_count(self, count: int) -> None:
+        if count < 1:
+            raise ValueError("Extruder count must be at least 1")
         if self.active_tool is not None and self.active_tool >= count:
             self.active_tool = None
 
         if count > len(self.material_data):
             for _ in range(count - len(self.material_data)):
-                self.material_data.append(MaterialModel())
+                self.material_data.append(model := MaterialModel())
+                model.set_root_state(self)
         else:
             self.material_data = self.material_data[:count]
 

@@ -386,9 +386,9 @@ class MaterialDataEvent(ClientEvent):
 
     @classmethod
     def build(cls, state: "PrinterState") -> Generator[Tuple, None, None]:
-        if state.has_changed("material_data"):
-            if len(state.material_data) == 0:
-                return
+        if len(state.material_data) == 0:
+            return
 
-            yield "materials", [material.trait_values() if material is not None else material for material in
+        if any([material.has_changed() for material in state.material_data]):
+            yield "materials", [material.trait_values() if material.type is not None else None for material in
                                 state.material_data], state.partial_clear("material_data")
