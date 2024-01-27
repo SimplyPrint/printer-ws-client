@@ -140,7 +140,8 @@ class Instance(ABC, Generic[TClient, TConfig]):
         for client in self.get_clients():
             await client.stop()
 
-    async def consume_client(self, client: TClient):
+    @staticmethod
+    async def consume_client(client: TClient) -> None:
         # Only consume connected clients
         if not client.connected:
             return
@@ -234,11 +235,11 @@ class Instance(ABC, Generic[TClient, TConfig]):
         if not self.has_client(client):
             raise InstanceException("Client not registered")
 
-        await self.remove_client(client)
-        await client.stop()
-
         self.config_manager.remove(client.config)
         self.config_manager.flush()
+
+        await self.remove_client(client)
+        await client.stop()
 
     async def register_client(self, client: TClient):
         """
