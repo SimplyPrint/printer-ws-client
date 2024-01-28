@@ -107,11 +107,18 @@ class ClientApp:
         client = self.client_factory.create_client(config=config)
         await self.instance.register_client(client)
 
+    async def _reload_client(self, client: Client):
+        await self._delete_client(client)
+        await self._add_new_client(client.config)
+
     def delete_client(self, client: Client):
         self.loop.create_task(self._delete_client(client))
 
     def add_new_client(self, config: Optional[Config]):
         self.loop.create_task(self._add_new_client(config))
+
+    def reload_client(self, client: Client):
+        self.loop.create_task(self._reload_client(client))
 
     def start(self):
         self.loop.create_task(self.run())
