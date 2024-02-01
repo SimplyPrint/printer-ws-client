@@ -1,7 +1,7 @@
 import logging
 from asyncio import AbstractEventLoop
 from enum import Enum
-from typing import NamedTuple, Optional, Type
+from typing import Callable, NamedTuple, Optional, Type
 
 from .client import Client
 from .config import Config, ConfigManager, ConfigManagerType
@@ -21,6 +21,8 @@ class ClientMode(Enum):
         else:
             raise ValueError("Invalid ClientMode")
 
+TConfigFactory = Type[Client] | Callable[..., Client]
+
 
 class ClientOptions(NamedTuple):
     mode: ClientMode = ClientMode.SINGLE
@@ -29,7 +31,7 @@ class ClientOptions(NamedTuple):
     name: Optional[str] = "printers"
     config_manager_type: ConfigManagerType = ConfigManagerType.MEMORY
 
-    client_t: Optional[Type[Client]] = None
+    client_t: Optional[TConfigFactory] = None
     config_t: Optional[Type[Config]] = None
 
     allow_setup: bool = False
@@ -41,7 +43,7 @@ class ClientOptions(NamedTuple):
 
 
 class ClientFactory:
-    client_t: Optional[Type[Client]] = None
+    client_t: Optional[Type[Client] | Callable[..., Client]] = None
     config_t: Optional[Type[Config]] = None
 
     def __init__(self, client_t: Optional[Type[Client]] = None, config_t: Optional[Type[Config]] = None) -> None:

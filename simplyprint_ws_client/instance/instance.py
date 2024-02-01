@@ -220,7 +220,7 @@ class Instance(ABC, Generic[TClient, TConfig]):
 
         await self.event_bus.emit(event.event, client)
 
-    async def on_client_config_changed(self, client: TClient):
+    def on_client_config_changed(self, client: TClient):
         """ 
         When a client config is changed, persist it to disk.
         """
@@ -262,8 +262,8 @@ class Instance(ABC, Generic[TClient, TConfig]):
 
         client.event_bus.on(ClientEvent, on_client_event, generic=True)
 
-        async def on_client_config_changed(_: ClientConfigChangedEvent):
-            await self.on_client_config_changed(client)
+        def on_client_config_changed(_: ClientConfigChangedEvent):
+            self.on_client_config_changed(client)
 
         # Listen to custom events for internal use.
         client.event_bus.on(ClientConfigChangedEvent, on_client_config_changed)

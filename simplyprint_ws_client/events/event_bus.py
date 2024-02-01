@@ -1,6 +1,5 @@
 import asyncio
 import heapq
-import traceback
 from typing import (Callable, Dict, Generator, Generic, Hashable, List,
                     Optional, TypeVar, Union, get_args)
 
