@@ -88,11 +88,13 @@ class PrinterSettings(ClientState):
 
 @to_event(FirmwareEvent)
 class PrinterFirmware(ClientState):
-    name: Optional[str] = Unicode()
-    name_raw: Optional[str] = Unicode()
-    version: Optional[str] = Unicode()
-    date: Optional[str] = Unicode()
-    link: Optional[str] = Unicode()
+    name: Optional[str] = Unicode(allow_none=True, default_value=None)
+    name_raw: Optional[str] = Unicode(allow_none=True, default_value=None)
+    machine: Optional[str] = Unicode(allow_none=True, default_value=None)
+    machine_name: Optional[str] = Unicode(allow_none=True, default_value=None)
+    version: Optional[str] = Unicode(allow_none=True, default_value=None)
+    date: Optional[str] = Unicode(allow_none=True, default_value=None)
+    link: Optional[str] = Unicode(allow_none=True, default_value=None)
 
 
 @to_event(FirmwareWarningEvent)
@@ -192,11 +194,11 @@ class PrinterState(State):
     cpu_info: CpuInfoState = Instance(CpuInfoState)
     job_info: JobInfoState = Instance(JobInfoState)
     psu_info: PrinterPSUState = Instance(PrinterPSUState)
-    settings: PrinterSettings = PrinterSettings()
-    firmware: PrinterFirmware = PrinterFirmware()
+    settings: PrinterSettings = Instance(PrinterSettings)
+    firmware: PrinterFirmware = Instance(PrinterFirmware)
     latency: PingPongState = Instance(PingPongState)
     webcam_info: WebcamState = Instance(WebcamState)
-    display_settings: PrinterDisplaySettings = PrinterDisplaySettings()
+    display_settings: PrinterDisplaySettings = Instance(PrinterDisplaySettings)
     file_progress: PrinterFileProgressState = Instance(
         PrinterFileProgressState)
     filament_sensor: PrinterFilamentSensorState = Instance(

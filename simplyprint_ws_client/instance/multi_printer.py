@@ -1,3 +1,4 @@
+import asyncio
 from asyncio import AbstractEventLoop
 from enum import Enum
 from typing import Dict, Iterable, Optional, Set
@@ -8,9 +9,8 @@ from ..config.config import Config
 from ..config.manager import ConfigManager
 from ..connection import ConnectionConnectedEvent, ConnectionReconnectEvent
 from ..const import SimplyPrintUrl
-from ..events.client_events import (ClientEvent, MachineDataEvent,
-                                    StateChangeEvent)
-from ..events.server_events import MultiPrinterAddResponseEvent
+from ..events.client_events import ClientEvent
+from ..events.server_events import MultiPrinterAddResponseEvent, MultiPrinterRemoveEvent
 
 
 class MultiPrinterException(RuntimeError):
@@ -54,6 +54,8 @@ class MultiPrinter(Instance[TClient, TConfig]):
 
         self.event_bus.on(MultiPrinterAddResponseEvent,
                           self.on_printer_added_response)
+
+        self.event_bus.on(MultiPrinterRemoveEvent, self.on_printer_removed_response)
 
         self.connection.set_url(str(SimplyPrintUrl.current().ws_url / "mp" / 0 / 0))
         self.clients = dict()
@@ -108,8 +110,7 @@ class MultiPrinter(Instance[TClient, TConfig]):
             self.config_manager.flush(client.config)
 
             # Mark certain events to always be sent to the server
-            client.printer.mark_event_as_dirty(MachineDataEvent)
-            client.printer.mark_event_as_dirty(StateChangeEvent)
+            client.printer.mark_all_changed_dirty()
 
             await self.consume_backlog(self.server_event_backlog, self.on_recieved_event)
             await self.consume_backlog(self.client_event_backlog, self.on_client_event)
@@ -118,6 +119,27 @@ class MultiPrinter(Instance[TClient, TConfig]):
 
         # Do not propagate event further.
         event.stop_event()
+
+    async def on_printer_removed_response(self, event: MultiPrinterRemoveEvent, client: TClient):
+        client = self.clients.pop(client.config.unique_id, None)
+
+        # Do not propagate event further.
+        event.stop_event()
+
+        if not client:
+            return
+
+        # If the printer was deleted handle.
+        if event.deleted:
+            client.config.id = 0
+            client.config.in_setup = True
+            client.config.short_id = None
+
+            self.config_manager.flush(client.config)
+
+        # Attempt to reconnect the client.
+        await asyncio.sleep(self.reconnect_timeout)
+        await self.register_client(client)
 
     async def on_connect(self, _: ConnectionConnectedEvent):
         self.pending_unique_set.clear()

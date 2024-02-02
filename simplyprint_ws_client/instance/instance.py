@@ -15,8 +15,7 @@ from ..connection import (Connection, ConnectionConnectedEvent,
                           ConnectionDisconnectEvent,
                           ConnectionEventReceivedEvent,
                           ConnectionReconnectEvent)
-from ..events.client_events import (ClientEvent,
-                                    MachineDataEvent, StateChangeEvent)
+from ..events.client_events import (ClientEvent)
 from ..events.demand_events import DemandEvent
 from ..events.event_bus import Event, EventBus
 from ..events.server_events import ServerEvent
@@ -170,6 +169,8 @@ class Instance(ABC, Generic[TClient, TConfig]):
 
             await self.connection.poll_event()
 
+        self.logger.info("Stopped polling events")
+
     async def connect(self) -> None:
         if not self.should_connect():
             self.logger.info("No clients to connect - not connecting")
@@ -276,10 +277,11 @@ class Instance(ABC, Generic[TClient, TConfig]):
         if not self.connection.is_connected():
             await self.connect()
 
+        print("Made it to init.")
         await client.init()
 
-        client.printer.mark_event_as_dirty(StateChangeEvent)
-        client.printer.mark_event_as_dirty(MachineDataEvent)
+        print("Made it beyond!")
+        client.printer.mark_all_changed_dirty()
 
     async def consume_backlog(self, backlog: List[Any], consumer: Callable[[Any], Awaitable[None]]):
         """

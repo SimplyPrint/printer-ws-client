@@ -41,8 +41,7 @@ class SinglePrinter(Instance[TClient, TConfig]):
 
     async def on_reconnect(self, _: ConnectionReconnectEvent):
         # Mark certain events to always be sent to the server
-        self.client.printer.mark_event_as_dirty(MachineDataEvent)
-        self.client.printer.mark_event_as_dirty(StateChangeEvent)
+        self.client.printer.mark_all_changed_dirty()
 
         await self.consume_backlog(self.client_event_backlog, self.on_client_event)
 

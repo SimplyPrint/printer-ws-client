@@ -4,20 +4,22 @@ from typing import Dict, Type, Any, Optional
 from .event import Event
 from ..helpers.intervals import Intervals
 
+
 class ServerEventError(ValueError):
     pass
+
 
 class ServerEvent(Event):
     event_type: str
     data: Dict[str, Any] = {}
-    
+
     # Generic event data
     def __init__(self, event_type: str, data: Dict[str, Any] = {}):
         self.data = data
 
         if self.event_type != event_type:
             raise ServerEventError(f"Event type {event_type} does not match event name {self.event_type}")
-        
+
         self.on_event()
 
     # Better for debugging
@@ -51,7 +53,7 @@ class ServerEvent(Event):
         func._event = cls
         func._pre = 1
         return func
-    
+
     @classmethod
     def before(cls: Type['ServerEvent'], func):
         """
@@ -62,11 +64,13 @@ class ServerEvent(Event):
         func._pre = 0
         return func
 
+
 class ErrorEvent(ServerEvent):
     event_type = "error"
 
     def on_event(self):
         self.error: str = self.data.get("error", "")
+
 
 class NewTokenEvent(ServerEvent):
     event_type = "new_token"
@@ -76,16 +80,19 @@ class NewTokenEvent(ServerEvent):
         self.token: str = self.data.get("token", "")
         self.no_exist: bool = self.data.get("no_exist", False)
 
+
 class ConnectEvent(ServerEvent):
     event_type = "connected"
 
     def on_event(self):
         self.in_setup: bool = bool(self.data.get("in_setup", 0))
         self.intervals: Intervals = Intervals(self.data.get("interval", {}))
-        self.printer_settings: PrinterSettingsEvent = PrinterSettingsEvent(PrinterSettingsEvent.get_name(), self.data.get("printer_settings", {}))
+        self.printer_settings: PrinterSettingsEvent = PrinterSettingsEvent(PrinterSettingsEvent.get_name(),
+                                                                           self.data.get("printer_settings", {}))
         self.short_id: Optional[str] = self.data.get("short_id")
         self.reconnect_token: Optional[str] = self.data.get("reconnect_token")
         self.printer_name: Optional[str] = self.data.get("name")
+
 
 class SetupCompleteEvent(ServerEvent):
     event_type = "complete_setup"
@@ -93,17 +100,21 @@ class SetupCompleteEvent(ServerEvent):
     def on_event(self):
         self.printer_id: str = self.data.get("printer_id", "")
 
+
 class IntervalChangeEvent(ServerEvent):
     event_type = "interval_change"
 
     def on_event(self):
         self.intervals: Intervals = Intervals(self.data)
 
+
 class PongEvent(ServerEvent):
     event_type = "pong"
 
+
 class StreamReceivedEvent(ServerEvent):
     event_type = "stream_received"
+
 
 class PrinterSettingsEvent(ServerEvent):
     event_type = "printer_settings"
@@ -114,13 +125,24 @@ class PrinterSettingsEvent(ServerEvent):
         # Import here to avoid circular imports
         from ..state.printer import PrinterSettings, PrinterDisplaySettings
 
-        self.printer_settings = PrinterSettings(has_psu=self.data.get("has_psu", False), has_filament_sensor=self.data.get("has_filament_sensor", False))
+        self.printer_settings = PrinterSettings(has_psu=self.data.get("has_psu", False),
+                                                has_filament_sensor=self.data.get("has_filament_sensor", False))
         self.display_settings = PrinterDisplaySettings(**self.data.get("display", {}))
+
 
 class MultiPrinterAddResponseEvent(ServerEvent):
     event_type = "add_connection"
 
-    def on_event(self): 
+    def on_event(self):
         self.printer_id: Optional[int] = self.data.get("pid")
-        self.status: bool = self.data.get("status", False)
         self.unique_id: Optional[str] = self.data.get("unique_id", "")
+        self.status: bool = self.data.get("status", False)
+
+
+class MultiPrinterRemoveEvent(ServerEvent):
+    event_type = "remove_connection"
+
+    def on_event(self):
+        self.printer_id: Optional[int] = self.data.get("pid")
+        self.unique_id: Optional[str] = self.data.get("unique_id", "")
+        self.deleted: bool = self.data.get("deleted", False)

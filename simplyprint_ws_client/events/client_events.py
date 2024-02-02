@@ -195,9 +195,17 @@ class FirmwareEvent(ClientEvent):
 
     @classmethod
     def build(cls, state: "PrinterState") -> Generator[Tuple, None, None]:
+        fw = {}
+
         for key, value in state.firmware.trait_values().items():
-            if state.firmware.has_changed(key):
-                yield f"firmware_{key}", value, state.firmware.partial_clear(key)
+            if value is None:
+                continue
+
+            field = f"firmware_{key}" if key != "name" else "firmware"
+
+            fw[field] = value
+
+        yield "fw", fw, state.firmware.partial_clear()
 
 
 class FirmwareWarningEvent(ClientEvent):

@@ -1,6 +1,6 @@
 import functools
 from collections import OrderedDict
-from typing import Any, Dict, Optional, List, Set, Generator
+from typing import Any, Dict, Optional, List, Set, Generator, Callable
 from typing import OrderedDict as OrderedDictType
 from typing import Type, TYPE_CHECKING
 
@@ -64,6 +64,13 @@ class ClientState(HasTraits):
     def partial_clear(self, *fields: str):
         return functools.partial(self.clear, *fields)
 
+    def get_field_event(self, field: str, owner=None) -> Optional[Type['ClientEvent']]:
+        if owner is None:
+            owner = self
+
+        return owner.get_event_mapping(field) or owner.get_event_mapping(
+            DEFAULT_EVENT) or self._root_state.get_event_mapping(field)
+
     def on_change(self, change: Bunch):
         if self._root_state is None:
             raise ValueError("ClientState can only be used with a root state")
@@ -77,8 +84,7 @@ class ClientState(HasTraits):
             raise ValueError("ClientState can only be used with HasTraits")
 
         # Mark event as dirty.
-        event = owner.get_event_mapping(change.name) or owner.get_event_mapping(
-            DEFAULT_EVENT) or self._root_state.get_event_mapping(change.name)
+        event = self.get_field_event(change.name, owner)
 
         if event is not None:
             self._root_state.mark_event_as_dirty(event)
@@ -129,26 +135,22 @@ class State(ClientState):
         self._dirty_events = OrderedDict()
         self.register_client_state(self)
 
-    def register_client_state(self, obj: HasTraits, old_obj: Optional[HasTraits] = None):
+    def iterate_client_state(self, func: Callable, obj: HasTraits, *args, **kwargs):
+        """ Apply function callable to entire state tree """
         if not isinstance(obj, HasTraits):
-            raise ValueError("register_client_state can only be used on HasTraits")
+            raise ValueError("iterate_client_state can only be used on HasTraits")
 
-        if isinstance(obj, ClientState):
-            obj.set_root_state(self)
-
-        if isinstance(old_obj, HasTraits):
-            # If we are replacing an old object, we need to mark all its fields as changed
-            obj.set_changed(*obj.trait_names())
+        func(obj, *args, **kwargs)
 
         for field, value in obj.traits().items():
-            actual_value = getattr(self, field) if self.trait_has_value(field) else Undefined
+            actual_value = getattr(obj, field) if obj.trait_has_value(field) else Undefined
 
             if isinstance(actual_value, HasTraits):
-                self.register_client_state(actual_value)
+                self.iterate_client_state(func, actual_value, *args, **kwargs)
                 continue
 
             if isinstance(value, HasTraits):
-                self.register_client_state(value)
+                self.iterate_client_state(func, value, *args, **kwargs)
                 continue
 
             if isinstance(value, TraitletsList) and isinstance(actual_value, list):
@@ -156,7 +158,39 @@ class State(ClientState):
                     if not isinstance(item, HasTraits):
                         continue
 
-                    self.register_client_state(item)
+                    self.iterate_client_state(func, item, *args, **kwargs)
+
+    def register_client_state(self, obj: HasTraits, prev_obj: Optional[HasTraits] = None):
+        """ Set root state of tree """
+
+        def func(o: HasTraits, p: Optional[HasTraits]):
+            if isinstance(o, ClientState):
+                o.set_root_state(self)
+
+            if isinstance(p, HasTraits):
+                # If we are replacing an old object, we need to mark all its fields as changed
+                o.set_changed(*o.trait_names())
+
+        self.iterate_client_state(func, obj, prev_obj)
+
+    def mark_all_changed_dirty(self):
+        """ Find all non-default state and make dirty. """
+
+        def func(obj: ClientState):
+            for field, value in obj.traits().items():
+                actual_value = getattr(obj, field) if obj.trait_has_value(field) else Undefined
+
+                if actual_value is Undefined or actual_value == value.default_value:
+                    continue
+
+                event = obj.get_field_event(field)
+
+                if not event:
+                    continue
+
+                self.mark_event_as_dirty(event)
+
+        self.iterate_client_state(func, self)
 
     def mark_event_as_dirty(self, event: Type['ClientEvent']) -> None:
         self._dirty_events[event] = None
