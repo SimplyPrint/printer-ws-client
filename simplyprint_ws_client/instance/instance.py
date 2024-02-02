@@ -239,6 +239,8 @@ class Instance(ABC, Generic[TClient, TConfig]):
         self.config_manager.flush()
 
         await self.remove_client(client)
+
+        # TODO: this might be blocking
         await client.stop()
 
     async def register_client(self, client: TClient):
