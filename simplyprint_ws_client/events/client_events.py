@@ -338,6 +338,7 @@ class FileProgressEvent(ClientEvent):
         if state.file_progress.state.value == "error":
             yield "message", state.file_progress.message or "Unknown error", state.file_progress.partial_clear(
                 "message")
+
             return
 
         # Only send percent as a field if we are downloading.

@@ -3,7 +3,7 @@ from typing import Any, Dict, Optional, Union, get_args, get_origin
 
 import click
 
-from .app import ClientApp, ClientOptions
+from .app import ClientApp
 from .config import Config
 
 
@@ -12,16 +12,17 @@ class CommandBag:
 
     def list_commands(self, ctx):
         return sorted(self.commands.keys())
-    
+
     def get_command(self, ctx, name):
         return self.commands.get(name)
-    
+
     def add_command(self, command: click.Command):
         self.commands[command.name] = command
 
 
 class ClientCliConfigManager(CommandBag, click.Group):
     """ Commands to interact with the configuration manager. """
+
     def __init__(self, app: ClientApp) -> None:
         super().__init__(name="config", help="Configuration manager commands")
         self.app = app
@@ -29,7 +30,8 @@ class ClientCliConfigManager(CommandBag, click.Group):
         self.add_command(click.Command("list", callback=self.list_configs))
         self.add_command(click.Command("edit", callback=self.edit_config, params=[click.Argument(["index"], type=int)]))
         self.add_command(click.Command("add", callback=self.add_config))
-        self.add_command(click.Command("remove", callback=self.remove_config, params=[click.Argument(["index"], type=int)]))
+        self.add_command(
+            click.Command("remove", callback=self.remove_config, params=[click.Argument(["index"], type=int)]))
 
     def list_configs(self):
         configs = self.app.config_manager.get_all()
@@ -53,13 +55,14 @@ class ClientCliConfigManager(CommandBag, click.Group):
         for field in fields:
             # Ask user for field value
             field_type = config.__annotations__[field] if field in config.__annotations__ else str
-            
+
             if get_origin(field_type) is Union:
                 field_type = get_args(field_type)[0]
 
             field_default = self.get_config_default(field, getattr(config, field) if hasattr(config, field) else None)
 
-            value = click.prompt(f"Input {field}", default=field_default, show_default=field_default != "", type=field_type)
+            value = click.prompt(f"Input {field}", default=field_default, show_default=field_default != "",
+                                 type=field_type)
 
             if value is None or value == "":
                 continue
@@ -100,6 +103,7 @@ class ClientCliConfigManager(CommandBag, click.Group):
             click.echo("Configuration removed.")
         else:
             click.echo("Configuration not found.")
+
 
 class ClientCli(CommandBag, click.MultiCommand):
     app: ClientApp

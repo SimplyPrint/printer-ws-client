@@ -1,7 +1,7 @@
 import logging
 import re
 
-from logging.handlers import TimedRotatingFileHandler
+from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -18,7 +18,7 @@ if TYPE_CHECKING:
     from ..app import ClientOptions
 
 
-class ClientHandler(TimedRotatingFileHandler):
+class ClientHandler(RotatingFileHandler):
     formatter = logging.Formatter('%(asctime)s | %(levelname)s | %(message)s', '%m-%d-%Y %H:%M:%S')
     handlers: dict[str, 'ClientHandler'] = {}
 
@@ -48,7 +48,7 @@ class ClientHandler(TimedRotatingFileHandler):
 
         return cls._create_handler(
             log_file,
-            when="midnight",
+            maxBytes=30 * 1024 * 1024,
             backupCount=3,
             delay=True
         )
@@ -56,7 +56,7 @@ class ClientHandler(TimedRotatingFileHandler):
     @classmethod
     def root_handler(cls, options: 'ClientOptions') -> Self:
         main_log_file = APP_DIRS.user_log_path / f"{cls.slugify(options.name)}.log"
-        return cls._create_handler(main_log_file, when="midnight", backupCount=3, delay=True)
+        return cls._create_handler(main_log_file, maxBytes=30 * 1024 * 1024, backupCount=3, delay=True)
 
     @classmethod
     def _create_handler(cls, file_path: Path, *args, **kwargs):
