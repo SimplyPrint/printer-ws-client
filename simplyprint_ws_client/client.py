@@ -89,6 +89,11 @@ class Client(ABC, Generic[TConfig]):
         """
 
         for client_event in self.printer.iter_dirty_events():
+            # Push back invalid events, iter is atomic and respects initial last
+            if self.config.is_pending() and not client_event.event_type.is_allowed_in_setup():
+                self.printer.mark_event_as_dirty(client_event)
+                continue
+
             await self.send_event(client_event.from_state(self.printer))
 
     @abstractmethod

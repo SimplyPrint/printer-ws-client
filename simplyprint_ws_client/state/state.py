@@ -199,7 +199,18 @@ class State(ClientState):
         return list(self._dirty_events.keys())
 
     def iter_dirty_events(self) -> Generator[Type['ClientEvent'], None, None]:
+        # Skip if no dirty events
+        if not self._dirty_events:
+            return
+
+        # Do not iterate beyond the last event
+        last_event, _ = self._dirty_events.popitem(last=True)
+        self.mark_event_as_dirty(last_event)
+
         while self._dirty_events:
             client_event, _ = self._dirty_events.popitem(last=False)
 
             yield client_event
+
+            if client_event is last_event:
+                break

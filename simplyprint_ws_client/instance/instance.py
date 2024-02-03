@@ -320,7 +320,7 @@ class Instance(ABC, Generic[TClient, TConfig]):
         if not isinstance(event, ClientEvent):
             raise InstanceException(f"Expected ClientEvent but got {event}")
 
-        # If the client is in setup only a certain subset of events are allowed
+        # If the client is in setup only a certain subset of events is allowed
         if client.config.in_setup and not event.event_type.is_allowed_in_setup():
             return
 
