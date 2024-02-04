@@ -324,7 +324,7 @@ class LatencyEvent(ClientEvent):
 
     @classmethod
     def build(cls, state: "PrinterState") -> Generator[Tuple, None, None]:
-        yield "ms", state.latency.ping - state.latency.pong, state.latency.partial_clear("ping", "pong")
+        yield "ms", (state.latency.pong - state.latency.ping) * 1000, state.latency.partial_clear("ping", "pong")
 
 
 class FileProgressEvent(ClientEvent):

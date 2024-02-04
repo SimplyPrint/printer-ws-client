@@ -112,7 +112,7 @@ class MultiPrinter(Instance[TClient, TConfig]):
             # Mark certain events to always be sent to the server
             client.printer.mark_all_changed_dirty()
 
-            await self.consume_backlog(self.server_event_backlog, self.on_recieved_event)
+            await self.consume_backlog(self.server_event_backlog, self.on_received_event)
             await self.consume_backlog(self.client_event_backlog, self.on_client_event)
         else:
             self.clients.pop(client.config.unique_id, None)

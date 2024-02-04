@@ -1,12 +1,10 @@
 from typing import Iterable, Optional, Union
 
 from simplyprint_ws_client.const import SimplyPrintUrl
-
+from .instance import Instance, TClient, TConfig
 from ..client import Client
 from ..connection import ConnectionConnectedEvent, ConnectionReconnectEvent
-from ..events.client_events import (ClientEvent, MachineDataEvent,
-                                    StateChangeEvent)
-from .instance import Instance, TClient, TConfig
+from ..events.client_events import ClientEvent
 
 
 class SinglePrinter(Instance[TClient, TConfig]):
@@ -15,7 +13,7 @@ class SinglePrinter(Instance[TClient, TConfig]):
     async def add_client(self, client: TClient) -> None:
         self.connection.set_url(
             str(SimplyPrintUrl.current().ws_url / "p" / client.config.id / client.config.token))
-        
+
         self.client = client
 
     def get_client(self, _: TConfig) -> Union[TClient, None]:
@@ -34,7 +32,7 @@ class SinglePrinter(Instance[TClient, TConfig]):
         self.client = None
 
     def should_connect(self) -> bool:
-        return not self.client is None
+        return self.client is not None
 
     async def on_connect(self, _: ConnectionConnectedEvent):
         await self.consume_backlog(self.client_event_backlog, self.on_client_event)
@@ -49,4 +47,4 @@ class SinglePrinter(Instance[TClient, TConfig]):
         # Do not send for_client identifier for a single printer connection
         event.for_client = None
 
-        await super().on_client_event(client, event)
+        await super().on_client_event(event, client)

@@ -3,8 +3,8 @@ import logging
 import threading
 from abc import ABC, abstractmethod
 from asyncio import AbstractEventLoop
-from typing import (Any, Awaitable, Callable, Generic, Iterable, List,
-                    Optional, Tuple, TypeVar, Union, Dict)
+from typing import (Any, Callable, Generic, Iterable, List,
+                    Optional, Tuple, TypeVar, Union, Dict, Coroutine)
 
 import time
 
@@ -79,7 +79,7 @@ class Instance(ABC, Generic[TClient, TConfig]):
         self.connection.event_bus.on(
             ConnectionReconnectEvent, self.on_reconnect)
         self.connection.event_bus.on(
-            ConnectionEventReceivedEvent, self.on_recieved_event)
+            ConnectionEventReceivedEvent, self.on_received_event)
 
         self._stop_event = threading.Event()
         self.event_bus = EventBus()
@@ -127,7 +127,7 @@ class Instance(ABC, Generic[TClient, TConfig]):
                     if prev_task is not None and not prev_task.done():
                         continue
 
-                    task = asyncio.create_task(self.consume_client(client))
+                    task = self.loop.create_task(self.consume_client(client))
                     client_tasks[client] = task
 
                 await asyncio.sleep(max(0.0, self.tick_rate - (time.time() - dt)))
@@ -140,13 +140,13 @@ class Instance(ABC, Generic[TClient, TConfig]):
             await client.stop()
 
     @staticmethod
-    async def consume_client(client: TClient) -> None:
+    async def consume_client(client: TClient, timeout: float = 5.0) -> None:
         # Only consume connected clients
         if not client.connected:
             return
 
         try:
-            async with asyncio.timeout(5.0):
+            async with asyncio.timeout(timeout):
                 await client.tick()
 
         except asyncio.TimeoutError:
@@ -155,7 +155,7 @@ class Instance(ABC, Generic[TClient, TConfig]):
         events_to_process = client.printer.get_dirty_events()
 
         try:
-            async with asyncio.timeout(5.0):
+            async with asyncio.timeout(timeout):
                 await client.consume_state()
 
         except asyncio.TimeoutError:
@@ -199,7 +199,7 @@ class Instance(ABC, Generic[TClient, TConfig]):
 
             await self.connect()
 
-    async def on_recieved_event(self, event: ConnectionEventReceivedEvent):
+    async def on_received_event(self, event: ConnectionEventReceivedEvent):
         """
         Events received by SimplyPrint to be ingested.
         """
@@ -241,8 +241,8 @@ class Instance(ABC, Generic[TClient, TConfig]):
 
         await self.remove_client(client)
 
-        # TODO: this might be blocking
-        await client.stop()
+        # Client stop might be blocking.
+        _ = self.loop.create_task(client.stop())
 
     async def register_client(self, client: TClient):
         """
@@ -272,21 +272,21 @@ class Instance(ABC, Generic[TClient, TConfig]):
         client.event_bus.on(ClientConfigChangedEvent, on_client_config_changed)
 
         await self.add_client(client)
-        await self.consume_backlog(self.server_event_backlog, self.on_recieved_event)
+        await self.consume_backlog(self.server_event_backlog, self.on_received_event)
 
         if not self.connection.is_connected():
             await self.connect()
 
-        print("Made it to init.")
         await client.init()
 
-        print("Made it beyond!")
         client.printer.mark_all_changed_dirty()
 
-    async def consume_backlog(self, backlog: List[Any], consumer: Callable[[Any], Awaitable[None]]):
+    @staticmethod
+    async def consume_backlog(backlog: List[Tuple[Any, ...]],
+                              consumer: Callable[[Any, ...], Coroutine[Any, Any, None]]):
         """
         Consumes any events that were received before the client was registered
-        this will push elements still not consumed to the end of the list
+        this will push elements still not consumed to the end of the list,
         so we keep track of the seek pointer
         """
 
@@ -310,7 +310,7 @@ class Instance(ABC, Generic[TClient, TConfig]):
         if not isinstance(event, ServerEvent):
             raise InstanceException(f"Expected ServerEvent but got {event}")
 
-        asyncio.create_task(client.event_bus.emit(event))
+        _ = self.loop.create_task(client.event_bus.emit(event))
 
     async def on_client_event(self, event: ClientEvent, client: Client[TConfig]):
         """
