@@ -111,7 +111,7 @@ class Instance(ABC, Generic[TClient, TConfig]):
         self.loop.stop()
 
     async def consume_clients(self):
-        client_tasks: Dict[TClient, asyncio.Task] = {}
+        client_tasks: Dict[TClient, Tuple[asyncio.Task, float]] = {}
 
         while not self._stop_event.is_set():
             dt = time.time()
@@ -122,13 +122,17 @@ class Instance(ABC, Generic[TClient, TConfig]):
                     continue
 
                 for client in self.get_clients():
-                    prev_task = client_tasks.get(client)
+                    prev_task, started_at = client_tasks.get(client, (None, None))
 
                     if prev_task is not None and not prev_task.done():
+                        if time.time() - started_at > self.tick_rate:
+                            client.logger.warning(
+                                f"Client tick took longer than {self.tick_rate} seconds")
+
                         continue
 
                     task = self.loop.create_task(self.consume_client(client))
-                    client_tasks[client] = task
+                    client_tasks[client] = (task, time.time())
 
                 await asyncio.sleep(max(0.0, self.tick_rate - (time.time() - dt)))
 
