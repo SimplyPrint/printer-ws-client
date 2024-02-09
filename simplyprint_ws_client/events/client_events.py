@@ -89,9 +89,18 @@ class ClientEvent(Event):
         if data is None:
             return
 
+        if isinstance(data, dict) and len(data) == 0:
+            raise ValueError("Data dict cannot be empty if it is not None.")
+
         if isinstance(data, dict):
             self.data = data
             return
+
+        # Check if generator is empty
+        data = list(data)
+
+        if len(data) == 0:
+            raise ValueError("Data generator cannot be empty.")
 
         self.data = dict()
 
@@ -275,19 +284,31 @@ class JobInfoEvent(ClientEvent):
 
     @classmethod
     def build(cls, state: "PrinterState") -> Generator[Tuple, None, None]:
-        for key, value in state.job_info.trait_values().items():
-            if state.job_info.has_changed(key):
-                if key in ["started", "finished", "cancelled", "failed"]:
-                    # Only send updates in terms of true, since they
-                    # are mutually exclusive.
-                    if not value:
-                        continue
+        state_fields = ["started", "finished", "cancelled", "failed"];
 
-                # Do not send filename if it is None
-                if key == "filename" and value is None:
+        if state.job_info.has_changed(*state_fields):
+            # Only send updates in terms of true, since they
+            # are mutually exclusive.
+            for field in state_fields:
+                # Find the first True value and send it.
+                if value := getattr(state.job_info, field):
+                    yield field, value, state.job_info.partial_clear(*state_fields)
+                    break
+
+        for key, value in state.job_info.trait_values().items():
+            # Ignore state fields
+            if key in state_fields:
+                continue
+
+            if state.job_info.has_changed(key):
+                if value is None:
+                    state.job_info.clear(key)
                     continue
 
-                yield key, value if key != 'progress' else round(value), state.job_info.partial_clear(key)
+                if key == "progress":
+                    value = round(value)
+
+                yield key, value, state.job_info.partial_clear(key)
 
 
 # TODO in the future

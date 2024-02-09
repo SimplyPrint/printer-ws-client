@@ -94,7 +94,11 @@ class Client(ABC, Generic[TConfig]):
                 self.printer.mark_event_as_dirty(client_event)
                 continue
 
-            await self.send_event(client_event.from_state(self.printer))
+            try:
+                await self.send_event(client_event.from_state(self.printer))
+            except ValueError:
+                # Do not send events that are invalid.
+                continue
 
     @abstractmethod
     async def init(self):

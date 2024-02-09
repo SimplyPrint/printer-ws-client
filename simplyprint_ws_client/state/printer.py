@@ -129,6 +129,9 @@ class JobInfoState(ClientState):
     time: Optional[float] = Float()  # Time left in seconds
     filament: Optional[float] = Float()  # Filament usage
     filename: Optional[str] = Unicode(allow_none=True)
+    delay: Optional[float] = Float()
+    # Not yet implemented
+    # ai: List[int] = TraitletsList(Int())
 
     started: bool = Always(Bool())
     finished: bool = Always(Bool())
@@ -145,11 +148,6 @@ class JobInfoState(ClientState):
             # As undefined values can stay undefined
             if key != change["name"] and getattr(self, key):
                 setattr(self, key, False)
-
-    delay: Optional[float] = Float()
-
-    # Not yet implemented
-    # ai: List[int] = TraitletsList(Int())
 
 
 @to_event(LatencyEvent, "pong")
