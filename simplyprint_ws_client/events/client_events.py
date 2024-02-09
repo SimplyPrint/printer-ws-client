@@ -275,6 +275,10 @@ class StateChangeEvent(ClientEvent):
 
     @classmethod
     def build(cls, state: "PrinterState") -> Generator[Tuple, None, None]:
+        # Status has yet to be decided.
+        if state.status is None:
+            return
+
         yield "new", state.status.value, state.partial_clear("status")
 
 
@@ -302,7 +306,7 @@ class JobInfoEvent(ClientEvent):
 
             if state.job_info.has_changed(key):
                 if value is None:
-                    state.job_info.clear(key)
+                    state.job_info.clear((key, -1))
                     continue
 
                 if key == "progress":

@@ -51,7 +51,7 @@ class VirtualClient(DefaultClient[VirtualConfig]):
     @Demands.FileEvent.on
     async def on_file(self, event: Demands.FileEvent):
         print(event)
-        downloader = FileDownload(self, asyncio.get_event_loop())
+        downloader = FileDownload(self)
         data = await downloader.download_as_bytes(event.url)
         self.printer.file_progress.state = FileProgressState.READY
 

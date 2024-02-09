@@ -43,9 +43,11 @@ class Client(ABC, Generic[TConfig]):
     """
     Generic client class that handles and brokers information between the server and the client.
 
-    Not nessaicarily a printer, but a client that can be connected to the server.
+    Not necessarily a printer, but a client that can be connected to the server.
     But in some cases also an actual physical device.
     """
+
+    loop: asyncio.AbstractEventLoop
 
     config: TConfig
     intervals: Intervals
@@ -59,6 +61,7 @@ class Client(ABC, Generic[TConfig]):
     event_bus: ClientEventBus
 
     def __init__(self, config: TConfig):
+        self.loop = asyncio.get_event_loop()
         self.config = config
         self.intervals = Intervals()
         self.printer = PrinterState()
@@ -80,6 +83,7 @@ class Client(ABC, Generic[TConfig]):
         """
 
         event.for_client = self.config.unique_id
+
         await self.event_bus.emit(event)
 
     async def consume_state(self):
@@ -96,8 +100,9 @@ class Client(ABC, Generic[TConfig]):
 
             try:
                 await self.send_event(client_event.from_state(self.printer))
-            except ValueError:
+            except ValueError as e:
                 # Do not send events that are invalid.
+                print(e)
                 continue
 
     @abstractmethod
@@ -161,7 +166,7 @@ class DefaultClient(Client[TConfig]):
                 "list": ["M117 {}".format(message.replace('\n', ''))]
             })
 
-            asyncio.create_task(self.event_bus.emit(gcode_event))
+            self.loop.create_task(self.event_bus.emit(gcode_event))
 
         self.printer.observe(_on_display_message,
                              "current_display_message")

@@ -50,7 +50,7 @@ class FileProgressState(Enum):
 
 @to_event(FileProgressEvent)
 class PrinterFileProgressState(ClientState):
-    state: Optional[FileProgressState] = TraitletsEnum(FileProgressState)
+    state: Optional[FileProgressState] = Always(TraitletsEnum(FileProgressState))
     percent: Optional[float] = Float()
     message: Optional[str] = Unicode()  # Typically error message
 
@@ -180,7 +180,7 @@ class MaterialModel(ClientState):
 @to_event(ConnectionEvent, "connected")
 @to_event(ToolEvent, "active_tool")
 class PrinterState(State):
-    status: PrinterStatus = TraitletsEnum(PrinterStatus)
+    status: PrinterStatus = TraitletsEnum(PrinterStatus, allow_none=True)
     current_display_message: Optional[str] = Unicode()
 
     bed_temperature: Temperature = Instance(Temperature)
@@ -208,7 +208,8 @@ class PrinterState(State):
 
     def __init__(self, nozzle_count: int = 1, extruder_count: int = 1) -> None:
         super().__init__(
-            status=PrinterStatus.OFFLINE,
+            # status starts as none, it is up to the client to set it
+            status=None,
             bed_temperature=Temperature(),
             tool_temperatures=[Temperature() for _ in range(nozzle_count)],
             ambient_temperature=AmbientTemperatureState(),

@@ -1,7 +1,7 @@
 import asyncio
 import heapq
 from typing import (Callable, Dict, Generator, Generic, Hashable, List,
-                    Optional, TypeVar, Union, get_args)
+                    Optional, TypeVar, Union, get_args, Type)
 
 from .event import Event
 
@@ -46,21 +46,21 @@ class EventBusListeners:
     def add(self, listener: Callable, priority: int) -> None:
         if self.contains(listener):
             raise ValueError("Listener already registered")
-                                        
+
         heapq.heappush(self.listeners, (priority,
-                       EventBusListener(priority, listener)))
+                                        EventBusListener(priority, listener)))
 
     def remove(self, listener: Callable) -> None:
         for i, (_, reg_listener) in reversed(list(enumerate(self.listeners))):
             if reg_listener == listener:
                 del self.listeners[i]
                 break
-    
+
     def contains(self, listener: Callable) -> bool:
         for _, reg_listener in self.listeners:
             if reg_listener == listener:
                 return True
-        
+
         return False
 
     def __iter__(self) -> Generator[EventBusListener, None, None]:
@@ -72,7 +72,7 @@ class EventBusListeners:
 
 
 class EventBus(Generic[TEvent]):
-    event_klass: TEvent
+    event_klass: Type[TEvent]
     listeners: Dict[Hashable, EventBusListeners]
 
     def __init__(self) -> None:
@@ -82,29 +82,29 @@ class EventBus(Generic[TEvent]):
         # fallback to the default Event class
         try:
             self.event_klass = get_args(self.__class__.__orig_bases__[0])[0]
-        except:
+        except (AttributeError, KeyError, IndexError):
             self.event_klass = Event
 
         if not isinstance(self.event_klass, type):
             self.event_klass = Event
 
     async def emit(self, event: Union[Hashable, TEvent], *args, **kwargs):
-        if not event in self.listeners:
+        if event not in self.listeners:
             return
 
         if isinstance(event, self.event_klass):
             args = (event, *args)
-        
+
         for listener in self.listeners[event]:
             # The listener may return the modified event parameter in
-            # the case the emitted event was of a event class type.
+            # the case the emitted event was of an event class type.
             # this will replace the event parameter with the modified one.
             ret = await listener(*args, **kwargs)
 
             if (
-                ret is not None
-                and isinstance(event, self.event_klass)
-                and isinstance(ret, self.event_klass)
+                    ret is not None
+                    and isinstance(event, self.event_klass)
+                    and isinstance(ret, self.event_klass)
             ):
                 args = (ret, *args[1:])
 
@@ -126,9 +126,9 @@ class EventBus(Generic[TEvent]):
             ret = listener.handler(*args, **kwargs)
 
             if (
-                ret is not None
-                and isinstance(event, self.event_klass)
-                and isinstance(ret, self.event_klass)
+                    ret is not None
+                    and isinstance(event, self.event_klass)
+                    and isinstance(ret, self.event_klass)
             ):
                 args = (ret, *args[1:])
 
@@ -136,23 +136,24 @@ class EventBus(Generic[TEvent]):
         """Allows for synchronous emitting of events. Useful cross-thread communication."""
         return asyncio.create_task(self.emit(event, *args, **kwargs))
 
-    def emit_wrap(self, event: Union[Hashable, TEvent], sync_only = False):
+    def emit_wrap(self, event: Union[Hashable, TEvent], sync_only=False):
         """
         Returns a curried function that emits the given event with any arguments passed to it.
         
         When sync_only is specified the function will only invoke synchronous listeners. 
         """
-        
+
         emit_func = self.emit_sync if sync_only else self.emit
         return lambda *args, **kwargs: emit_func(event, *args, **kwargs)
-        
+
     def on(self, event_type: Hashable, listener: Optional[Callable] = None, priority: int = 0, generic: bool = False):
         if listener is None:
-            return lambda listener: self._register_listeners(event_type, listener, priority, generic)
+            return lambda lst: self._register_listeners(event_type, lst, priority, generic)
 
         return self._register_listeners(event_type, listener, priority, generic)
 
-    def _register_listeners(self, event_type: Hashable, listener: Callable, priority=0, generic: bool = False) -> Callable:
+    def _register_listeners(self, event_type: Union[Hashable, TEvent], listener: Callable, priority=0,
+                            generic: bool = False) -> Callable:
         """
         Registers all listerners for a generic type given the type is an event type,
         otherwise wraps a single register call.
@@ -175,7 +176,6 @@ class EventBus(Generic[TEvent]):
 
         self.listeners[event_type].add(listener, priority=priority)
 
-        
     def _iterate_subclasses(self, klass: type) -> Generator[type, None, None]:
         """Perform class introspection to construct listeners generically"""
         if not issubclass(klass, self.event_klass):

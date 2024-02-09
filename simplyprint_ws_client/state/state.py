@@ -1,6 +1,6 @@
 import functools
 from collections import OrderedDict
-from typing import Any, Dict, Optional, List, Set, Generator, Callable
+from typing import Any, Dict, Optional, List, Set, Generator, Callable, Tuple
 from typing import OrderedDict as OrderedDictType
 from typing import Type, TYPE_CHECKING
 
@@ -24,11 +24,14 @@ class ClientState(HasTraits):
     _root_state: Optional['State'] = None
 
     _changed_fields: Set[str]
+    _field_generations: Dict[str, int]
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
         self._changed_fields = set()
+        self._field_generations = {k: 0 for k in self.trait_names()}
+
         self.observe(self.on_change)
 
     @classmethod
@@ -45,6 +48,9 @@ class ClientState(HasTraits):
     def set_changed(self, *fields: str):
         self._changed_fields.update(fields)
 
+        for field in fields:
+            self._field_generations[field] += 1
+
     def has_changed(self, *fields: str) -> bool:
         if not fields:
             return bool(self._changed_fields)
@@ -54,15 +60,24 @@ class ClientState(HasTraits):
     def get_changed(self) -> List[str]:
         return list(self._changed_fields)
 
-    def clear(self, *fields: str):
+    def clear(self, *fields: Tuple[str, int]):
         if not fields:
             self._changed_fields.clear()
             return
 
-        self._changed_fields.difference_update(fields)
+        # Clear generation for fields
+        for field, generation in fields:
+            current_gen = self._field_generations.get(field)
+
+            # negative generation is a sentinel to remove
+            # the field from the changed fields set
+            if generation < 0 or current_gen == generation:
+                self._changed_fields.discard(field)
 
     def partial_clear(self, *fields: str):
-        return functools.partial(self.clear, *fields)
+        """ Clear a specific point in time of the state, by also keeping track of generations """
+        generations = {field: self._field_generations[field] for field in fields}
+        return functools.partial(self.clear, *generations.items())
 
     def get_field_event(self, field: str, owner=None) -> Optional[Type['ClientEvent']]:
         if owner is None:
