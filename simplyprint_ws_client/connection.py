@@ -123,16 +123,25 @@ class Connection:
 
         self.logger.debug(f"Closed connection to {self.url}")
 
-        await self.event_bus.emit(ConnectionDisconnectEvent())
+        await self.on_disconnect()
 
     def is_connected(self) -> bool:
         return self.socket is not None and not self.socket.closed
+
+    async def on_disconnect(self):
+        """ When something goes wrong, reset the socket """
+        try:
+            await self.socket.close()
+        except Exception as e:
+            self.logger.error("An exception occurred while closing to handle a disconnect condition", exc_info=e)
+
+        await self.event_bus.emit(ConnectionDisconnectEvent())
 
     async def send_event(self, client: Client, event: ClientEvent) -> None:
         while not self.is_connected():
             self.logger.debug(
                 f"Did not send event {event} because not connected")
-            await self.event_bus.emit(ConnectionDisconnectEvent())
+            await self.on_disconnect()
 
         try:
             mode = event.get_client_mode(client)
@@ -156,13 +165,13 @@ class Connection:
                 str(message)) > 1000 else f"Sent event {event} with data {message}")
 
         except ConnectionResetError as e:
-            self.logger.error(f"Failed to send event {event}: {e}")
-            await self.event_bus.emit(ConnectionDisconnectEvent())
+            self.logger.error(f"Failed to send event {event}", exc_info=e)
+            await self.on_disconnect()
 
     async def poll_event(self, timeout=None) -> None:
         if not self.is_connected():
             self.logger.debug(f"Did not poll event because not connected")
-            await self.event_bus.emit(ConnectionDisconnectEvent())
+            await self.on_disconnect()
             return
 
         try:
@@ -171,12 +180,17 @@ class Connection:
             if message.type in (WSMsgType.CLOSED, WSMsgType.CLOSING, WSMsgType.CLOSE):
                 self.logger.debug(
                     f"Websocket closed by server with code: {self.socket.close_code} and reason: {message.extra}")
-                await self.event_bus.emit(ConnectionDisconnectEvent())
+
+                # An exception can be passed via the message.data
+                if message.data:
+                    self.logger.exception(message.data)
+
+                await self.on_disconnect()
                 return
 
             if message.type == WSMsgType.ERROR:
                 self.logger.error(f"Websocket error: {message.data}")
-                await self.event_bus.emit(ConnectionDisconnectEvent())
+                await self.on_disconnect()
                 return
 
             if message.type == WSMsgType.BINARY:
@@ -206,4 +220,4 @@ class Connection:
 
         except (CancelledError, TimeoutError, ConnectionResetError):
             self.logger.debug(f"Websocket closed by server due to timeout.")
-            await self.event_bus.emit(ConnectionDisconnectEvent())
+            await self.on_disconnect()
