@@ -100,9 +100,9 @@ class Client(ABC, Generic[TConfig]):
 
             try:
                 await self.send_event(client_event.from_state(self.printer))
-            except ValueError as e:
+            except ValueError:
                 # Do not send events that are invalid.
-                print(e)
+                # TODO Log?
                 continue
 
     @abstractmethod
