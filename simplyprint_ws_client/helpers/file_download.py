@@ -34,13 +34,13 @@ class FileDownload:
                 size = int(resp.headers.get('content-length', 0))
                 downloaded = 0
 
+                self.state.state = FileProgressState.DOWNLOADING
+
                 # Download chunk by chunk
                 async for chunk in resp.content.iter_any():
                     yield chunk
 
                     downloaded += len(chunk)
-
-                    self.state.state = FileProgressState.DOWNLOADING
 
                     total_percentage = int((downloaded / size) * 100)
 

@@ -130,10 +130,12 @@ class Connection:
 
     async def on_disconnect(self):
         """ When something goes wrong, reset the socket """
-        try:
-            await self.socket.close()
-        except Exception as e:
-            self.logger.error("An exception occurred while closing to handle a disconnect condition", exc_info=e)
+
+        if self.is_connected():
+            try:
+                await self.socket.close()
+            except Exception as e:
+                self.logger.error("An exception occurred while closing to handle a disconnect condition", exc_info=e)
 
         await self.event_bus.emit(ConnectionDisconnectEvent())
 
@@ -214,10 +216,13 @@ class Connection:
                 return
 
             self.logger.debug(
-                f"Recieved event {event.get_name()} with data {message.data} for client {for_client}")
+                f"Received event {event.get_name()} with data {message.data} for client {for_client}")
 
             await self.event_bus.emit(ConnectionEventReceivedEvent(event, for_client))
 
         except (CancelledError, TimeoutError, ConnectionResetError):
             self.logger.debug(f"Websocket closed by server due to timeout.")
             await self.on_disconnect()
+
+        except Exception as e:
+            self.logger.exception(f"Exception occurred when polling event", exc_info=e)

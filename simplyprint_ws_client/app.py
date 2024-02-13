@@ -92,6 +92,11 @@ class ClientApp:
         # handler = RotatingFileHandler(log_file, maxBytes=1024 * 1024 * 10, backupCount=5)
         # logging.basicConfig()
 
+        self.loop.set_exception_handler(self.exception_handler)
+
+    def exception_handler(self, loop, context):
+        self.logger.exception("Unhandled exception in async loop.", exc_info=context.get("exception"))
+
     async def run(self):
         # Register all clients
         for config in self.config_manager.get_all():

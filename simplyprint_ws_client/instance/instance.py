@@ -110,6 +110,10 @@ class Instance(ABC, Generic[TClient, TConfig]):
         )
 
     def is_healthy(self) -> bool:
+        # While not connected, the instance is considered healthy
+        if not self.connection.is_connected():
+            return True
+
         return time.time() - self.heartbeat < self.tick_rate * 2
 
     def stop(self) -> None:
@@ -157,6 +161,7 @@ class Instance(ABC, Generic[TClient, TConfig]):
     async def consume_client(client: TClient, timeout: float = 5.0) -> None:
         # Only consume connected clients
         if not client.connected:
+            client.logger.debug(f"Client {client.config} not connected - not consuming")
             return
 
         try:
@@ -167,6 +172,8 @@ class Instance(ABC, Generic[TClient, TConfig]):
             client.logger.warning(f"Client timed out while ticking")
 
         events_to_process = client.printer.get_dirty_events()
+
+        print(f" {client.config.device_type} Events to process: ", events_to_process)
 
         try:
             async with asyncio.timeout(timeout):

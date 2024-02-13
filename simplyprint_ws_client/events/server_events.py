@@ -146,3 +146,7 @@ class MultiPrinterRemoveEvent(ServerEvent):
         self.printer_id: Optional[int] = self.data.get("pid")
         self.unique_id: Optional[str] = self.data.get("unique_id", "")
         self.deleted: bool = self.data.get("deleted", False)
+
+        # Emulated websocket status codes.
+        self.code = self.data.get("code", None)
+        self.reason = self.data.get("reason", None)
