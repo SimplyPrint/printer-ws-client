@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from asyncio import AbstractEventLoop
 from enum import Enum
@@ -10,16 +11,17 @@ from .instance import Instance, MultiPrinter, SinglePrinter
 
 
 class ClientMode(Enum):
-    MULTIPRINTER = "mp"
+    MULTI_PRINTER = "mp"
     SINGLE = "p"
 
     def get_class(self) -> Type[Instance]:
-        if self == ClientMode.MULTIPRINTER:
+        if self == ClientMode.MULTI_PRINTER:
             return MultiPrinter
         elif self == ClientMode.SINGLE:
             return SinglePrinter
         else:
             raise ValueError("Invalid ClientMode")
+
 
 TConfigFactory = Type[Client] | Callable[..., Client]
 
@@ -114,13 +116,13 @@ class ClientApp:
         await self._add_new_client(client.config)
 
     def delete_client(self, client: Client):
-        self.loop.create_task(self._delete_client(client))
+        asyncio.run_coroutine_threadsafe(self._delete_client(client), self.loop)
 
     def add_new_client(self, config: Optional[Config]):
-        self.loop.create_task(self._add_new_client(config))
+        asyncio.run_coroutine_threadsafe(self._add_new_client(config), self.loop)
 
     def reload_client(self, client: Client):
-        self.loop.create_task(self._reload_client(client))
+        asyncio.run_coroutine_threadsafe(self._reload_client(client), self.loop)
 
     def start(self):
         self.loop.create_task(self.run())

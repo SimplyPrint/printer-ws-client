@@ -58,6 +58,9 @@ class Instance(ABC, Generic[TClient, TConfig]):
     reconnect_timeout: float = 5.0
     tick_rate: float = 1.0
 
+    # Allow supervisor to keep track of the last time the instance ticked
+    heartbeat: float = 0.0
+
     _stop_event: threading.Event
 
     event_bus: EventBus[Event]
@@ -106,6 +109,9 @@ class Instance(ABC, Generic[TClient, TConfig]):
             self.consume_clients()
         )
 
+    def is_healthy(self) -> bool:
+        return time.time() - self.heartbeat < self.tick_rate * 2
+
     def stop(self) -> None:
         self._stop_event.set()
         self.loop.stop()
@@ -118,7 +124,9 @@ class Instance(ABC, Generic[TClient, TConfig]):
 
             try:
                 if not self.connection.is_connected():
+                    self.logger.debug("Consuming clients - not connected")
                     await asyncio.sleep(self.reconnect_timeout)
+                    await self.connection.event_bus.emit(ConnectionDisconnectEvent())
                     continue
 
                 for client in self.get_clients():
@@ -138,6 +146,8 @@ class Instance(ABC, Generic[TClient, TConfig]):
 
             except Exception as e:
                 self.logger.exception(e)
+
+            self.heartbeat = time.time()
 
         # Stop all clients
         for client in self.get_clients():
@@ -168,7 +178,9 @@ class Instance(ABC, Generic[TClient, TConfig]):
     async def poll_events(self) -> None:
         while not self._stop_event.is_set():
             if not self.connection.is_connected():
+                self.logger.debug("Not connected - not polling events")
                 await asyncio.sleep(self.reconnect_timeout)
+                await self.connection.event_bus.emit(ConnectionDisconnectEvent())
                 continue
 
             await self.connection.poll_event()

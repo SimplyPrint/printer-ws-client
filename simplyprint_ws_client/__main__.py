@@ -6,7 +6,7 @@ from .examples.virtual.virtual_config import VirtualConfig
 
 if __name__ == '__main__':
     options = ClientOptions(
-        mode=ClientMode.MULTIPRINTER,
+        mode=ClientMode.MULTI_PRINTER,
         name="VirtualClient",
         config_manager_type=ConfigManagerType.JSON,
         client_t=VirtualClient,
