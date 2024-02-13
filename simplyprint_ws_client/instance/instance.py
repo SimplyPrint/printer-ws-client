@@ -211,8 +211,6 @@ class Instance(ABC, Generic[TClient, TConfig]):
             self.logger.info(
                 f"Disconnected from server - reconnecting in {self.reconnect_timeout} seconds")
 
-            self.logger.exception("Last exception from connection", exc_info=self.connection.socket.exception())
-
             await asyncio.sleep(self.reconnect_timeout)
 
             await self.connect()
