@@ -181,8 +181,6 @@ class Instance(ABC, Generic[TClient, TConfig]):
 
         events_to_process = client.printer.get_dirty_events()
 
-        print(f" {client.config.device_type} Events to process: ", events_to_process)
-
         try:
             async with asyncio.timeout(timeout):
                 await client.consume_state()
