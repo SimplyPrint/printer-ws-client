@@ -1,9 +1,8 @@
 import asyncio
-from asyncio import AbstractEventLoop
 from enum import Enum
 from typing import Dict, Iterable, Optional, Set
 
-from .instance import Instance, TClient, TConfig
+from .instance import Instance, TClient, TConfig, InstanceException
 from ..client import Client
 from ..config.config import Config
 from ..config.manager import ConfigManager
@@ -13,7 +12,7 @@ from ..events.client_events import ClientEvent
 from ..events.server_events import MultiPrinterAddResponseEvent, MultiPrinterRemoveEvent
 
 
-class MultiPrinterException(RuntimeError):
+class MultiPrinterException(InstanceException):
     pass
 
 
@@ -49,8 +48,8 @@ class MultiPrinter(Instance[TClient, TConfig]):
     # List of unique ids pending a response from add connection
     pending_unique_set: Set[str]
 
-    def __init__(self, loop: AbstractEventLoop, config_manager: ConfigManager[TConfig], **kwargs) -> None:
-        super().__init__(loop, config_manager, **kwargs)
+    def __init__(self, config_manager: ConfigManager[TConfig], **kwargs) -> None:
+        super().__init__(config_manager, **kwargs)
 
         self.event_bus.on(MultiPrinterAddResponseEvent,
                           self.on_printer_added_response)
@@ -139,7 +138,11 @@ class MultiPrinter(Instance[TClient, TConfig]):
 
         # Attempt to reconnect the client.
         await asyncio.sleep(self.reconnect_timeout)
-        await self.register_client(client)
+
+        try:
+            await self.register_client(client)
+        except InstanceException:
+            pass
 
     async def on_connect(self, _: ConnectionConnectedEvent):
         self.pending_unique_set.clear()

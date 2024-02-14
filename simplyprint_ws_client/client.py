@@ -47,7 +47,7 @@ class Client(ABC, Generic[TConfig]):
     But in some cases also an actual physical device.
     """
 
-    loop: asyncio.AbstractEventLoop
+    loop: Optional[asyncio.AbstractEventLoop] = None
 
     config: TConfig
     intervals: Intervals
@@ -61,7 +61,6 @@ class Client(ABC, Generic[TConfig]):
     event_bus: ClientEventBus
 
     def __init__(self, config: TConfig):
-        self.loop = asyncio.get_event_loop()
         self.config = config
         self.intervals = Intervals()
         self.printer = PrinterState()
@@ -105,12 +104,22 @@ class Client(ABC, Generic[TConfig]):
                 # TODO Log?
                 continue
 
-    @abstractmethod
+    def get_loop(self) -> asyncio.AbstractEventLoop:
+        """
+        Get the event loop for the client.
+        """
+
+        if not self.loop:
+            raise RuntimeError("Loop not initialized")
+
+        return self.loop
+
     async def init(self):
         """
         Called when the client is initialized.
         """
-        ...
+
+        self.loop = asyncio.get_running_loop()
 
     @abstractmethod
     async def tick(self):
@@ -128,12 +137,12 @@ class Client(ABC, Generic[TConfig]):
         """
         ...
 
-    @abstractmethod
     async def stop(self):
         """
         Called when the client is stopped.
         """
-        ...
+
+        self.loop = None
 
 
 class DefaultClient(Client[TConfig]):

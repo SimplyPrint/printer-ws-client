@@ -1,7 +1,7 @@
 import asyncio
 import json
 import logging
-from asyncio import AbstractEventLoop, CancelledError
+from asyncio import CancelledError
 from typing import Any, Dict, Optional, Union
 
 from aiohttp import (ClientConnectorError, ClientSession,
@@ -45,7 +45,6 @@ class Connection:
 
     event_bus: ConnectionEventBus
 
-    loop: AbstractEventLoop
     socket: Optional[ClientWebSocketResponse] = None
     session: Optional[ClientSession] = None
 
@@ -55,8 +54,7 @@ class Connection:
     url: Optional[str] = None
     timeout: float = 5.0
 
-    def __init__(self, loop: AbstractEventLoop) -> None:
-        self.loop = loop
+    def __init__(self) -> None:
         self.event_bus = ConnectionEventBus()
         self.connection_lock = asyncio.Lock()
 
@@ -76,7 +74,7 @@ class Connection:
 
             self.url = url or self.url
             self.timeout = timeout or self.timeout
-            self.session = ClientSession(loop=self.loop)
+            self.session = ClientSession()
 
             self.logger.debug(
                 f"{'Connecting' if not reconnected else 'Reconnecting'} to {url or self.url}")
@@ -99,8 +97,9 @@ class Connection:
             except Exception as e:
                 self.logger.exception(e)
 
+            # Handle message in new task.
             if socket is None or socket.closed:
-                self.event_bus.emit_task(ConnectionDisconnectEvent())
+                _ = self.event_bus.emit_task(ConnectionDisconnectEvent())
                 return
 
             self.socket = socket

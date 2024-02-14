@@ -47,7 +47,7 @@ class FileDownload:
                     self.state.percent = clamp_progress(total_percentage) if clamp_progress else total_percentage
 
                     # Ensure we send events to SimplyPrint
-                    asyncio.run_coroutine_threadsafe(self.client.consume_state(), self.client.loop)
+                    asyncio.run_coroutine_threadsafe(self.client.consume_state(), self.client.get_loop())
 
     async def download_as_bytes(self, url, clamp_progress: Optional[Callable] = None) -> bytes:
         # Bytes object to store the downloaded data

@@ -2,7 +2,6 @@ import asyncio
 import logging
 import threading
 from abc import ABC, abstractmethod
-from asyncio import AbstractEventLoop
 from typing import (Any, Callable, Generic, Iterable, List,
                     Optional, Tuple, TypeVar, Union, Dict, Coroutine)
 
@@ -25,7 +24,7 @@ TClient = TypeVar("TClient", bound=Client)
 TConfig = TypeVar("TConfig", bound=Config)
 
 
-class InstanceException(Exception):
+class InstanceException(RuntimeError):
     ...
 
 
@@ -48,8 +47,8 @@ class Instance(ABC, Generic[TClient, TConfig]):
     """
 
     logger = logging.getLogger("instance")
+    loop: Optional[asyncio.AbstractEventLoop] = None
 
-    loop: AbstractEventLoop
     sentry: Optional[Sentry] = None
     connection: Connection
     config_manager: ConfigManager[TConfig]
@@ -70,10 +69,9 @@ class Instance(ABC, Generic[TClient, TConfig]):
     server_event_backlog: List[Tuple[ConnectionEventReceivedEvent]]
     client_event_backlog: List[Tuple[TClient, ClientEvent]]
 
-    def __init__(self, loop: AbstractEventLoop, config_manager: ConfigManager[TConfig], allow_setup=False,
+    def __init__(self, config_manager: ConfigManager[TConfig], allow_setup=False,
                  reconnect_timeout=5.0, tick_rate=1.0) -> None:
-        self.loop = loop or asyncio.get_event_loop()
-        self.connection = Connection(self.loop)
+        self.connection = Connection()
         self.config_manager = config_manager
 
         self.connection.event_bus.on(ConnectionConnectedEvent, self.on_connect)
@@ -98,7 +96,19 @@ class Instance(ABC, Generic[TClient, TConfig]):
 
         self.event_bus.on(ServerEvent, self.on_event, generic=True)
 
+    def get_loop(self) -> asyncio.AbstractEventLoop:
+        """
+        Get the event loop for the client.
+        """
+
+        if not self.loop:
+            raise RuntimeError("Loop not initialized")
+
+        return self.loop
+
     async def run(self) -> None:
+        self.loop = asyncio.get_running_loop()
+
         if self.sentry and self.sentry.sentry_dsn is not None:
             self.sentry.initialize_sentry()
 
@@ -126,7 +136,7 @@ class Instance(ABC, Generic[TClient, TConfig]):
 
     def stop(self) -> None:
         self._stop_event.set()
-        self.loop.stop()
+        self.get_loop().stop()
 
     async def consume_clients(self):
         client_tasks: Dict[TClient, Tuple[asyncio.Task, float]] = {}
@@ -164,6 +174,8 @@ class Instance(ABC, Generic[TClient, TConfig]):
         # Stop all clients
         for client in self.get_clients():
             await client.stop()
+
+        self.logger.info("Stopped consuming clients")
 
     @staticmethod
     async def consume_client(client: TClient, timeout: float = 5.0) -> None:

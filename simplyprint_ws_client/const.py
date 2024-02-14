@@ -103,15 +103,15 @@ class SimplyPrintUrl:
         return UrlBuilder("https", DomainBuilder(self.version.root_subdomain))
 
     @property
-    def api_url(self) -> str:
+    def api_url(self) -> UrlBuilder:
         return self.root_url / "api"
 
     @property
-    def standalone_api_url(self) -> str:
+    def standalone_api_url(self) -> UrlBuilder:
         return UrlBuilder("https", DomainBuilder(self.version.api_subdomain))
 
     @property
-    def ws_url(self) -> str:
+    def ws_url(self) -> UrlBuilder:
         return UrlBuilder("wss", DomainBuilder(self.version.ws_subdomain)) / SimplyPrintWsVersion.VERSION_0_2.value
 
 

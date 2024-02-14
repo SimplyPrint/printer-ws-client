@@ -1,5 +1,6 @@
 import asyncio
 import heapq
+from asyncio import AbstractEventLoop
 from typing import (Callable, Dict, Generator, Generic, Hashable, List,
                     Optional, TypeVar, Union, get_args, Type)
 
@@ -72,10 +73,12 @@ class EventBusListeners:
 
 
 class EventBus(Generic[TEvent]):
-    event_klass: Type[TEvent]
+    loop_factory: Callable[[], AbstractEventLoop]
     listeners: Dict[Hashable, EventBusListeners]
+    event_klass: Type[TEvent]
 
-    def __init__(self) -> None:
+    def __init__(self, loop_factory: Optional[Callable[[], AbstractEventLoop]] = None) -> None:
+        self.loop_factory = loop_factory or asyncio.get_running_loop
         self.listeners = {}
 
         # Extract the generic type from the class otherwise
@@ -132,9 +135,9 @@ class EventBus(Generic[TEvent]):
             ):
                 args = (ret, *args[1:])
 
-    def emit_task(self, event: Union[Hashable, TEvent], *args, **kwargs) -> asyncio.Task:
+    def emit_task(self, event: Union[Hashable, TEvent], *args, **kwargs) -> asyncio.Future:
         """Allows for synchronous emitting of events. Useful cross-thread communication."""
-        return asyncio.create_task(self.emit(event, *args, **kwargs))
+        return asyncio.run_coroutine_threadsafe(self.emit(event, *args, **kwargs), self.loop_factory())
 
     def emit_wrap(self, event: Union[Hashable, TEvent], sync_only=False):
         """

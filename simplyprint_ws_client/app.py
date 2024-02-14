@@ -1,6 +1,5 @@
 import asyncio
 import logging
-from asyncio import AbstractEventLoop
 from enum import Enum
 from typing import Callable, NamedTuple, Optional, Type
 
@@ -8,6 +7,7 @@ from .client import Client
 from .config import Config, ConfigManager, ConfigManagerType
 from .const import APP_DIRS, SimplyPrintUrl, SimplyPrintVersion
 from .instance import Instance, MultiPrinter, SinglePrinter
+from .instance.instance import InstanceException
 
 
 class ClientMode(Enum):
@@ -57,7 +57,7 @@ class ClientFactory:
 
 
 class ClientApp:
-    loop: AbstractEventLoop
+    options: ClientOptions
 
     logger = logging.getLogger("simplyprint.client_app")
     instance: Instance[Client, Config]
@@ -65,11 +65,13 @@ class ClientApp:
     client_factory: ClientFactory
     config_manager: ConfigManager
 
-    def __init__(self, loop: AbstractEventLoop, options: ClientOptions) -> None:
+    running_future: asyncio.Future
+
+    def __init__(self, options: ClientOptions) -> None:
         if not options.is_valid():
             raise ValueError("Invalid options")
 
-        self.loop = loop
+        self.options = options
 
         # Set correct simplyprint version
         if options.backend:
@@ -79,9 +81,10 @@ class ClientApp:
         instance_class = options.mode.get_class()
 
         self.config_manager = config_manager_class(name=options.name, config_t=options.config_t)
-        self.instance = instance_class(loop=self.loop, config_manager=self.config_manager,
+        self.instance = instance_class(config_manager=self.config_manager,
                                        allow_setup=options.allow_setup, reconnect_timeout=options.reconnect_timeout,
                                        tick_rate=options.tick_rate)
+
         self.client_factory = ClientFactory(client_t=options.client_t, config_t=options.config_t)
 
         log_file = APP_DIRS.user_log_path / f"{options.name}.log"
@@ -92,18 +95,18 @@ class ClientApp:
         # handler = RotatingFileHandler(log_file, maxBytes=1024 * 1024 * 10, backupCount=5)
         # logging.basicConfig()
 
-        self.loop.set_exception_handler(self.exception_handler)
-
-    def exception_handler(self, loop, context):
-        self.logger.exception("Unhandled exception in async loop.", exc_info=context.get("exception"))
-
     async def run(self):
         # Register all clients
         for config in self.config_manager.get_all():
             self.logger.debug(f"Registering client {config}")
 
             client = self.client_factory.create_client(config=config)
-            await self.instance.register_client(client)
+
+            try:
+                await self.instance.register_client(client)
+            except InstanceException as e:
+                self.logger.error(f"Failed to register client {config}: {e}")
+                pass
 
         await self.instance.run()
 
@@ -114,24 +117,27 @@ class ClientApp:
 
     async def _add_new_client(self, config: Optional[Config]):
         client = self.client_factory.create_client(config=config)
-        await self.instance.register_client(client)
+
+        try:
+            await self.instance.register_client(client)
+        except InstanceException:
+            pass
 
     async def _reload_client(self, client: Client):
         await self._delete_client(client)
         await self._add_new_client(client.config)
 
     def delete_client(self, client: Client):
-        asyncio.run_coroutine_threadsafe(self._delete_client(client), self.loop)
+        asyncio.run_coroutine_threadsafe(self._delete_client(client), self.instance.get_loop())
 
     def add_new_client(self, config: Optional[Config]):
-        asyncio.run_coroutine_threadsafe(self._add_new_client(config), self.loop)
+        asyncio.run_coroutine_threadsafe(self._add_new_client(config), self.instance.get_loop())
 
     def reload_client(self, client: Client):
-        asyncio.run_coroutine_threadsafe(self._reload_client(client), self.loop)
+        asyncio.run_coroutine_threadsafe(self._reload_client(client), self.instance.get_loop())
 
     def start(self):
-        self.loop.create_task(self.run())
-        self.loop.run_forever()
+        asyncio.run(self.run())
 
     def stop(self):
         self.instance.stop()
