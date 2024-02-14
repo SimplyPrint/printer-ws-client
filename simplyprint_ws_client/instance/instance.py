@@ -85,6 +85,7 @@ class Instance(ABC, Generic[TClient, TConfig]):
             ConnectionEventReceivedEvent, self.on_received_event)
 
         self._stop_event = threading.Event()
+
         self.event_bus = EventBus()
         self.disconnect_lock = asyncio.Lock()
 
@@ -104,12 +105,19 @@ class Instance(ABC, Generic[TClient, TConfig]):
         if not self.connection.is_connected():
             await self.connect()
 
+        # Reset the stop event
+        self._stop_event.clear()
+
         await asyncio.gather(
             self.poll_events(),
             self.consume_clients()
         )
 
     def is_healthy(self) -> bool:
+        # While the instance is stopped or not started, it is considered healthy
+        if self._stop_event.is_set():
+            return True
+
         # While not connected, the instance is considered healthy
         if not self.connection.is_connected():
             return True
