@@ -112,10 +112,7 @@ class ClientApp:
 
         self.logger.debug("Client instance has stopped")
 
-    async def _delete_client(self, client: Client):
-        await self.instance.delete_client(client)
-
-    async def _add_new_client(self, config: Optional[Config]):
+    async def _create_new_client(self, config: Optional[Config]):
         client = self.client_factory.create_client(config=config)
 
         try:
@@ -124,14 +121,17 @@ class ClientApp:
             pass
 
     async def _reload_client(self, client: Client):
-        await self._delete_client(client)
-        await self._add_new_client(client.config)
+        await self.instance.delete_client(client)
+        await self._create_new_client(client.config)
 
     def delete_client(self, client: Client):
-        asyncio.run_coroutine_threadsafe(self._delete_client(client), self.instance.get_loop())
+        asyncio.run_coroutine_threadsafe(self.instance.delete_client(client), self.instance.get_loop())
+
+    def remove_client(self, client: Client):
+        asyncio.run_coroutine_threadsafe(self.instance.remove_client(client), self.instance.get_loop())
 
     def add_new_client(self, config: Optional[Config]):
-        asyncio.run_coroutine_threadsafe(self._add_new_client(config), self.instance.get_loop())
+        asyncio.run_coroutine_threadsafe(self._create_new_client(config), self.instance.get_loop())
 
     def reload_client(self, client: Client):
         asyncio.run_coroutine_threadsafe(self._reload_client(client), self.instance.get_loop())
@@ -140,4 +140,8 @@ class ClientApp:
         asyncio.run(self.run())
 
     def stop(self):
+        # Make copy of clients as we are modifying the list
+        for client in list(self.instance.get_clients()):
+            self.remove_client(client)
+
         self.instance.stop()

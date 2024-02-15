@@ -50,6 +50,8 @@ class Instance(ABC, Generic[TClient, TConfig]):
     loop: Optional[asyncio.AbstractEventLoop] = None
 
     sentry: Optional[Sentry] = None
+
+    url: Optional[str] = None
     connection: Connection
     config_manager: ConfigManager[TConfig]
 
@@ -86,8 +88,19 @@ class Instance(ABC, Generic[TClient, TConfig]):
 
         self.event_bus.on(ServerEvent, self.on_event, generic=True)
 
+        self.create_connection()
+
+    def set_url(self, url: str) -> None:
+        self.url = url
+
+        if self.connection:
+            self.connection.set_url(url)
+
     def create_connection(self):
         self.connection = Connection()
+
+        if self.url:
+            self.connection.set_url(self.url)
 
         self.connection.event_bus.on(ConnectionConnectedEvent, self.on_connect)
         self.connection.event_bus.on(
@@ -110,10 +123,6 @@ class Instance(ABC, Generic[TClient, TConfig]):
         return self.loop
 
     async def run(self) -> None:
-        # Initialize a new connection
-        # Resets internal lock state etc.
-        self.create_connection()
-
         self.loop = asyncio.get_running_loop()
 
         if self.sentry and self.sentry.sentry_dsn is not None:
@@ -145,6 +154,10 @@ class Instance(ABC, Generic[TClient, TConfig]):
         self._stop_event.set()
         self.get_loop().stop()
         self.loop = None
+
+        # Initialize a new connection
+        # Resets internal lock state etc.
+        self.create_connection()
 
     async def consume_clients(self):
         client_tasks: Dict[TClient, Tuple[asyncio.Task, float]] = {}
@@ -189,7 +202,7 @@ class Instance(ABC, Generic[TClient, TConfig]):
     async def consume_client(client: TClient, timeout: float = 5.0) -> None:
         # Only consume connected clients
         if not client.connected:
-            client.logger.debug(f"Client {client.config} not connected - not consuming")
+            client.logger.debug(f"Client not connected - not consuming")
             return
 
         try:

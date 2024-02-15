@@ -11,7 +11,7 @@ class SinglePrinter(Instance[TClient, TConfig]):
     client: Optional[Client[TConfig]] = None
 
     async def add_client(self, client: TClient) -> None:
-        self.connection.set_url(
+        self.set_url(
             str(SimplyPrintUrl.current().ws_url / "p" / client.config.id / client.config.token))
 
         self.client = client
