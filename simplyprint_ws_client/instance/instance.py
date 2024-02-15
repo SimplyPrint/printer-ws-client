@@ -71,21 +71,11 @@ class Instance(ABC, Generic[TClient, TConfig]):
 
     def __init__(self, config_manager: ConfigManager[TConfig], allow_setup=False,
                  reconnect_timeout=5.0, tick_rate=1.0) -> None:
-        self.connection = Connection()
         self.config_manager = config_manager
-
-        self.connection.event_bus.on(ConnectionConnectedEvent, self.on_connect)
-        self.connection.event_bus.on(
-            ConnectionDisconnectEvent, self.on_disconnect)
-        self.connection.event_bus.on(
-            ConnectionReconnectEvent, self.on_reconnect)
-        self.connection.event_bus.on(
-            ConnectionEventReceivedEvent, self.on_received_event)
 
         self._stop_event = threading.Event()
 
         self.event_bus = EventBus()
-        self.disconnect_lock = asyncio.Lock()
 
         self.server_event_backlog = []
         self.client_event_backlog = []
@@ -95,6 +85,19 @@ class Instance(ABC, Generic[TClient, TConfig]):
         self.tick_rate = tick_rate
 
         self.event_bus.on(ServerEvent, self.on_event, generic=True)
+
+    def create_connection(self):
+        self.connection = Connection()
+
+        self.connection.event_bus.on(ConnectionConnectedEvent, self.on_connect)
+        self.connection.event_bus.on(
+            ConnectionDisconnectEvent, self.on_disconnect)
+        self.connection.event_bus.on(
+            ConnectionReconnectEvent, self.on_reconnect)
+        self.connection.event_bus.on(
+            ConnectionEventReceivedEvent, self.on_received_event)
+
+        self.disconnect_lock = asyncio.Lock()
 
     def get_loop(self) -> asyncio.AbstractEventLoop:
         """
@@ -107,6 +110,10 @@ class Instance(ABC, Generic[TClient, TConfig]):
         return self.loop
 
     async def run(self) -> None:
+        # Initialize a new connection
+        # Resets internal lock state etc.
+        self.create_connection()
+
         self.loop = asyncio.get_running_loop()
 
         if self.sentry and self.sentry.sentry_dsn is not None:
@@ -137,6 +144,7 @@ class Instance(ABC, Generic[TClient, TConfig]):
     def stop(self) -> None:
         self._stop_event.set()
         self.get_loop().stop()
+        self.loop = None
 
     async def consume_clients(self):
         client_tasks: Dict[TClient, Tuple[asyncio.Task, float]] = {}

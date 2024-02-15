@@ -97,7 +97,7 @@ class Connection:
             except Exception as e:
                 self.logger.exception(e)
 
-            # Handle message in new task.
+            # Handle disconnect in a new task.
             if socket is None or socket.closed:
                 _ = self.event_bus.emit_task(ConnectionDisconnectEvent())
                 return
@@ -133,6 +133,7 @@ class Connection:
         if self.is_connected():
             try:
                 await self.socket.close()
+                await self.session.close()
             except Exception as e:
                 self.logger.error("An exception occurred while closing to handle a disconnect condition", exc_info=e)
 
