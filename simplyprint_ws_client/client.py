@@ -177,6 +177,7 @@ class DefaultClient(Client[TConfig]):
         self.physical_machine = PhysicalMachine()
 
         # Default M117 behaviour.
+        """
         def _on_display_message(change):
             message = change['new']
 
@@ -191,10 +192,11 @@ class DefaultClient(Client[TConfig]):
                 "list": ["M117 {}".format(message.replace('\n', ''))]
             })
 
-            self.loop.create_task(self.event_bus.emit(gcode_event))
+            self.get_loop().create_task(self.event_bus.emit(gcode_event))
 
         self.printer.observe(_on_display_message,
                              "current_display_message")
+        """
 
         # Set information about the physical machine
         for k, v in self.physical_machine.get_info().items():

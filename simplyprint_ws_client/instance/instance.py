@@ -174,6 +174,7 @@ class Instance(ABC, Generic[TClient, TConfig]):
         return time.time() - self.heartbeat < self.tick_rate * max_heartbeats_missed
 
     def stop(self) -> None:
+        _ = self.get_loop().create_task(self.connection.close_internal())
         self._stop_event.set()
 
     async def consume_clients(self):
