@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "simplyprint-ws-client"
-version = "1.0.0-rc.1"
+version = "1.0.0-rc.2"
 license = "AGPL-3.0-or-later"
 authors = ["SimplyPrint <contact@simplyprint.io>"]
 description = "SimplyPrint Websocket Client"
@@ -22,7 +22,10 @@ traitlets = "^5.14.0"
 netifaces = "^0.11.0"
 sentry-sdk = "^1.39.0"
 platformdirs = "^4.1.0"
-uvloop = { version = "^0.19", optional = true }
+
+[tool.poetry.extras]
+uvloop = ["uvloop"]
+
 
 [tool.poetry.urls]
 "Bug Tracker" = "https://github.com/SimplyPrint/printer-ws-client/issues"
