@@ -6,6 +6,7 @@ from typing import Callable, NamedTuple, Optional, Type
 from .client import Client
 from .config import Config, ConfigManager, ConfigManagerType
 from .const import APP_DIRS, SimplyPrintUrl, SimplyPrintVersion
+from .helpers.runner import Runner
 from .instance import Instance, MultiPrinter, SinglePrinter
 from .instance.instance import InstanceException
 from .instance.multi_printer import MultiPrinterException
@@ -140,12 +141,8 @@ class ClientApp:
         asyncio.run_coroutine_threadsafe(self._reload_client(client), self.instance.get_loop())
 
     def start(self):
-        try:
-            """ Prefer faster event loop implementation. """
-            import uvloop
-            uvloop.run(self.run())
-        except ImportError:
-            asyncio.run(self.run())
+        with Runner() as runner:
+            runner.run(self.run())
 
     def stop(self):
         self.instance.stop()
