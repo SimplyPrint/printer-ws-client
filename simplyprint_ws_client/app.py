@@ -8,6 +8,7 @@ from .config import Config, ConfigManager, ConfigManagerType
 from .const import APP_DIRS, SimplyPrintUrl, SimplyPrintVersion
 from .instance import Instance, MultiPrinter, SinglePrinter
 from .instance.instance import InstanceException
+from .instance.multi_printer import MultiPrinterException
 
 
 class ClientMode(Enum):
@@ -96,24 +97,26 @@ class ClientApp:
         # logging.basicConfig()
 
     async def run(self):
-        # Register all clients
-        for config in self.config_manager.get_all():
-            self.logger.debug(f"Registering client {config}")
+        async with self.instance:
+            # Register all clients
+            for config in self.config_manager.get_all():
+                self.logger.debug(f"Registering client {config}")
 
-            client = self.client_factory.create_client(config=config)
+                client = self.client_factory.create_client(config=config, loop_factory=self.instance.get_loop)
 
-            try:
-                await self.instance.register_client(client)
-            except InstanceException as e:
-                self.logger.error(f"Failed to register client {config}: {e}")
-                pass
+                try:
+                    await self.instance.register_client(client)
+                except MultiPrinterException as e:
+                    self.logger.error(f"Failed to register client: {e}")
+                except InstanceException as e:
+                    self.logger.error(f"Failed to register client {config}: {e}")
 
-        await self.instance.run()
+            await self.instance.run()
 
         self.logger.debug("Client instance has stopped")
 
     async def _create_new_client(self, config: Optional[Config]):
-        client = self.client_factory.create_client(config=config)
+        client = self.client_factory.create_client(config=config, loop_factory=self.instance.get_loop)
 
         try:
             await self.instance.register_client(client)
@@ -140,8 +143,4 @@ class ClientApp:
         asyncio.run(self.run())
 
     def stop(self):
-        # Make copy of clients as we are modifying the list
-        for client in list(self.instance.get_clients()):
-            self.remove_client(client)
-
         self.instance.stop()

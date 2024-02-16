@@ -1,7 +1,7 @@
 import asyncio
 import logging
 from abc import ABC, abstractmethod
-from typing import Generic, Optional, TypeVar
+from typing import Generic, Optional, TypeVar, Callable
 
 import time
 
@@ -53,28 +53,42 @@ class Client(ABC, Generic[TConfig]):
     intervals: Intervals
     printer: PrinterState
 
-    connected: bool = False
+    _connected: bool = False
 
     sentry: Optional[Sentry]
     physical_machine: Optional[PhysicalMachine]
 
     event_bus: ClientEventBus
+    loop_factory: Optional[Callable[[], asyncio.AbstractEventLoop]] = None
 
-    def __init__(self, config: TConfig):
+    def __init__(self, config: TConfig, loop_factory: Optional[Callable[[], asyncio.AbstractEventLoop]] = None):
         self.config = config
         self.intervals = Intervals()
         self.printer = PrinterState()
-        self.event_bus = ClientEventBus()
+        self.event_bus = ClientEventBus(loop_factory=loop_factory)
+        self.loop_factory = loop_factory
 
         # Recover handles from the class
         for name in dir(self):
+            if not hasattr(self, name):
+                continue
+
             attr = getattr(self, name)
+
             if hasattr(attr, "_event"):
                 event_cls = attr._event
                 self.event_bus.on(event_cls, attr, attr._pre)
 
-    def __str__(self) -> str:
-        return str(self.config)
+    @property
+    def connected(self) -> bool:
+        """
+        Check if the client is connected to the server.
+        """
+        return self._connected
+
+    @connected.setter
+    def connected(self, value: bool):
+        self._connected = value
 
     async def send_event(self, event: ClientEvent):
         """
@@ -108,18 +122,20 @@ class Client(ABC, Generic[TConfig]):
         """
         Get the event loop for the client.
         """
+        if self.loop_factory:
+            self.loop = self.loop_factory()
 
         if not self.loop:
             raise RuntimeError("Loop not initialized")
 
         return self.loop
 
+    @abstractmethod
     async def init(self):
         """
         Called when the client is initialized.
         """
-
-        self.loop = asyncio.get_running_loop()
+        ...
 
     @abstractmethod
     async def tick(self):
@@ -137,12 +153,12 @@ class Client(ABC, Generic[TConfig]):
         """
         ...
 
+    @abstractmethod
     async def stop(self):
         """
         Called when the client is stopped.
         """
-
-        self.loop = None
+        ...
 
 
 class DefaultClient(Client[TConfig]):
@@ -154,8 +170,8 @@ class DefaultClient(Client[TConfig]):
     reconnect_token: Optional[str] = None
     requested_snapshots: int = 0
 
-    def __init__(self, config: TConfig):
-        super().__init__(config)
+    def __init__(self, config: TConfig, **kwargs):
+        super().__init__(config, **kwargs)
 
         self.logger = logging.getLogger(ClientName.from_client(self))
         self.physical_machine = PhysicalMachine()
@@ -240,6 +256,7 @@ class DefaultClient(Client[TConfig]):
 
     @Events.ConnectEvent.before
     async def before_connect(self, event: Events.ConnectEvent):
+        self.connected = True
         self.config.name = event.printer_name
         self.config.in_setup = event.in_setup
         self.config.short_id = event.short_id

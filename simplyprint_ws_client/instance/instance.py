@@ -47,7 +47,6 @@ class Instance(ABC, Generic[TClient, TConfig]):
     """
 
     logger = logging.getLogger("instance")
-    loop: Optional[asyncio.AbstractEventLoop] = None
 
     sentry: Optional[Sentry] = None
 
@@ -62,9 +61,18 @@ class Instance(ABC, Generic[TClient, TConfig]):
     # Allow supervisor to keep track of the last time the instance ticked
     heartbeat: float = 0.0
 
+    event_bus: EventBus[Event]
+
+    _loop: Optional[asyncio.AbstractEventLoop] = None
+
+    # Allow the instance to be stopped
     _stop_event: threading.Event
 
-    event_bus: EventBus[Event]
+    # Ensure the instance can only be started once.
+    _instance_lock: threading.Lock
+    _instance_thread_id: Optional[int] = None
+
+    # Ensure we only allow one disconnect event to be processed at a time
     disconnect_lock: asyncio.Lock
 
     # Queues to synchronize events between threads / coroutines
@@ -76,6 +84,7 @@ class Instance(ABC, Generic[TClient, TConfig]):
         self.config_manager = config_manager
 
         self._stop_event = threading.Event()
+        self._instance_lock = threading.Lock()
 
         self.event_bus = EventBus()
 
@@ -88,19 +97,13 @@ class Instance(ABC, Generic[TClient, TConfig]):
 
         self.event_bus.on(ServerEvent, self.on_event, generic=True)
 
-        self.create_connection()
+        self.reset_connection()
 
     def set_url(self, url: str) -> None:
         self.url = url
 
-        if self.connection:
-            self.connection.set_url(url)
-
-    def create_connection(self):
+    def reset_connection(self):
         self.connection = Connection()
-
-        if self.url:
-            self.connection.set_url(self.url)
 
         self.connection.event_bus.on(ConnectionConnectedEvent, self.on_connect)
         self.connection.event_bus.on(
@@ -117,29 +120,49 @@ class Instance(ABC, Generic[TClient, TConfig]):
         Get the event loop for the client.
         """
 
-        if not self.loop:
+        if not self._loop:
             raise RuntimeError("Loop not initialized")
 
-        return self.loop
+        return self._loop
 
-    async def run(self) -> None:
-        self.loop = asyncio.get_running_loop()
+    async def __aenter__(self):
+        if self._instance_thread_id is not None and self._instance_thread_id != threading.get_ident():
+            self.logger.warning("Instance already started - waiting for it to stop")
+
+        self._instance_lock.acquire()
+
+        self._instance_thread_id = threading.get_ident()
+
+        self._loop = asyncio.get_running_loop()
 
         if self.sentry and self.sentry.sentry_dsn is not None:
             self.sentry.initialize_sentry()
 
-        if not self.connection.is_connected():
-            await self.connect()
-
         # Reset the stop event
         self._stop_event.clear()
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        self._loop = None
+        self._stop_event.set()
+        self.reset_connection()
+        # Initialize a new connection
+        self._instance_thread_id = None
+
+        self._instance_lock.release()
+
+    async def run(self) -> None:
+        """ Only call this method once per thread."""
+        if not self._instance_lock.locked() or self._instance_thread_id != threading.get_ident():
+            raise InstanceException("Instance.run() can only run inside its context manager")
 
         await asyncio.gather(
             self.poll_events(),
             self.consume_clients()
         )
 
-    def is_healthy(self) -> bool:
+    def is_healthy(self, max_heartbeats_missed=2) -> bool:
+        """ This function is intended to be available to the implementer to check if the instance is healthy."""
+
         # While the instance is stopped or not started, it is considered healthy
         if self._stop_event.is_set():
             return True
@@ -148,16 +171,10 @@ class Instance(ABC, Generic[TClient, TConfig]):
         if not self.connection.is_connected():
             return True
 
-        return time.time() - self.heartbeat < self.tick_rate * 2
+        return time.time() - self.heartbeat < self.tick_rate * max_heartbeats_missed
 
     def stop(self) -> None:
         self._stop_event.set()
-        self.get_loop().stop()
-        self.loop = None
-
-        # Initialize a new connection
-        # Resets internal lock state etc.
-        self.create_connection()
 
     async def consume_clients(self):
         client_tasks: Dict[TClient, Tuple[asyncio.Task, float]] = {}
@@ -182,7 +199,7 @@ class Instance(ABC, Generic[TClient, TConfig]):
 
                         continue
 
-                    task = self.loop.create_task(self.consume_client(client))
+                    task = self.get_loop().create_task(self.consume_client(client))
                     client_tasks[client] = (task, time.time())
 
                 await asyncio.sleep(max(0.0, self.tick_rate - (time.time() - dt)))
@@ -231,6 +248,7 @@ class Instance(ABC, Generic[TClient, TConfig]):
 
             await self.connection.poll_event()
 
+        await self.connection.close_internal()
         self.logger.info("Stopped polling events")
 
     async def connect(self) -> None:
@@ -243,10 +261,13 @@ class Instance(ABC, Generic[TClient, TConfig]):
                 "Already connected - not connecting, call connection connect manually to force a reconnect")
             return
 
-        await self.connection.connect()
+        await self.connection.connect(url=self.url)
 
     async def on_disconnect(self, _: ConnectionDisconnectEvent):
         async with self.disconnect_lock:
+            if self._stop_event.is_set():
+                return
+
             if self.connection.is_connected():
                 return
 
@@ -304,7 +325,7 @@ class Instance(ABC, Generic[TClient, TConfig]):
         await self.remove_client(client)
 
         # Client stop might be blocking.
-        _ = self.loop.create_task(client.stop())
+        _ = self.get_loop().create_task(client.stop())
 
     async def register_client(self, client: TClient):
         """
@@ -372,7 +393,7 @@ class Instance(ABC, Generic[TClient, TConfig]):
         if not isinstance(event, ServerEvent):
             raise InstanceException(f"Expected ServerEvent but got {event}")
 
-        _ = self.loop.create_task(client.event_bus.emit(event))
+        _ = self.get_loop().create_task(client.event_bus.emit(event))
 
     async def on_client_event(self, event: ClientEvent, client: Client[TConfig]):
         """

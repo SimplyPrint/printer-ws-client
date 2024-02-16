@@ -58,18 +58,13 @@ class Connection:
         self.event_bus = ConnectionEventBus()
         self.connection_lock = asyncio.Lock()
 
-    def set_url(self, url: str) -> None:
-        self.url = url
-
     async def connect(self, url: Optional[str] = None, timeout: Optional[float] = None) -> None:
         async with self.connection_lock:
             reconnected = False
 
             if self.socket:
-                await self.socket.close()
-                await self.session.close()
-                self.socket = None
-                self.session = None
+                await self.close_internal()
+                self.socket = self.session = None
                 reconnected = True
 
             self.url = url or self.url
@@ -111,14 +106,22 @@ class Connection:
                 self.logger.debug(f"Connected to {self.url}")
                 await self.event_bus.emit(ConnectionConnectedEvent())
 
-    async def close(self) -> None:
-        if self.socket:
-            await self.socket.close()
-            self.socket = None
+    async def close_internal(self):
+        try:
+            if self.socket:
+                await self.socket.close()
+        except Exception as e:
+            self.logger.error("An exception occurred while closing to handle a disconnect condition", exc_info=e)
 
-        if self.session:
-            await self.session.close()
-            self.session = None
+        try:
+            if self.session:
+                await self.session.close()
+
+        except Exception as e:
+            self.logger.error("An exception occurred while closing to handle a disconnect condition", exc_info=e)
+
+    async def close(self) -> None:
+        await self.close_internal()
 
         self.logger.debug(f"Closed connection to {self.url}")
 
@@ -131,11 +134,7 @@ class Connection:
         """ When something goes wrong, reset the socket """
 
         if self.is_connected():
-            try:
-                await self.socket.close()
-                await self.session.close()
-            except Exception as e:
-                self.logger.error("An exception occurred while closing to handle a disconnect condition", exc_info=e)
+            await self.close_internal()
 
         await self.event_bus.emit(ConnectionDisconnectEvent())
 
