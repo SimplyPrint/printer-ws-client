@@ -140,7 +140,12 @@ class ClientApp:
         asyncio.run_coroutine_threadsafe(self._reload_client(client), self.instance.get_loop())
 
     def start(self):
-        asyncio.run(self.run())
+        try:
+            """ Prefer faster event loop implementation. """
+            import uvloop
+            uvloop.run(self.run())
+        except ImportError:
+            asyncio.run(self.run())
 
     def stop(self):
         self.instance.stop()
