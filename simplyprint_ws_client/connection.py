@@ -139,10 +139,11 @@ class Connection:
         await self.event_bus.emit(ConnectionDisconnectEvent())
 
     async def send_event(self, client: Client, event: ClientEvent) -> None:
-        while not self.is_connected():
+        if not self.is_connected():
             self.logger.debug(
                 f"Did not send event {event} because not connected")
             await self.on_disconnect()
+            return
 
         try:
             mode = event.get_client_mode(client)

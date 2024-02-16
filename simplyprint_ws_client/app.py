@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import threading
 from enum import Enum
 from typing import Callable, NamedTuple, Optional, Type
 
@@ -63,6 +64,7 @@ class ClientApp:
 
     logger = logging.getLogger("simplyprint.client_app")
     instance: Instance[Client, Config]
+    instance_thread: Optional[threading.Thread] = None
 
     client_factory: ClientFactory
     config_manager: ConfigManager
@@ -140,9 +142,19 @@ class ClientApp:
     def reload_client(self, client: Client):
         asyncio.run_coroutine_threadsafe(self._reload_client(client), self.instance.get_loop())
 
-    def start(self):
+    def run_blocking(self):
         with Runner() as runner:
             runner.run(self.run())
 
+    def run_detached(self):
+        """ Run the client in a separate thread. """
+        self.instance_thread = threading.Thread(target=self.run_blocking)
+        self.instance_thread.start()
+
     def stop(self):
         self.instance.stop()
+
+        # If the instance is running in a separate thread, wait for it to stop
+        if self.instance_thread:
+            self.instance_thread.join()
+            self.instance_thread = None

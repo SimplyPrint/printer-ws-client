@@ -114,7 +114,9 @@ class MultiPrinter(Instance[TClient, TConfig]):
             await self.consume_backlog(self.server_event_backlog, self.on_received_event)
             await self.consume_backlog(self.client_event_backlog, self.on_client_event)
         else:
-            self.clients.pop(client.config.unique_id, None)
+            client = self.clients.pop(client.config.unique_id, None)
+            # If the client was removed, stop it.
+            self.stop_client_deferred(client)
 
         # Do not propagate event further.
         event.stop_event()

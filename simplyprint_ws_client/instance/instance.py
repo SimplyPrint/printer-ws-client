@@ -5,6 +5,7 @@ from abc import ABC, abstractmethod
 from typing import (Any, Callable, Generic, Iterable, List,
                     Optional, Tuple, TypeVar, Union, Dict, Coroutine)
 
+import sys
 import time
 
 from ..client import Client, ClientConfigChangedEvent
@@ -211,8 +212,8 @@ class Instance(ABC, Generic[TClient, TConfig]):
             self.heartbeat = time.time()
 
         # Stop all clients
-        for client in self.get_clients():
-            await client.stop()
+        for client in list(self.get_clients()):
+            self.stop_client_deferred(client)
 
         self.logger.info("Stopped consuming clients")
 
@@ -312,6 +313,22 @@ class Instance(ABC, Generic[TClient, TConfig]):
 
         self.config_manager.flush(client.config)
 
+    def stop_client_deferred(self, client: TClient):
+        """
+        Stops a client, but does not wait for it to stop.
+
+        Can perform complex operations such as saving state to disk.
+        Or operating on other threads and IO.
+        """
+
+        self.logger.info(f"Stopping client {client.config.unique_id} in the background")
+
+        def stop_client(c: TClient):
+            asyncio.run(c.stop())
+            sys.exit(0)
+
+        threading.Thread(target=stop_client, args=(client,), daemon=True).start()
+
     async def delete_client(self, client: TClient):
         """
         Deletes a client from the instance.
@@ -326,7 +343,7 @@ class Instance(ABC, Generic[TClient, TConfig]):
         await self.remove_client(client)
 
         # Client stop might be blocking.
-        _ = self.get_loop().create_task(client.stop())
+        self.stop_client_deferred(client)
 
     async def register_client(self, client: TClient):
         """

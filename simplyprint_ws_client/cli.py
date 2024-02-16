@@ -121,4 +121,4 @@ class ClientCli(CommandBag, click.MultiCommand):
 
     def start_client(self):
         logging.basicConfig(level=logging.DEBUG)
-        self.app.start()
+        self.app.run_blocking()
