@@ -150,7 +150,7 @@ class Intervals:
         """Wait until an interval is ready"""
         t = IntervalTypes.from_any(t)
 
-        if not t in self.intervals:
+        if t not in self.intervals:
             return
 
         ready_in_seconds = self.time_until_ready(t)
@@ -162,7 +162,7 @@ class Intervals:
 
         if not self.is_ready(t):
             raise IntervalException(
-                f"Interval did not become ready in time: {ready_in_seconds} seconds remaning {self.time_until_ready(t)}")
+                f"Interval did not become ready in time: {ready_in_seconds} seconds remaining {self.time_until_ready(t)}")
 
     def use(self, t: IntervalTypeRef):
         """Update the last update time for an interval"""
