@@ -2,7 +2,7 @@ import asyncio
 import heapq
 from asyncio import AbstractEventLoop
 from typing import (Callable, Dict, Generator, Generic, Hashable, List,
-                    Optional, TypeVar, Union, get_args, Type)
+                    Optional, TypeVar, Union, get_args, Type, Any, Tuple)
 
 from .event import Event
 
@@ -39,7 +39,7 @@ class EventBusListener:
 
 
 class EventBusListeners:
-    listeners: List[Callable]
+    listeners: List[Tuple[int, EventBusListener]]
 
     def __init__(self) -> None:
         self.listeners = []
@@ -91,49 +91,104 @@ class EventBus(Generic[TEvent]):
         if not isinstance(self.event_klass, type):
             self.event_klass = Event
 
+    def update_args(
+            self,
+            event: Union[Hashable, TEvent],
+            args: Tuple[Any, ...],
+            returned_args: Union[Tuple[Any, ...], Any] = None
+    ) -> Tuple[Any, ...]:
+        """
+        This function transforms the arguments returned by an event listener
+        into the arguments that will be passed to the next listener.
+
+        - If `returned_args` is None, the original arguments will be used.
+        - If `returned_args` is an event of type klass, it will replace the original event.
+        - If `returned_args` is something that is not an event, the original arguments will be replaced.
+        - If `returned_args` is an empty tuple, the original arguments will be replaced.
+        - If `returned_args` is a tuple that includes an event of type klass, it will replace everything.
+
+        Given an event listener function like so:
+
+        ```
+        def listener(event: Event, *args, **kwargs) -> Event:
+            # Do something with event
+            return event
+        ```
+
+        The returned event will now take precedence over the original event.
+
+        Given an event listener function like so:
+
+        ```
+        def listener(event: Event, *args, **kwargs) -> Tuple[Event, ...]:
+            # Do something with event and return more arguments
+            return event, ...
+        ```
+
+        Then returned_args will replace the entire argument list.
+        """
+        if returned_args is None:
+            return args
+
+        # If the event is an instance of the event class
+        # it is always the first element of args.
+        event_is_first = isinstance(event, self.event_klass) and len(args) > 0 and args[0] == event
+
+        if not isinstance(returned_args, tuple):
+            # The listener may return the modified event parameter in
+            # the case the emitted event was of an event class type.
+            # this will replace the event parameter with the modified one.
+            if event_is_first:
+                return (returned_args, *args[1:]) if isinstance(returned_args, self.event_klass) else (
+                    event, returned_args)
+
+            # Otherwise replace the entire argument list with the returned data.
+            return (returned_args,)
+
+        # If we return an empty tuple, we want to replace the entire argument list.
+        if len(returned_args) == 0:
+            return (event,) if event_is_first else ()
+
+        # Now we have to handle the case where the listener returns a tuple.
+        if event_is_first:
+            return returned_args if isinstance(returned_args[0], self.event_klass) else (event, *returned_args)
+
+        # As a fallback we just return the returned arguments.
+        return returned_args
+
+    def initialize_args(self, event: Union[Hashable, TEvent], *args) -> Tuple[Any, ...]:
+        """ If the event is an instance of the event class, pass it as the first argument."""
+        if isinstance(event, self.event_klass):
+            return event, *args
+
+        return args
+
     async def emit(self, event: Union[Hashable, TEvent], *args, **kwargs):
         if event not in self.listeners:
             return
 
-        if isinstance(event, self.event_klass):
-            args = (event, *args)
+        args = self.initialize_args(event, *args)
 
         for listener in self.listeners[event]:
-            # The listener may return the modified event parameter in
-            # the case the emitted event was of an event class type.
-            # this will replace the event parameter with the modified one.
             ret = await listener(*args, **kwargs)
-
-            if (
-                    ret is not None
-                    and isinstance(event, self.event_klass)
-                    and isinstance(ret, self.event_klass)
-            ):
-                args = (ret, *args[1:])
+            args = self.update_args(event, args, ret)
 
     def emit_sync(self, event: Union[Hashable, TEvent], *args, **kwargs):
         """
         Skip all async listeners and only emit to synchronous listeners.
         """
 
-        if not event in self.listeners:
+        if event not in self.listeners:
             return
 
-        if isinstance(event, self.event_klass):
-            args = (event, *args)
+        args = self.initialize_args(event, *args)
 
         for listener in self.listeners[event]:
             if listener.is_async:
                 continue
 
             ret = listener.handler(*args, **kwargs)
-
-            if (
-                    ret is not None
-                    and isinstance(event, self.event_klass)
-                    and isinstance(ret, self.event_klass)
-            ):
-                args = (ret, *args[1:])
+            args = self.update_args(event, args, ret)
 
     def emit_task(self, event: Union[Hashable, TEvent], *args, **kwargs) -> asyncio.Future:
         """Allows for synchronous emitting of events. Useful cross-thread communication."""

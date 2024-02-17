@@ -118,9 +118,10 @@ class ClientApp:
 
         self.logger.debug("Client instance has stopped")
 
-    async def _create_new_client(self, config: Optional[Config]):
-        client = self.client_factory.create_client(config=config, loop_factory=self.instance.get_loop)
+    def create_client(self, config: Optional[Config]):
+        return self.client_factory.create_client(config=config, loop_factory=self.instance.get_loop)
 
+    async def _register_client(self, client: Client):
         try:
             await self.instance.register_client(client)
         except InstanceException:
@@ -128,19 +129,24 @@ class ClientApp:
 
     async def _reload_client(self, client: Client):
         await self.instance.delete_client(client)
-        await self._create_new_client(client.config)
+        new_client = self.create_client(client.config)
+        await self._register_client(new_client)
 
-    def delete_client(self, client: Client):
-        asyncio.run_coroutine_threadsafe(self.instance.delete_client(client), self.instance.get_loop())
+    def delete_client(self, client: Client) -> asyncio.Future:
+        return asyncio.run_coroutine_threadsafe(self.instance.delete_client(client), self.instance.get_loop())
 
-    def remove_client(self, client: Client):
-        asyncio.run_coroutine_threadsafe(self.instance.remove_client(client), self.instance.get_loop())
+    def remove_client(self, client: Client) -> asyncio.Future:
+        return asyncio.run_coroutine_threadsafe(self.instance.remove_client(client), self.instance.get_loop())
 
-    def add_new_client(self, config: Optional[Config]):
-        asyncio.run_coroutine_threadsafe(self._create_new_client(config), self.instance.get_loop())
+    def register_client(self, client: Client) -> asyncio.Future:
+        return asyncio.run_coroutine_threadsafe(self._register_client(client), self.instance.get_loop())
 
-    def reload_client(self, client: Client):
-        asyncio.run_coroutine_threadsafe(self._reload_client(client), self.instance.get_loop())
+    def add_new_client(self, config: Optional[Config]) -> asyncio.Future:
+        new_client = self.create_client(config)
+        return self.register_client(new_client)
+
+    def reload_client(self, client: Client) -> asyncio.Future:
+        return asyncio.run_coroutine_threadsafe(self._reload_client(client), self.instance.get_loop())
 
     def run_blocking(self):
         with Runner() as runner:

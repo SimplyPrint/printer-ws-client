@@ -1,9 +1,8 @@
 import asyncio
 import logging
+import time
 from abc import ABC, abstractmethod
 from typing import Generic, Optional, TypeVar, Callable
-
-import time
 
 from .config import Config
 from .const import SUPPORTED_SIMPLYPRINT_VERSION
@@ -204,8 +203,6 @@ class DefaultClient(Client[TConfig]):
 
         self.printer.info.sp_version = SUPPORTED_SIMPLYPRINT_VERSION
 
-        self.event_bus.on(Events.ServerEvent, self.on_any_event, generic=True)
-
     def set_info(self, name, version="0.0.1"):
         self.set_api_info(name, version)
         self.set_ui_info(name, version)
@@ -235,9 +232,6 @@ class DefaultClient(Client[TConfig]):
 
         self.printer.latency.ping = time.time()
         await self.send_event(PingEvent())
-
-    def on_any_event(self, event: Event):
-        self.logger.debug(f"Got event {event}")
 
     @Demands.SystemRestartEvent.on
     async def on_system_restart(self, event: Demands.SystemRestartEvent):
