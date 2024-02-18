@@ -65,7 +65,8 @@ class EventBusListeners:
         return False
 
     def __iter__(self) -> Generator[EventBusListener, None, None]:
-        for _, listener in self.listeners:
+        """Iterate over listeners in priority order."""
+        for _, listener in heapq.nlargest(len(self.listeners), self.listeners):
             yield listener
 
     def __len__(self) -> int:
@@ -201,7 +202,7 @@ class EventBus(Generic[TEvent]):
         When sync_only is specified the function will only invoke synchronous listeners. 
         """
 
-        emit_func = self.emit_sync if sync_only else self.emit
+        emit_func = self.emit_sync if sync_only else self.emit_task
         return lambda *args, **kwargs: emit_func(event, *args, **kwargs)
 
     def on(self, event_type: Hashable, listener: Optional[Callable] = None, priority: int = 0, generic: bool = False):
@@ -213,7 +214,7 @@ class EventBus(Generic[TEvent]):
     def _register_listeners(self, event_type: Union[Hashable, TEvent], listener: Callable, priority=0,
                             generic: bool = False) -> Callable:
         """
-        Registers all listerners for a generic type given the type is an event type,
+        Registers all listeners for a generic type given the type is an event type,
         otherwise wraps a single register call.
         """
 

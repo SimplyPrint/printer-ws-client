@@ -1,12 +1,11 @@
 import asyncio
 import logging
+import sys
 import threading
+import time
 from abc import ABC, abstractmethod
 from typing import (Any, Callable, Generic, Iterable, List,
                     Optional, Tuple, TypeVar, Union, Dict, Coroutine)
-
-import sys
-import time
 
 from ..client import Client, ClientConfigChangedEvent
 from ..config.config import Config
@@ -148,7 +147,6 @@ class Instance(ABC, Generic[TClient, TConfig]):
         self.reset_connection()
         # Initialize a new connection
         self._instance_thread_id = None
-
         self._instance_lock.release()
 
     async def run(self) -> None:
@@ -175,7 +173,19 @@ class Instance(ABC, Generic[TClient, TConfig]):
         return time.time() - self.heartbeat < self.tick_rate * max_heartbeats_missed
 
     def stop(self) -> None:
-        _ = self.get_loop().create_task(self.connection.close_internal())
+        async def async_stop():
+            self.logger.info("Stopping instance")
+
+            await self.connection.close_internal()
+            tasks = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
+
+            for task in tasks:
+                task.cancel()
+
+            await asyncio.gather(*tasks, return_exceptions=True)
+
+        asyncio.run_coroutine_threadsafe(async_stop(), self.get_loop())
+
         self._stop_event.set()
 
     async def consume_clients(self):

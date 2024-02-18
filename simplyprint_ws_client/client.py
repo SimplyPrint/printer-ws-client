@@ -54,8 +54,8 @@ class Client(ABC, Generic[TConfig]):
 
     _connected: bool = False
 
-    sentry: Optional[Sentry]
-    physical_machine: Optional[PhysicalMachine]
+    sentry: Optional[Sentry] = None
+    physical_machine: [PhysicalMachine] = None
 
     event_bus: ClientEventBus
     loop_factory: Optional[Callable[[], asyncio.AbstractEventLoop]] = None
@@ -160,9 +160,9 @@ class Client(ABC, Generic[TConfig]):
         ...
 
 
-class DefaultClient(Client[TConfig]):
+class DefaultClient(Client[TConfig], ABC):
     """
-    Client with default event handling.
+    Client with default event handling, logging and more extra features.
     """
 
     logger: logging.Logger
@@ -172,8 +172,8 @@ class DefaultClient(Client[TConfig]):
     def __init__(self, config: TConfig, **kwargs):
         super().__init__(config, **kwargs)
 
-        self.logger = logging.getLogger(ClientName.from_client(self))
         self.physical_machine = PhysicalMachine()
+        self.logger = logging.getLogger(ClientName.from_client(self))
 
         # Default M117 behaviour.
         """
@@ -196,10 +196,6 @@ class DefaultClient(Client[TConfig]):
         self.printer.observe(_on_display_message,
                              "current_display_message")
         """
-
-        # Set information about the physical machine
-        for k, v in self.physical_machine.get_info().items():
-            self.printer.info.set_trait(k, v)
 
         self.printer.info.sp_version = SUPPORTED_SIMPLYPRINT_VERSION
 
@@ -232,14 +228,6 @@ class DefaultClient(Client[TConfig]):
 
         self.printer.latency.ping = time.time()
         await self.send_event(PingEvent())
-
-    @Demands.SystemRestartEvent.on
-    async def on_system_restart(self, event: Demands.SystemRestartEvent):
-        self.physical_machine.restart()
-
-    @Demands.SystemShutdownEvent.on
-    async def on_system_shutdown(self, event: Demands.SystemShutdownEvent):
-        self.physical_machine.shutdown()
 
     @Events.ErrorEvent.before
     async def on_error(self, event: Events.ErrorEvent):
@@ -308,3 +296,20 @@ class DefaultClient(Client[TConfig]):
 
         if event.timer is not None:
             self.intervals.set(IntervalTypes.WEBCAM.value, event.timer)
+
+
+class PhysicalClient(DefaultClient[TConfig], ABC):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        # Set information about the physical machine
+        for k, v in self.physical_machine.get_info().items():
+            self.printer.info.set_trait(k, v)
+
+    @Demands.SystemRestartEvent.on
+    async def on_system_restart(self, event: Demands.SystemRestartEvent):
+        self.physical_machine.restart()
+
+    @Demands.SystemShutdownEvent.on
+    async def on_system_shutdown(self, event: Demands.SystemShutdownEvent):
+        self.physical_machine.shutdown()

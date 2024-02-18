@@ -1,3 +1,5 @@
+import asyncio
+
 try:
     """ Prefer faster event loop implementation. """
     from uvloop import run as async_run
@@ -16,4 +18,7 @@ class Runner:
 
     @staticmethod
     def run(*args, **kwargs) -> None:
-        return async_run(*args, **kwargs)
+        try:
+            return async_run(*args, **kwargs)
+        except asyncio.CancelledError:
+            pass

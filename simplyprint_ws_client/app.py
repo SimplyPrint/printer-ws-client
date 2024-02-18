@@ -2,14 +2,14 @@ import asyncio
 import logging
 import threading
 from enum import Enum
-from typing import Callable, NamedTuple, Optional, Type
+from typing import Callable, NamedTuple, Optional, Type, Generic
 
 from .client import Client
 from .config import Config, ConfigManager, ConfigManagerType
 from .const import APP_DIRS, SimplyPrintUrl, SimplyPrintVersion
 from .helpers.runner import Runner
 from .instance import Instance, MultiPrinter, SinglePrinter
-from .instance.instance import InstanceException
+from .instance.instance import InstanceException, TClient, TConfig
 from .instance.multi_printer import MultiPrinterException
 
 
@@ -59,11 +59,11 @@ class ClientFactory:
         return self.client_t(*args, config=config or self.config_t.get_blank(), **kwargs)
 
 
-class ClientApp:
+class ClientApp(Generic[TClient, TConfig]):
     options: ClientOptions
 
     logger = logging.getLogger("simplyprint.client_app")
-    instance: Instance[Client, Config]
+    instance: Instance[TClient, TConfig]
     instance_thread: Optional[threading.Thread] = None
 
     client_factory: ClientFactory

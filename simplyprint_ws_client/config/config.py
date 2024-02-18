@@ -34,6 +34,11 @@ class ConfigMeta(type):
 class Config(metaclass=ConfigMeta):
     """
     Configuration object.
+
+    TODO:
+        - Use different framework to support object factories / serialization
+        - Add support for default values
+        - Custom unique id generation / abstract methods etc.
     """
 
     id: int
