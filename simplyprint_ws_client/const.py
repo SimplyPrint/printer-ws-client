@@ -16,8 +16,8 @@ class SimplyPrintWsVersion(Enum):
     VERSION_0_2 = "0.2"
 
 
-class SimplyPrintVersion(Enum):
-    PRODUCTION = None
+class SimplyPrintBackend(Enum):
+    PRODUCTION = "production"
     TESTING = "test"
     STAGING = "staging"
 
@@ -27,14 +27,14 @@ class SimplyPrintVersion(Enum):
 
     @property
     def api_subdomain(self) -> str:
-        if self.value is None:
+        if self == SimplyPrintBackend.PRODUCTION:
             return "api"
 
         return f"{self.value}api"
 
     @property
     def ws_subdomain(self) -> str:
-        if self.value is None:
+        if self == SimplyPrintBackend.PRODUCTION:
             return "ws"
 
         if self.value == "test":
@@ -87,7 +87,7 @@ class UrlBuilder(NamedTuple):
 class SimplyPrintUrl:
     _current_url: "SimplyPrintUrl" = None
 
-    def __init__(self, version: SimplyPrintVersion) -> None:
+    def __init__(self, version: SimplyPrintBackend) -> None:
         self.version = version
 
     @staticmethod
@@ -95,7 +95,7 @@ class SimplyPrintUrl:
         return SimplyPrintUrl._current_url
 
     @staticmethod
-    def set_current(version: SimplyPrintVersion = SimplyPrintVersion.PRODUCTION):
+    def set_current(version: SimplyPrintBackend = SimplyPrintBackend.PRODUCTION):
         SimplyPrintUrl._current_url = SimplyPrintUrl(version)
 
     @property
@@ -119,6 +119,6 @@ IS_TESTING = bool(environ.get("IS_TESTING")) or bool(
     environ.get("DEV_MODE")) or bool(environ.get("DEBUG"))
 
 value = environ.get("SIMPLYPRINT_VERSION",
-                    (SimplyPrintVersion.TESTING if IS_TESTING else SimplyPrintVersion.PRODUCTION).value)
+                    (SimplyPrintBackend.TESTING if IS_TESTING else SimplyPrintBackend.PRODUCTION).value)
 
-SimplyPrintUrl.set_current(SimplyPrintVersion(value))
+SimplyPrintUrl.set_current(SimplyPrintBackend(value))

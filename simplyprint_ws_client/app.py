@@ -6,7 +6,7 @@ from typing import Callable, NamedTuple, Optional, Type, Generic, Dict
 
 from .client import Client
 from .config import Config, ConfigManager, ConfigManagerType
-from .const import APP_DIRS, SimplyPrintUrl, SimplyPrintVersion
+from .const import APP_DIRS, SimplyPrintUrl, SimplyPrintBackend
 from .helpers.runner import Runner
 from .instance import Instance, MultiPrinter, SinglePrinter
 from .instance.instance import InstanceException, TClient, TConfig
@@ -31,7 +31,7 @@ TConfigFactory = Type[Client] | Callable[..., Client]
 
 class ClientOptions(NamedTuple):
     mode: ClientMode = ClientMode.SINGLE
-    backend: Optional[SimplyPrintVersion] = None
+    backend: Optional[SimplyPrintBackend] = None
 
     name: Optional[str] = "printers"
     config_manager_type: ConfigManagerType = ConfigManagerType.MEMORY
