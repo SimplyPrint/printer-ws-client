@@ -170,7 +170,10 @@ class Instance(ABC, Generic[TClient, TConfig]):
         if not self.connection.is_connected():
             return True
 
-        return time.time() - self.heartbeat < self.tick_rate * max_heartbeats_missed
+        max_time_since_heartbeat = self.tick_rate * max_heartbeats_missed
+        time_since_last_heartbeat = time.time() - self.heartbeat
+
+        return time_since_last_heartbeat < max_time_since_heartbeat
 
     def stop(self) -> None:
         async def async_stop():
@@ -197,9 +200,8 @@ class Instance(ABC, Generic[TClient, TConfig]):
             try:
                 if not self.connection.is_connected():
                     self.logger.debug("Consuming clients - not connected")
-                    await asyncio.sleep(self.reconnect_timeout)
                     await self.connection.event_bus.emit(ConnectionDisconnectEvent())
-                    continue
+                    raise InstanceException("Not connected - not consuming clients")
 
                 for client in self.get_clients():
                     prev_task, started_at = client_tasks.get(client, (None, None))
@@ -214,12 +216,14 @@ class Instance(ABC, Generic[TClient, TConfig]):
                     task = self.get_loop().create_task(self.consume_client(client))
                     client_tasks[client] = (task, time.time())
 
-                await asyncio.sleep(max(0.0, self.tick_rate - (time.time() - dt)))
-
+            except InstanceException:
+                # Jump to end.
+                pass
             except Exception as e:
                 self.logger.exception(e)
-
-            self.heartbeat = time.time()
+            finally:
+                await asyncio.sleep(max(0.0, self.tick_rate - (time.time() - dt)))
+                self.heartbeat = time.time()
 
         # Stop all clients
         for client in list(self.get_clients()):
@@ -280,7 +284,7 @@ class Instance(ABC, Generic[TClient, TConfig]):
             if self._stop_event.is_set():
                 return
 
-            if self.connection.is_connected():
+            if not self.should_connect() or self.connection.is_connected():
                 return
 
             # Mark all printers as disconnected

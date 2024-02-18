@@ -2,7 +2,7 @@ import asyncio
 import logging
 import threading
 from enum import Enum
-from typing import Callable, NamedTuple, Optional, Type, Generic
+from typing import Callable, NamedTuple, Optional, Type, Generic, Dict
 
 from .client import Client
 from .config import Config, ConfigManager, ConfigManagerType
@@ -40,6 +40,7 @@ class ClientOptions(NamedTuple):
     config_t: Optional[Type[Config]] = None
 
     allow_setup: bool = False
+    cache_clients: bool = False  # Cache clients between restarts, important if state is re-source able.
     reconnect_timeout = 5.0
     tick_rate = 1.0
 
@@ -59,6 +60,35 @@ class ClientFactory:
         return self.client_t(*args, config=config or self.config_t.get_blank(), **kwargs)
 
 
+class ClientCache:
+    """ Caches clients to optimize re-addition of clients."""
+
+    clients: Dict[str, Client]
+
+    def __init__(self):
+        self.clients = {}
+
+    def add(self, client: Client):
+        self.clients[client.config.unique_id] = client
+
+    def remove(self, client: Client):
+        self.clients.pop(client.config.unique_id, None)
+
+    def sync(self, instance: Instance[TClient, TConfig]):
+        """ Ensure clients removed between start and stop are removed from the cache."""
+
+        for client in self.clients.values():
+            if not instance.has_client(client):
+                self.remove(client)
+
+    def by_other(self, config: Config) -> Optional[Client]:
+        for client in self.clients.values():
+            if config.partial_eq(client.config):
+                return client
+
+        return None
+
+
 class ClientApp(Generic[TClient, TConfig]):
     options: ClientOptions
 
@@ -66,8 +96,9 @@ class ClientApp(Generic[TClient, TConfig]):
     instance: Instance[TClient, TConfig]
     instance_thread: Optional[threading.Thread] = None
 
-    client_factory: ClientFactory
     config_manager: ConfigManager
+    client_factory: ClientFactory
+    client_cache: Optional[ClientCache] = None
 
     running_future: asyncio.Future
 
@@ -90,6 +121,7 @@ class ClientApp(Generic[TClient, TConfig]):
                                        tick_rate=options.tick_rate)
 
         self.client_factory = ClientFactory(client_t=options.client_t, config_t=options.config_t)
+        self.client_cache = ClientCache() if options.cache_clients else None
 
         log_file = APP_DIRS.user_log_path / f"{options.name}.log"
 
@@ -103,9 +135,15 @@ class ClientApp(Generic[TClient, TConfig]):
         async with self.instance:
             # Register all clients
             for config in self.config_manager.get_all():
+                client = None
+
                 self.logger.debug(f"Registering client {config}")
 
-                client = self.client_factory.create_client(config=config, loop_factory=self.instance.get_loop)
+                if self.client_cache:
+                    client = self.client_cache.by_other(config)
+
+                if not client:
+                    client = self.create_client(config)
 
                 try:
                     await self.instance.register_client(client)
@@ -119,7 +157,12 @@ class ClientApp(Generic[TClient, TConfig]):
         self.logger.debug("Client instance has stopped")
 
     def create_client(self, config: Optional[Config]):
-        return self.client_factory.create_client(config=config, loop_factory=self.instance.get_loop)
+        client = self.client_factory.create_client(config=config, loop_factory=self.instance.get_loop)
+
+        if self.client_cache:
+            self.client_cache.add(client)
+
+        return client
 
     async def _register_client(self, client: Client):
         try:
@@ -133,10 +176,10 @@ class ClientApp(Generic[TClient, TConfig]):
         await self._register_client(new_client)
 
     def delete_client(self, client: Client) -> asyncio.Future:
-        return asyncio.run_coroutine_threadsafe(self.instance.delete_client(client), self.instance.get_loop())
+        if self.client_cache:
+            self.client_cache.remove(client)
 
-    def remove_client(self, client: Client) -> asyncio.Future:
-        return asyncio.run_coroutine_threadsafe(self.instance.remove_client(client), self.instance.get_loop())
+        return asyncio.run_coroutine_threadsafe(self.instance.delete_client(client), self.instance.get_loop())
 
     def register_client(self, client: Client) -> asyncio.Future:
         return asyncio.run_coroutine_threadsafe(self._register_client(client), self.instance.get_loop())
@@ -158,6 +201,10 @@ class ClientApp(Generic[TClient, TConfig]):
         self.instance_thread.start()
 
     def stop(self):
+        # Cleanup cache before stopping
+        if self.client_cache:
+            self.client_cache.sync(self.instance)
+
         self.instance.stop()
 
         # If the instance is running in a separate thread, wait for it to stop
