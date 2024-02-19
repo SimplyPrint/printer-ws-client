@@ -408,7 +408,7 @@ class Instance(ABC, Generic[TClient, TConfig]):
         seek_pointer = 0
         seek_until = len(backlog)
 
-        while seek_pointer < seek_until:
+        while seek_pointer < seek_until and len(backlog) > 0:
             args = backlog.pop(0)
 
             await consumer(*args)
