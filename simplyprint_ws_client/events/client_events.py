@@ -288,7 +288,7 @@ class JobInfoEvent(ClientEvent):
 
     @classmethod
     def build(cls, state: "PrinterState") -> Generator[Tuple, None, None]:
-        state_fields = ["started", "finished", "cancelled", "failed"];
+        state_fields = ["started", "finished", "cancelled", "failed"]
 
         if state.job_info.has_changed(*state_fields):
             # Only send updates in terms of true, since they
@@ -306,7 +306,7 @@ class JobInfoEvent(ClientEvent):
 
             if state.job_info.has_changed(key):
                 if value is None:
-                    state.job_info.clear((key, -1))
+                    state.job_info.clear((key, None))
                     continue
 
                 if key == "progress":

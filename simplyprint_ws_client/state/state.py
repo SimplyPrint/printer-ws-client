@@ -69,9 +69,8 @@ class ClientState(HasTraits):
         for field, generation in fields:
             current_gen = self._field_generations.get(field)
 
-            # negative generation is a sentinel to remove
-            # the field from the changed fields set
-            if generation < 0 or current_gen == generation:
+            # If no generation is given, clear all generations
+            if generation is None or current_gen == generation:
                 self._changed_fields.discard(field)
 
     def partial_clear(self, *fields: str):

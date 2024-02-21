@@ -102,7 +102,7 @@ class MultiPrinter(Instance[TClient, TConfig]):
         return len(self.clients) > 0
 
     async def on_printer_added_response(self, event: MultiPrinterAddResponseEvent, client: TClient):
-        self.pending_unique_set.remove(client.config.unique_id)
+        self.pending_unique_set.discard(client.config.unique_id)
 
         if event.status:
             client.config.id = event.printer_id
