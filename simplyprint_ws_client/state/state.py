@@ -60,7 +60,7 @@ class ClientState(HasTraits):
     def get_changed(self) -> List[str]:
         return list(self._changed_fields)
 
-    def clear(self, *fields: Tuple[str, int]):
+    def clear(self, *fields: Tuple[str, Optional[int]]):
         if not fields:
             self._changed_fields.clear()
             return

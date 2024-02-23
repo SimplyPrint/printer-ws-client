@@ -240,7 +240,7 @@ class DefaultClient(Client[TConfig], ABC):
 
     @Events.ConnectEvent.before
     async def before_connect(self, event: Events.ConnectEvent):
-        self.connected = True
+        self._connected = True
         self.config.name = event.printer_name
         self.config.in_setup = event.in_setup
         self.config.short_id = event.short_id

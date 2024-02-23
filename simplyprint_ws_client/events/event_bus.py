@@ -195,14 +195,16 @@ class EventBus(Generic[TEvent]):
         """Allows for synchronous emitting of events. Useful cross-thread communication."""
         return asyncio.run_coroutine_threadsafe(self.emit(event, *args, **kwargs), self.loop_factory())
 
-    def emit_wrap(self, event: Union[Hashable, TEvent], sync_only=False):
+    def emit_wrap(self, event: Union[Hashable, TEvent], sync_only=False, use_tasks=False) -> Callable:
         """
         Returns a curried function that emits the given event with any arguments passed to it.
         
-        When sync_only is specified the function will only invoke synchronous listeners. 
+        When sync_only is specified the function will only invoke synchronous listeners.
+
+        When use_tasks is specified the function will emit the event in a separate task and return their futures.
         """
 
-        emit_func = self.emit_sync if sync_only else self.emit_task
+        emit_func = self.emit_sync if sync_only else self.emit_task if use_tasks else self.emit
         return lambda *args, **kwargs: emit_func(event, *args, **kwargs)
 
     def on(self, event_type: Hashable, listener: Optional[Callable] = None, priority: int = 0, generic: bool = False):

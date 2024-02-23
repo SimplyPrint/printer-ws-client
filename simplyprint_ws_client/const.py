@@ -23,6 +23,9 @@ class SimplyPrintBackend(Enum):
 
     @property
     def root_subdomain(self) -> Optional[str]:
+        if self == SimplyPrintBackend.PRODUCTION:
+            return None
+
         return self.value
 
     @property
