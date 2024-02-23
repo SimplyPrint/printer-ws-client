@@ -6,7 +6,7 @@ from .instance import Instance, TClient, TConfig, InstanceException
 from ..client import Client
 from ..config.config import Config
 from ..config.manager import ConfigManager
-from ..connection import ConnectionConnectedEvent, ConnectionReconnectEvent
+from ..connection import ConnectionConnectedEvent, ConnectionReconnectEvent, ConnectionEventReceivedEvent
 from ..const import SimplyPrintUrl
 from ..events.client_events import ClientEvent
 from ..events.server_events import MultiPrinterAddResponseEvent, MultiPrinterRemoveEvent
@@ -52,9 +52,9 @@ class MultiPrinter(Instance[TClient, TConfig]):
         super().__init__(config_manager, **kwargs)
 
         self.event_bus.on(MultiPrinterAddResponseEvent,
-                          self.on_printer_added_response)
+                          self.on_printer_added_response, priority=10)
 
-        self.event_bus.on(MultiPrinterRemoveEvent, self.on_printer_removed_response)
+        self.event_bus.on(MultiPrinterRemoveEvent, self.on_printer_removed_response, priority=10)
 
         self.set_url(str(SimplyPrintUrl.current().ws_url / "mp" / 0 / 0))
         self.clients = dict()
@@ -72,6 +72,7 @@ class MultiPrinter(Instance[TClient, TConfig]):
         if not self.has_client(client):
             return
 
+        self.logger.debug(f"Removing client {client.config.unique_id} from clients.")
         self.clients.pop(client.config.unique_id)
 
         if not self.connection.is_connected():
@@ -87,12 +88,12 @@ class MultiPrinter(Instance[TClient, TConfig]):
             raise MultiPrinterException("Cannot get client with blank config")
 
         if config.unique_id in self.clients:
-            found = self.clients[config.unique_id]
-            return found
+            return self.clients[config.unique_id]
 
         for client in self.clients.values():
             if not client.config.partial_eq(config):
                 continue
+
             return client
 
     def has_client(self, client: TClient) -> bool:
@@ -100,6 +101,14 @@ class MultiPrinter(Instance[TClient, TConfig]):
 
     def should_connect(self) -> bool:
         return len(self.clients) > 0
+
+    async def on_received_event(self, event: ConnectionEventReceivedEvent):
+        # Prevent issue where MultiPrinterRemove event is echoed back to us
+        # then backlogged were it is reprocessed when the client is re-added.
+        if event.event in [MultiPrinterAddResponseEvent, MultiPrinterRemoveEvent]:
+            event.allow_backlog = False
+
+        await super().on_received_event(event)
 
     async def on_printer_added_response(self, event: MultiPrinterAddResponseEvent, client: TClient):
         self.pending_unique_set.discard(client.config.unique_id)
@@ -114,6 +123,8 @@ class MultiPrinter(Instance[TClient, TConfig]):
             await self.consume_backlog(self.server_event_backlog, self.on_received_event)
             await self.consume_backlog(self.client_event_backlog, self.on_client_event)
         else:
+            self.logger.debug(
+                f"Popped client {client.config.unique_id} from clients due to failed adding, status false.")
             client = self.clients.pop(client.config.unique_id, None)
             # If the client was removed, stop it.
             self.stop_client_deferred(client)
@@ -122,6 +133,7 @@ class MultiPrinter(Instance[TClient, TConfig]):
         event.stop_event()
 
     async def on_printer_removed_response(self, event: MultiPrinterRemoveEvent, client: TClient):
+        self.logger.debug(f"Popped client {client.config.unique_id} from clients due to remove event.")
         client = self.clients.pop(client.config.unique_id, None)
 
         # Do not propagate event further.

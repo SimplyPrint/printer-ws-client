@@ -19,6 +19,10 @@ class ConnectionEventReceivedEvent(Event):
     event: Union[ServerEvent, DemandEvent]
     for_client: Optional[Union[str, int]] = None
 
+    # Some events should be ignored not backlogged.
+    # TODO clean this up.
+    allow_backlog: bool = True
+
     def __init__(self, event: Union[ServerEvent, DemandEvent], for_client: Optional[Union[str, int]] = None) -> None:
         self.event = event
         self.for_client = for_client

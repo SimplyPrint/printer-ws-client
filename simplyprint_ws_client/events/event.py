@@ -6,7 +6,7 @@ class EventTraits:
         if isinstance(other, str):
             return self.get_name() == other
 
-        if isinstance(other, Event):
+        if isinstance(other, Event) or isinstance(other, EventType):
             return self.get_name() == other.get_name()
 
         return self is other
@@ -19,7 +19,9 @@ class EventTraits:
 
 
 class EventType(EventTraits, type):
-    ...
+    @classmethod
+    def get_name(cls):
+        raise NotImplementedError()
 
 
 class Event(EventTraits, metaclass=EventType):

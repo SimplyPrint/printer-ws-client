@@ -316,7 +316,9 @@ class Instance(ABC, Generic[TClient, TConfig]):
         client = self.get_client(config)
 
         if not client:
-            self.server_event_backlog.append((event,))
+            if event.allow_backlog:
+                self.server_event_backlog.append((event,))
+
             return
 
         await self.event_bus.emit(event.event, client)
