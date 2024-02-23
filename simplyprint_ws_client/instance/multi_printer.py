@@ -159,8 +159,9 @@ class MultiPrinter(Instance[TClient, TConfig]):
         self.pending_unique_set.clear()
 
         for client in self.clients.values():
-            client.connected = False
-            await self._send_add_printer(client)
+            async with client:
+                client.connected = False
+                await self._send_add_printer(client)
 
     async def _send_add_printer(self, client: TClient):
         if client.config.unique_id in self.pending_unique_set:

@@ -289,7 +289,8 @@ class Instance(ABC, Generic[TClient, TConfig]):
 
             # Mark all printers as disconnected
             for client in self.get_clients():
-                client.connected = False
+                async with client:
+                    client.connected = False
 
             self.logger.info(
                 f"Disconnected from server - reconnecting in {self.reconnect_timeout} seconds")

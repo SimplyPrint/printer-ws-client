@@ -53,6 +53,7 @@ class Client(ABC, Generic[TConfig]):
     printer: PrinterState
 
     _connected: bool = False
+    _client_lock: asyncio.Lock
 
     sentry: Optional[Sentry] = None
     physical_machine: [PhysicalMachine] = None
@@ -64,10 +65,13 @@ class Client(ABC, Generic[TConfig]):
         self.config = config
         self.intervals = Intervals()
         self.printer = PrinterState()
+
+        self._client_lock = asyncio.Lock()
         self.event_bus = ClientEventBus(loop_factory=loop_factory)
         self.loop_factory = loop_factory
 
         # Recover handles from the class
+        # TODO: Generalize this under the event system.
         for name in dir(self):
             if not hasattr(self, name):
                 continue
@@ -77,6 +81,15 @@ class Client(ABC, Generic[TConfig]):
             if hasattr(attr, "_event"):
                 event_cls = attr._event
                 self.event_bus.on(event_cls, attr, attr._pre)
+
+    async def __aenter__(self):
+        """ Acquire a client to perform order sensitive operations."""
+        await self._client_lock.acquire()
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        """ Release the client lock. """
+        self._client_lock.release()
 
     @property
     def connected(self) -> bool:
@@ -240,7 +253,9 @@ class DefaultClient(Client[TConfig], ABC):
 
     @Events.ConnectEvent.before
     async def before_connect(self, event: Events.ConnectEvent):
-        self._connected = True
+        async with self:
+            self.connected = True
+
         self.config.name = event.printer_name
         self.config.in_setup = event.in_setup
         self.config.short_id = event.short_id
