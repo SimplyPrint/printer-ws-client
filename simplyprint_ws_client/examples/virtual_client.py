@@ -1,20 +1,23 @@
-import asyncio
 import math
 
-from ...helpers.file_download import FileDownload
-from ...state.printer import FileProgressState, PrinterStatus
-from ...client import DefaultClient
-from ...events import Events, Demands
+from simplyprint_ws_client.client import DefaultClient
+from simplyprint_ws_client.config import Config
+from simplyprint_ws_client.events import Events, Demands
+from simplyprint_ws_client.helpers.file_download import FileDownload
+from simplyprint_ws_client.state.printer import FileProgressState, PrinterStatus
 
-from .virtual_config import VirtualConfig
+
+class VirtualConfig(Config):
+    ...
 
 
 def expt_smooth(target, actual, alpha, dt) -> float:
     return actual + (target - actual) * (1.0 - math.exp(-alpha * dt))
 
+
 class VirtualClient(DefaultClient[VirtualConfig]):
-    def __init__(self, config: VirtualConfig):
-        super().__init__(config)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
         self.set_info("Virtual Printer", "0.0.1")
         self.setup_sentry("https://a5aef1defa83433586dd0cf1c1fffe57@o1102514.ingest.sentry.io/6619552")
@@ -50,9 +53,8 @@ class VirtualClient(DefaultClient[VirtualConfig]):
 
     @Demands.FileEvent.on
     async def on_file(self, event: Demands.FileEvent):
-        print(event)
         downloader = FileDownload(self)
-        data = await downloader.download_as_bytes(event.url)
+        _ = await downloader.download_as_bytes(event.url)
         self.printer.file_progress.state = FileProgressState.READY
 
     @Demands.StartPrintEvent.on
@@ -105,3 +107,6 @@ class VirtualClient(DefaultClient[VirtualConfig]):
                 self.printer.status = PrinterStatus.OPERATIONAL
                 self.printer.job_info.finished = True
                 self.printer.job_info.progress = 100
+
+    async def stop(self):
+        pass

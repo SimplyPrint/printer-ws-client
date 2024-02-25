@@ -304,10 +304,6 @@ class Instance(ABC, Generic[TClient, TConfig]):
         Events received by SimplyPrint to be ingested.
         """
 
-        if event.for_client is None:
-            # Internal event
-            return
-
         if isinstance(event.for_client, str):
             config = Config(unique_id=event.for_client)
         else:

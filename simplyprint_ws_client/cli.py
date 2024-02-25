@@ -1,5 +1,4 @@
-import logging
-from typing import Any, Dict, Optional, Union, get_args, get_origin
+from typing import Any, Dict, Optional, Union, get_args, get_origin, Callable
 
 import click
 
@@ -30,6 +29,7 @@ class ClientCliConfigManager(CommandBag, click.Group):
         self.add_command(click.Command("list", callback=self.list_configs))
         self.add_command(click.Command("edit", callback=self.edit_config, params=[click.Argument(["index"], type=int)]))
         self.add_command(click.Command("add", callback=self.add_config))
+        self.add_command(click.Command("new", callback=self.add_new_config, help="Add a new configuration"))
         self.add_command(
             click.Command("remove", callback=self.remove_config, params=[click.Argument(["index"], type=int)]))
 
@@ -93,6 +93,12 @@ class ClientCliConfigManager(CommandBag, click.Group):
         self.app.config_manager.flush()
         click.echo("Configuration added.")
 
+    def add_new_config(self):
+        config = self.app.config_manager.config_t.get_new()
+        self.app.config_manager.persist(config)
+        self.app.config_manager.flush()
+        click.echo("Configuration added.")
+
     def remove_config(self, index: int):
         config = self.get_config_by_index(index)
 
@@ -107,8 +113,8 @@ class ClientCliConfigManager(CommandBag, click.Group):
 
 class ClientCli(CommandBag, click.MultiCommand):
     app: ClientApp
-
     commands: Dict[str, click.Command]
+    _client_runner: Optional[Callable[[], None]] = None
 
     def __init__(self, app: Optional[ClientApp] = None) -> None:
         super().__init__(name="simplyprint", help="SimplyPrint client CLI")
@@ -119,6 +125,13 @@ class ClientCli(CommandBag, click.MultiCommand):
         self.add_command(ClientCliConfigManager(self.app))
         self.add_command(click.Command("start", callback=self.start_client, help="Start the client"))
 
+    @property
     def start_client(self):
-        logging.basicConfig(level=logging.DEBUG)
-        self.app.run_blocking()
+        if self._client_runner is None:
+            return self.app.run_blocking
+
+        return self._client_runner
+
+    @start_client.setter
+    def start_client(self, value):
+        self._client_runner = value

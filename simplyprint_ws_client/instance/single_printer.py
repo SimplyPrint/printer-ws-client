@@ -43,7 +43,7 @@ class SinglePrinter(Instance[TClient, TConfig]):
 
         await self.consume_backlog(self.client_event_backlog, self.on_client_event)
 
-    async def on_client_event(self, client: Client[TConfig], event: ClientEvent):
+    async def on_client_event(self, event: ClientEvent, client: Client[TConfig]):
         # Do not send for_client identifier for a single printer connection
         event.for_client = None
 

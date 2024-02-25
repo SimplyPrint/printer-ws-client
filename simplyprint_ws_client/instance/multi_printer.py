@@ -85,7 +85,7 @@ class MultiPrinter(Instance[TClient, TConfig]):
 
     def get_client(self, config: TConfig) -> Optional[TClient]:
         if config.is_blank():
-            raise MultiPrinterException("Cannot get client with blank config")
+            return None
 
         if config.unique_id in self.clients:
             return self.clients[config.unique_id]
@@ -117,7 +117,6 @@ class MultiPrinter(Instance[TClient, TConfig]):
             client.config.id = event.printer_id
             self.config_manager.flush(client.config)
 
-            # Mark certain events to always be sent to the server
             client.printer.mark_all_changed_dirty()
 
             await self.consume_backlog(self.server_event_backlog, self.on_received_event)

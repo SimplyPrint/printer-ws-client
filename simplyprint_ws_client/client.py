@@ -8,7 +8,7 @@ from .config import Config
 from .const import SUPPORTED_SIMPLYPRINT_VERSION
 from .events import demand_events as Demands
 from .events import server_events as Events
-from .events.client_events import ClientEvent, PingEvent
+from .events.client_events import ClientEvent, PingEvent, StateChangeEvent, MachineDataEvent
 from .events.event import Event
 from .events.event_bus import EventBus
 from .helpers.intervals import IntervalTypes, Intervals
@@ -271,6 +271,10 @@ class DefaultClient(Client[TConfig], ABC):
 
     @Events.SetupCompleteEvent.before
     async def before_setup_complete(self, event: Events.SetupCompleteEvent):
+        # Mark certain events to always be sent to the server
+        self.printer.mark_event_as_dirty(StateChangeEvent)
+        self.printer.mark_event_as_dirty(MachineDataEvent)
+
         self.config.id = event.printer_id
         self.config.in_setup = False
         self.printer.current_display_message = "Setup complete"
