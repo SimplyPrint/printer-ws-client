@@ -50,7 +50,7 @@ class FileProgressState(Enum):
 
 @to_event(FileProgressEvent)
 class PrinterFileProgressState(ClientState):
-    state: Optional[FileProgressState] = Always(TraitletsEnum(FileProgressState))
+    state: Optional[FileProgressState] = Always(TraitletsEnum(FileProgressState, allow_none=True))
     percent: Optional[float] = Float()
     message: Optional[str] = Unicode()  # Typically error message
 
@@ -223,7 +223,7 @@ class PrinterState(State):
             job_info=JobInfoState(),
             psu_info=PrinterPSUState(),
             latency=PingPongState(),
-            file_progress=PrinterFileProgressState(),
+            file_progress=PrinterFileProgressState(state=None),
             filament_sensor=PrinterFilamentSensorState(),
             material_data=[MaterialModel() for _ in range(extruder_count)],
         )

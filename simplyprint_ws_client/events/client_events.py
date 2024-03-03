@@ -366,6 +366,10 @@ class FileProgressEvent(ClientEvent):
 
         TODO: Make enum accessible beyond circular import so we do not have to use literals.
         """
+
+        if state.file_progress.state is None:
+            return
+
         yield "state", state.file_progress.state.value, state.file_progress.partial_clear("state")
 
         if state.file_progress.state.value == "error":
