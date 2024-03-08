@@ -54,6 +54,9 @@ class DomainBuilder(NamedTuple):
     domain: str = "simplyprint"
     tld: str = "io"
 
+    def to_url(self) -> 'UrlBuilder':
+        return UrlBuilder(netloc=self)
+
     def __str__(self) -> str:
         return ".".join(filter(None, [self.subdomain, self.domain, self.tld]))
 
@@ -103,7 +106,7 @@ class SimplyPrintUrl:
 
     @property
     def root_url(self) -> UrlBuilder:
-        return UrlBuilder("https", DomainBuilder(self.version.root_subdomain))
+        return DomainBuilder(self.version.root_subdomain).to_url()
 
     @property
     def api_url(self) -> UrlBuilder:
@@ -111,7 +114,7 @@ class SimplyPrintUrl:
 
     @property
     def standalone_api_url(self) -> UrlBuilder:
-        return UrlBuilder("https", DomainBuilder(self.version.api_subdomain))
+        return DomainBuilder(self.version.api_subdomain).to_url()
 
     @property
     def ws_url(self) -> UrlBuilder:

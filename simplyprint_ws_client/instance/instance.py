@@ -12,7 +12,7 @@ from ..config.config import Config
 from ..config.manager import ConfigManager
 from ..connection import (Connection, ConnectionConnectedEvent,
                           ConnectionDisconnectEvent,
-                          ConnectionEventReceivedEvent,
+                          ConnectionPollEvent,
                           ConnectionReconnectEvent)
 from ..events.client_events import (ClientEvent)
 from ..events.demand_events import DemandEvent
@@ -76,7 +76,7 @@ class Instance(ABC, Generic[TClient, TConfig]):
     disconnect_lock: asyncio.Lock
 
     # Queues to synchronize events between threads / coroutines
-    server_event_backlog: List[Tuple[ConnectionEventReceivedEvent]]
+    server_event_backlog: List[Tuple[ConnectionPollEvent]]
     client_event_backlog: List[Tuple[TClient, ClientEvent]]
 
     def __init__(self, config_manager: ConfigManager[TConfig], allow_setup=False,
@@ -95,7 +95,7 @@ class Instance(ABC, Generic[TClient, TConfig]):
         self.reconnect_timeout = reconnect_timeout
         self.tick_rate = tick_rate
 
-        self.event_bus.on(ServerEvent, self.on_event, generic=True)
+        self.event_bus.on(ServerEvent, self.on_server_event, generic=True)
 
         self.reset_connection()
 
@@ -111,14 +111,20 @@ class Instance(ABC, Generic[TClient, TConfig]):
         self.connection.event_bus.on(
             ConnectionReconnectEvent, self.on_reconnect)
         self.connection.event_bus.on(
-            ConnectionEventReceivedEvent, self.on_received_event)
+            ConnectionPollEvent, self.on_poll_event)
 
         self.disconnect_lock = asyncio.Lock()
+
+    def is_stopped(self) -> bool:
+        return self._stop_event.is_set()
 
     def get_loop(self) -> asyncio.AbstractEventLoop:
         """
         Get the event loop for the client.
         """
+
+        if self.is_stopped():
+            raise RuntimeError("Instance stopped, no loop available.")
 
         if not self._loop:
             raise RuntimeError("Loop not initialized")
@@ -163,7 +169,7 @@ class Instance(ABC, Generic[TClient, TConfig]):
         """ This function is intended to be available to the implementer to check if the instance is healthy."""
 
         # While the instance is stopped or not started, it is considered healthy
-        if self._stop_event.is_set():
+        if self.is_stopped():
             return True
 
         # While not connected, the instance is considered healthy
@@ -194,7 +200,7 @@ class Instance(ABC, Generic[TClient, TConfig]):
     async def consume_clients(self):
         client_tasks: Dict[TClient, Tuple[asyncio.Task, float]] = {}
 
-        while not self._stop_event.is_set():
+        while not self.is_stopped():
             dt = time.time()
 
             try:
@@ -255,7 +261,7 @@ class Instance(ABC, Generic[TClient, TConfig]):
             client.logger.warning(f"Client timed out while consuming state {events_to_process}")
 
     async def poll_events(self) -> None:
-        while not self._stop_event.is_set():
+        while not self.is_stopped():
             if not self.connection.is_connected():
                 self.logger.debug("Not connected - not polling events")
                 await asyncio.sleep(self.reconnect_timeout)
@@ -268,6 +274,10 @@ class Instance(ABC, Generic[TClient, TConfig]):
         self.logger.info("Stopped polling events")
 
     async def connect(self) -> None:
+        if self.is_stopped():
+            self.logger.info("Instance stopped - not connecting")
+            return
+
         if not self.should_connect():
             self.logger.info("No clients to connect - not connecting")
             return
@@ -281,10 +291,7 @@ class Instance(ABC, Generic[TClient, TConfig]):
 
     async def on_disconnect(self, _: ConnectionDisconnectEvent):
         async with self.disconnect_lock:
-            if self._stop_event.is_set():
-                return
-
-            if not self.should_connect() or self.connection.is_connected():
+            if self.is_stopped() or not self.should_connect() or self.connection.is_connected():
                 return
 
             # Mark all printers as disconnected
@@ -299,7 +306,7 @@ class Instance(ABC, Generic[TClient, TConfig]):
 
             await self.connect()
 
-    async def on_received_event(self, event: ConnectionEventReceivedEvent):
+    async def on_poll_event(self, event: ConnectionPollEvent):
         """
         Events received by SimplyPrint to be ingested.
         """
@@ -311,7 +318,7 @@ class Instance(ABC, Generic[TClient, TConfig]):
 
         client = self.get_client(config)
 
-        if not client:
+        if not client or self.is_stopped():
             if event.allow_backlog:
                 self.server_event_backlog.append((event,))
 
@@ -320,7 +327,7 @@ class Instance(ABC, Generic[TClient, TConfig]):
         await self.event_bus.emit(event.event, client)
 
     def on_client_config_changed(self, client: TClient):
-        """ 
+        """
         When a client config is changed, persist it to disk.
         """
 
@@ -386,7 +393,7 @@ class Instance(ABC, Generic[TClient, TConfig]):
         client.event_bus.on(ClientConfigChangedEvent, on_client_config_changed)
 
         await self.add_client(client)
-        await self.consume_backlog(self.server_event_backlog, self.on_received_event)
+        await self.consume_backlog(self.server_event_backlog, self.on_poll_event)
 
         if not self.connection.is_connected():
             await self.connect()
@@ -414,12 +421,15 @@ class Instance(ABC, Generic[TClient, TConfig]):
 
             seek_pointer += 1
 
-    async def on_event(self, event: Union[ServerEvent, DemandEvent], client: TClient):
+    async def on_server_event(self, event: Union[ServerEvent, DemandEvent], client: TClient):
         """
         Called when a client event is received.
 
         Do not wait for client handlers to run as they will block the event loop.
         """
+
+        if self.is_stopped():
+            raise InstanceException(f"Instance stopped - dropping event {event}.")
 
         if not isinstance(event, ServerEvent):
             raise InstanceException(f"Expected ServerEvent but got {event}")

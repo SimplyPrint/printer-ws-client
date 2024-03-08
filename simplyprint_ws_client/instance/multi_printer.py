@@ -6,7 +6,7 @@ from .instance import Instance, TClient, TConfig, InstanceException
 from ..client import Client
 from ..config.config import Config
 from ..config.manager import ConfigManager
-from ..connection import ConnectionConnectedEvent, ConnectionReconnectEvent, ConnectionEventReceivedEvent
+from ..connection import ConnectionConnectedEvent, ConnectionReconnectEvent, ConnectionPollEvent
 from ..const import SimplyPrintUrl
 from ..events.client_events import ClientEvent
 from ..events.server_events import MultiPrinterAddResponseEvent, MultiPrinterRemoveEvent
@@ -102,13 +102,13 @@ class MultiPrinter(Instance[TClient, TConfig]):
     def should_connect(self) -> bool:
         return len(self.clients) > 0
 
-    async def on_received_event(self, event: ConnectionEventReceivedEvent):
+    async def on_poll_event(self, event: ConnectionPollEvent):
         # Prevent issue where MultiPrinterRemove event is echoed back to us
         # then backlogged were it is reprocessed when the client is re-added.
         if event.event in [MultiPrinterAddResponseEvent, MultiPrinterRemoveEvent]:
             event.allow_backlog = False
 
-        await super().on_received_event(event)
+        await super().on_poll_event(event)
 
     async def on_printer_added_response(self, event: MultiPrinterAddResponseEvent, client: TClient):
         self.pending_unique_set.discard(client.config.unique_id)
@@ -119,7 +119,7 @@ class MultiPrinter(Instance[TClient, TConfig]):
 
             client.printer.mark_all_changed_dirty()
 
-            await self.consume_backlog(self.server_event_backlog, self.on_received_event)
+            await self.consume_backlog(self.server_event_backlog, self.on_poll_event)
             await self.consume_backlog(self.client_event_backlog, self.on_client_event)
         else:
             self.logger.debug(

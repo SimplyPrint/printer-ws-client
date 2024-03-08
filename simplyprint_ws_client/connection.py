@@ -15,7 +15,7 @@ from .events.event import Event
 from .events.event_bus import EventBus
 
 
-class ConnectionEventReceivedEvent(Event):
+class ConnectionPollEvent(Event):
     event: Union[ServerEvent, DemandEvent]
     for_client: Optional[Union[str, int]] = None
 
@@ -61,6 +61,9 @@ class Connection:
     def __init__(self) -> None:
         self.event_bus = ConnectionEventBus()
         self.connection_lock = asyncio.Lock()
+
+    def is_connected(self) -> bool:
+        return self.socket is not None and not self.socket.closed
 
     async def connect(self, url: Optional[str] = None, timeout: Optional[float] = None) -> None:
         async with self.connection_lock:
@@ -130,9 +133,6 @@ class Connection:
 
         await self.on_disconnect()
 
-    def is_connected(self) -> bool:
-        return self.socket is not None and not self.socket.closed
-
     async def on_disconnect(self):
         """ When something goes wrong, reset the socket """
 
@@ -152,12 +152,7 @@ class Connection:
             mode = event.get_client_mode(client)
 
             if mode != ClientEventMode.DISPATCH:
-                # """
-                # This debug statement is quite
-                # distracting, it can be enabled.
                 self.logger.debug(f"Did not send event {event} because of mode {mode.name}")
-                # """
-
                 return
 
             message = event.as_dict()
@@ -221,7 +216,7 @@ class Connection:
             self.logger.debug(
                 f"Received event {event.get_name()} with data {message.data} for client {for_client}")
 
-            await self.event_bus.emit(ConnectionEventReceivedEvent(event, for_client))
+            await self.event_bus.emit(ConnectionPollEvent(event, for_client))
 
         except (CancelledError, TimeoutError, ConnectionResetError):
             self.logger.debug(f"Websocket closed by server due to timeout.")
