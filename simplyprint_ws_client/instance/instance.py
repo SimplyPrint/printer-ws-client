@@ -181,14 +181,9 @@ class Instance(ABC, Generic[TClient, TConfig]):
 
             await self.connection.close_internal()
             tasks = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
-
-            for task in tasks:
-                task.cancel()
-
             await asyncio.gather(*tasks, return_exceptions=True)
 
         asyncio.run_coroutine_threadsafe(async_stop(), self.get_loop())
-
         self._stop_event.set()
 
     async def consume_clients(self):
