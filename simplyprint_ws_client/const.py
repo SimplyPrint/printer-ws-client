@@ -8,6 +8,8 @@ from platformdirs import AppDirs
 
 VERSION = importlib.metadata.version("simplyprint_ws_client") or "development"
 APP_DIRS = AppDirs("SimplyPrint", "SimplyPrint")
+
+# Eqv. to OctoPrint plugin version support.
 SUPPORTED_SIMPLYPRINT_VERSION = "4.1.3"
 
 

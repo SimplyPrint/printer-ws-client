@@ -1,40 +1,50 @@
-from typing import Optional
+import logging
+from typing import TYPE_CHECKING
 
 import sentry_sdk
 
-from ..const import IS_TESTING, VERSION
+from ..const import VERSION
+
+if TYPE_CHECKING:
+    from ..app import ClientOptions
 
 
 class Sentry:
     """
     Configuration object for client information.
     """
-    
-    client: Optional[str] = None
-    client_version: Optional[str] = None
-    sentry_dsn: Optional[str] = None
-    development: bool = IS_TESTING
 
-    def initialize_sentry(self, unique_id: Optional[str] = None):
-        if self.sentry_dsn is None:
+    integrations = []
+
+    @classmethod
+    def add_integration(cls, integration):
+        if cls.is_initialized():
+            raise RuntimeError("Cannot add integrations after sentry is initialized")
+
+        cls.integrations.append(integration)
+
+    @classmethod
+    def is_initialized(cls):
+        return sentry_sdk.Hub.current.client is not None
+
+    @classmethod
+    def initialize_sentry(cls, options: 'ClientOptions'):
+        if options.sentry_dsn is None:
             return
-    
-        if sentry_sdk.Hub.current.client is not None:
+
+        if cls.is_initialized():
             return
 
         try:
             sentry_sdk.init(
-                dsn=self.sentry_dsn,
-                traces_sample_rate=0.05,
-                release=f"{self.info.client}@{self.info.client_version}",
-                environment=("production" if not self.info.development else "development"),
+                dsn=options.sentry_dsn,
+                traces_sample_rate=1.0,
+                integrations=cls.integrations,
+                release=f"{options.name}@{options.version}",
+                environment=("production" if not options.development else "development"),
             )
 
             sentry_sdk.set_tag("lib_version", VERSION)
 
-            if unique_id is not None:
-                sentry_sdk.set_tag("id", unique_id)
-            
-        except Exception:
-            # Log
-            pass
+        except Exception as e:
+            logging.exception(e)

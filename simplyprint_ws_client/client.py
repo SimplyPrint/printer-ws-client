@@ -5,7 +5,6 @@ from abc import ABC, abstractmethod
 from typing import Generic, Optional, TypeVar, Callable
 
 from .config import Config
-from .const import SUPPORTED_SIMPLYPRINT_VERSION
 from .events import demand_events as Demands
 from .events import server_events as Events
 from .events.client_events import ClientEvent, PingEvent, StateChangeEvent, MachineDataEvent
@@ -13,7 +12,6 @@ from .events.event import Event
 from .events.event_bus import EventBus
 from .helpers.intervals import IntervalTypes, Intervals
 from .helpers.physical_machine import PhysicalMachine
-from .helpers.sentry import Sentry
 from .logging import *
 from .state.printer import PrinterState
 
@@ -55,7 +53,6 @@ class Client(ABC, Generic[TConfig]):
     _connected: bool = False
     _client_lock: asyncio.Lock
 
-    sentry: Optional[Sentry] = None
     physical_machine: [PhysicalMachine] = None
 
     event_bus: ClientEventBus
@@ -142,6 +139,20 @@ class Client(ABC, Generic[TConfig]):
 
         return self.loop
 
+    def set_info(self, name, version="0.0.1"):
+        """ Set same info for all fields, both for UI / API and the client. """
+        self.set_api_info(name, version)
+        self.set_ui_info(name, version)
+        self.printer.info.sp_version = version
+
+    def set_api_info(self, api: str, api_version: str):
+        self.printer.info.api = api
+        self.printer.info.api_version = api_version
+
+    def set_ui_info(self, ui: str, ui_version: str):
+        self.printer.info.ui = ui
+        self.printer.info.ui_version = ui_version
+
     @abstractmethod
     async def init(self):
         """
@@ -209,31 +220,6 @@ class DefaultClient(Client[TConfig], ABC):
         self.printer.observe(_on_display_message,
                              "current_display_message")
         """
-
-        self.printer.info.sp_version = SUPPORTED_SIMPLYPRINT_VERSION
-
-    def set_info(self, name, version="0.0.1"):
-        self.set_api_info(name, version)
-        self.set_ui_info(name, version)
-
-    def set_api_info(self, api: str, api_version: str):
-        self.printer.info.api = api
-        self.printer.info.api_version = api_version
-
-    def set_ui_info(self, ui: str, ui_version: str):
-        self.printer.info.ui = ui
-        self.printer.info.ui_version = ui_version
-
-    def setup_sentry(self, sentry_dsn: str, development: bool = True):
-        if not self.printer.info.api or not self.printer.info.api_version:
-            raise ClientConfigurationException(
-                "You need to set the api and api_version before you can setup sentry")
-
-        self.sentry = Sentry()
-        self.sentry.client = self.printer.info.api
-        self.sentry.client_version = self.printer.info.api_version
-        self.sentry.sentry_dsn = sentry_dsn
-        self.sentry.development = development
 
     async def send_ping(self):
         if not self.intervals.is_ready(IntervalTypes.PING):

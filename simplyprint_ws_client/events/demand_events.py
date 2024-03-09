@@ -114,6 +114,9 @@ class UpdateEvent(DemandEvent):
 class PluginInstallEvent(DemandEvent):
     demand = "plugin_install"
 
+    def on_event(self):
+        self.plugins: List[Dict] = self.data.get("plugins")
+
 
 class PluginUninstallEvent(DemandEvent):
     demand = "plugin_uninstall"

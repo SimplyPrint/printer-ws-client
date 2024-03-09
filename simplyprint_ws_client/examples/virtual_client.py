@@ -20,7 +20,6 @@ class VirtualClient(DefaultClient[VirtualConfig]):
         super().__init__(*args, **kwargs)
 
         self.set_info("Virtual Printer", "0.0.1")
-        self.setup_sentry("https://a5aef1defa83433586dd0cf1c1fffe57@o1102514.ingest.sentry.io/6619552")
 
     @Events.ConnectEvent.on
     async def on_connect(self, event: Events.ConnectEvent):

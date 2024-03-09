@@ -90,11 +90,10 @@ class Connection:
                 socket = await self.session.ws_connect(self.url, timeout=timeout, autoclose=False, max_msg_size=0,
                                                        compress=False)
             except WSServerHandshakeError as e:
-                self.logger.error(
+                self.logger.info(
                     f"Failed to connect to {self.url} with status code {e.status}: {e.message}")
             except ClientConnectorError as e:
-                self.logger.error(f"Failed to connect to {self.url}")
-                self.logger.exception(e)
+                self.logger.error(f"Failed to connect to {self.url}", exc_info=e)
             except Exception as e:
                 self.logger.exception(e)
 

@@ -18,7 +18,6 @@ from ..events.client_events import (ClientEvent)
 from ..events.demand_events import DemandEvent
 from ..events.event_bus import Event, EventBus
 from ..events.server_events import ServerEvent
-from ..helpers.sentry import Sentry
 
 TClient = TypeVar("TClient", bound=Client)
 TConfig = TypeVar("TConfig", bound=Config)
@@ -47,8 +46,6 @@ class Instance(ABC, Generic[TClient, TConfig]):
     """
 
     logger = logging.getLogger("instance")
-
-    sentry: Optional[Sentry] = None
 
     url: Optional[str] = None
     connection: Connection
@@ -140,9 +137,6 @@ class Instance(ABC, Generic[TClient, TConfig]):
         self._instance_thread_id = threading.get_ident()
 
         self._loop = asyncio.get_running_loop()
-
-        if self.sentry and self.sentry.sentry_dsn is not None:
-            self.sentry.initialize_sentry()
 
         # Reset the stop event
         self._stop_event.clear()

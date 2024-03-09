@@ -8,6 +8,7 @@ from .client import Client
 from .config import Config, ConfigManager, ConfigManagerType
 from .const import APP_DIRS, SimplyPrintUrl, SimplyPrintBackend
 from .helpers.runner import Runner
+from .helpers.sentry import Sentry
 from .instance import Instance, MultiPrinter, SinglePrinter
 from .instance.instance import InstanceException, TClient, TConfig
 from .instance.multi_printer import MultiPrinterException
@@ -32,8 +33,12 @@ TConfigFactory = Type[Client] | Callable[..., Client]
 class ClientOptions(NamedTuple):
     mode: ClientMode = ClientMode.SINGLE
     backend: Optional[SimplyPrintBackend] = None
+    development: bool = False
 
+    # Client name and version used for various purposes.
     name: Optional[str] = "printers"
+    version: Optional[str] = "0.1"
+
     config_manager_type: ConfigManagerType = ConfigManagerType.MEMORY
 
     client_t: Optional[TConfigFactory] = None
@@ -44,15 +49,21 @@ class ClientOptions(NamedTuple):
     reconnect_timeout = 5.0
     tick_rate = 1.0
 
+    # Sentry DSN for sentry logging.
+    sentry_dsn: Optional[str] = None
+
     def is_valid(self) -> bool:
         return self.client_t is not None and self.config_t is not None
 
 
 class ClientFactory:
+    options: ClientOptions
     client_t: Optional[Type[Client] | Callable[..., Client]] = None
     config_t: Optional[Type[Config]] = None
 
-    def __init__(self, client_t: Optional[Type[Client]] = None, config_t: Optional[Type[Config]] = None) -> None:
+    def __init__(self, options: ClientOptions, client_t: Optional[Type[Client]] = None,
+                 config_t: Optional[Type[Config]] = None) -> None:
+        self.options = options
         self.client_t = client_t
         self.config_t = config_t
 
@@ -100,8 +111,6 @@ class ClientApp(Generic[TClient, TConfig]):
     client_factory: ClientFactory
     client_cache: Optional[ClientCache] = None
 
-    running_future: asyncio.Future
-
     def __init__(self, options: ClientOptions) -> None:
         if not options.is_valid():
             raise ValueError("Invalid options")
@@ -120,7 +129,7 @@ class ClientApp(Generic[TClient, TConfig]):
                                        allow_setup=options.allow_setup, reconnect_timeout=options.reconnect_timeout,
                                        tick_rate=options.tick_rate)
 
-        self.client_factory = ClientFactory(client_t=options.client_t, config_t=options.config_t)
+        self.client_factory = ClientFactory(options=options, client_t=options.client_t, config_t=options.config_t)
         self.client_cache = ClientCache() if options.cache_clients else None
 
         log_file = APP_DIRS.user_log_path / f"{options.name}.log"
@@ -128,8 +137,8 @@ class ClientApp(Generic[TClient, TConfig]):
         if not log_file.parent.exists():
             log_file.parent.mkdir(parents=True)
 
-        # handler = RotatingFileHandler(log_file, maxBytes=1024 * 1024 * 10, backupCount=5)
-        # logging.basicConfig()
+        if options.sentry_dsn:
+            Sentry.initialize_sentry(self.options)
 
     async def run(self):
         async with self.instance:
