@@ -6,7 +6,7 @@ from typing import Any, Dict, Optional, Union
 
 from aiohttp import (ClientConnectorError, ClientSession,
                      ClientWebSocketResponse, WSMsgType,
-                     WSServerHandshakeError)
+                     WSServerHandshakeError, ClientOSError)
 
 from .client import Client
 from .events import DemandEvent, ServerEvent, EventFactory
@@ -92,7 +92,7 @@ class Connection:
             except WSServerHandshakeError as e:
                 self.logger.info(
                     f"Failed to connect to {self.url} with status code {e.status}: {e.message}")
-            except ClientConnectorError as e:
+            except (ClientConnectorError, ClientOSError) as e:
                 self.logger.error(f"Failed to connect to {self.url}", exc_info=e)
             except Exception as e:
                 self.logger.exception(e)

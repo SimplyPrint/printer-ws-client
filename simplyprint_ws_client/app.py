@@ -206,6 +206,10 @@ class ClientApp(Generic[TClient, TConfig]):
 
     def run_detached(self):
         """ Run the client in a separate thread. """
+        if self.instance_thread:
+            self.logger.warning("Client instance already running - stopping old instance")
+            self.stop()
+
         self.instance_thread = threading.Thread(target=self.run_blocking)
         self.instance_thread.start()
 

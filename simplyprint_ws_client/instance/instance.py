@@ -336,7 +336,7 @@ class Instance(ABC, Generic[TClient, TConfig]):
             asyncio.run(c.stop())
             sys.exit(0)
 
-        threading.Thread(target=stop_client, args=(client,), daemon=True).start()
+        threading.Thread(target=stop_client, args=(client,)).start()
 
     async def delete_client(self, client: TClient):
         """
