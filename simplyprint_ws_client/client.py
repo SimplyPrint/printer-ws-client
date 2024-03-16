@@ -294,9 +294,6 @@ class DefaultClient(Client[TConfig], ABC):
 
     @Demands.WebcamSnapshotEvent.before
     async def before_webcam_snapshot(self, event: Demands.WebcamSnapshotEvent):
-        self.logger.debug(
-            f"Got request to take webcam snapshot {event} and {self.requested_snapshots}")
-
         self.requested_snapshots += 1
 
         if event.timer is not None:
