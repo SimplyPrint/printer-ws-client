@@ -72,6 +72,7 @@ class FileEvent(DemandEvent):
         self.file_id: str = self.data.get("file_id")
         self.file_size: Optional[int] = self.data.get("file_size")
         self.start_options: Dict[str, bool] = self.data.get("start_options", {})
+        self.zip_printable: Optional[str] = self.data.get("zip_printable")
 
         # Convert mapping to list of integers where -1 is None
         mms_map = self.data.get("mms_map", None)
