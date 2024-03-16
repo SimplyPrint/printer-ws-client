@@ -1,12 +1,29 @@
-import platform
+import functools
 import os
+import platform
 import re
-import psutil
-import subprocess
 import socket
-import netifaces
-
+import subprocess
 from typing import Optional
+
+import netifaces
+import psutil
+
+
+def callonce(func):
+    result = None
+
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        nonlocal result
+
+        if result is None:
+            result = func(*args, **kwargs)
+
+        return result
+
+    return wrapper
+
 
 class PhysicalMachine:
     """
@@ -16,17 +33,19 @@ class PhysicalMachine:
     def get_cpu(self):
         temperature: Optional[float] = None
         temperatures = psutil.sensors_temperatures()
-        
+
         # Find the first temperature sensor that is not None
         # Priority is given in reverse order
         temperature_keys = {
-            "coretemp", 
-            "cpu-thermal",
-            "cpu_thermal", 
-            "soc_thermal"
-        } & set(temperatures.keys())
-        
-        temperature = temperatures[temperature_keys.pop()][0].current if len(temperature_keys) > 0 and temperatures[temperature_keys.pop()][0].current is not None else 0
+                               "coretemp",
+                               "cpu-thermal",
+                               "cpu_thermal",
+                               "soc_thermal"
+                           } & set(temperatures.keys())
+
+        temperature = temperatures[temperature_keys.pop()][0].current if len(temperature_keys) > 0 and \
+                                                                         temperatures[temperature_keys.pop()][
+                                                                             0].current is not None else 0
 
         return {
             "usage": round(psutil.cpu_percent()),
@@ -54,7 +73,7 @@ class PhysicalMachine:
         Returns the Python version.
         """
         return platform.python_version()
-    
+
     def __get_cpu_model_linux(self) -> Optional[str]:
         info_path = "/proc/cpuinfo"
 
@@ -78,13 +97,14 @@ class PhysicalMachine:
         except Exception:
             pass
 
+    @callonce
     def __get_cpu_model_windows(self) -> Optional[str]:
         try:
-            name = subprocess.check_output(["wmic", "cpu", "get", "name"]).decode("utf-8").strip()
+            name = subprocess.check_output(["wmic", "cpu", "get", "name"], shell=False).decode("utf-8").strip()
 
             if name.startswith("Name"):
                 name = name[4:].strip()
-            
+
             return name
         except Exception:
             return None
@@ -104,11 +124,12 @@ class PhysicalMachine:
 
     def os(self) -> str:
         return platform.system()
-    
+
     def mac_address(self) -> str:
         # Use netifaces
         try:
-            return netifaces.ifaddresses(netifaces.gateways()["default"][netifaces.AF_INET][1])[netifaces.AF_LINK][0]["addr"]
+            return netifaces.ifaddresses(netifaces.gateways()["default"][netifaces.AF_INET][1])[netifaces.AF_LINK][0][
+                "addr"]
         except Exception:
             return None
 
@@ -118,15 +139,18 @@ class PhysicalMachine:
         except Exception:
             return False
 
+    @callonce
     def __ssid_linux(self) -> Optional[str]:
         try:
-            return subprocess.check_output(["iwgetid", "-r"]).decode("utf-8").strip()
+            return subprocess.check_output(["iwgetid", "-r"], shell=False).decode("utf-8").strip()
         except Exception:
             return None
 
+    @callonce
     def __ssid_windows(self) -> Optional[str]:
         try:
-            output = subprocess.check_output(["netsh", "wlan", "show", "interfaces"]).decode("utf-8").strip()
+            output = subprocess.check_output(["netsh", "wlan", "show", "interfaces"], shell=False).decode(
+                "utf-8").strip()
 
             for line in output.split("\n"):
                 line = line.strip()
@@ -163,7 +187,7 @@ class PhysicalMachine:
 
     def total_memory(self) -> int:
         return psutil.virtual_memory().total
-    
+
     def restart(self):
         if self.os() == "Linux":
             os.system("sudo reboot")

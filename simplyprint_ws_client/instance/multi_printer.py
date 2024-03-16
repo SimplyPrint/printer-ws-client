@@ -124,9 +124,15 @@ class MultiPrinter(Instance[TClient, TConfig]):
         else:
             self.logger.debug(
                 f"Popped client {client.config.unique_id} from clients due to failed adding, status false.")
+
             client = self.clients.pop(client.config.unique_id, None)
             # If the client was removed, stop it.
             self.stop_client_deferred(client)
+
+            # TODO awaiting response codes from add_connection
+            # Make printer pending when failed to add.
+            if not client.config.is_pending():
+                ...
 
         # Do not propagate event further.
         event.stop_event()
