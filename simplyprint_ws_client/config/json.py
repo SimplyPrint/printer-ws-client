@@ -5,6 +5,7 @@ from typing import Optional
 
 from simplyprint_ws_client.config.config import Config
 from .manager import ConfigManager
+from ..helpers.file_backup import FileBackup
 
 
 class JsonConfigManager(ConfigManager):
@@ -28,11 +29,15 @@ class JsonConfigManager(ConfigManager):
             for config in data:
                 self.persist(self.config_t(**config))
 
-    def deleteStorage(self):
+    def delete_storage(self):
         if not self._json_file.exists():
             return
 
         self._json_file.unlink()
+
+    def backup_storage(self, *args, **kwargs):
+        self._ensure_json_file()
+        FileBackup.backup_file(self._json_file, *args, **kwargs)
 
     @property
     def _json_file(self) -> Path:

@@ -1,14 +1,15 @@
 import json
 import logging
-from pathlib import Path
 import sqlite3
+from pathlib import Path
 from typing import Optional
 
 from simplyprint_ws_client.config.config import Config
-
 from .manager import ConfigManager
+from ..helpers.file_backup import FileBackup
 
-class SqliteConfigManager(ConfigManager):
+
+class SQLiteConfigManager(ConfigManager):
     """
     Handles configuration state and persistence.
     """
@@ -26,14 +27,14 @@ class SqliteConfigManager(ConfigManager):
                 self._flush_single(config)
                 self._remove_detached()
                 return
-            
+
             for config in self.configurations:
                 # Do not flush blank configs
                 if config.is_blank():
                     continue
 
                 self._flush_single(config)
-            
+
             self._remove_detached()
         finally:
             self.db.commit()
@@ -51,13 +52,17 @@ class SqliteConfigManager(ConfigManager):
             kwargs["id"] = config[0]
             kwargs["token"] = config[1]
             self.persist(self.config_t(**kwargs))
-    
-    def deleteStorage(self):
+
+    def delete_storage(self):
         if not self._database_file.exists():
             return
-        
+
         self._database_file.unlink()
-    
+
+    def backup_storage(self, *args, **kwargs):
+        self._ensure_table()
+        FileBackup.backup_file(self._database_file, *args, **kwargs)
+
     def _get_single(self, config: Config):
         return self.db.execute(
             """
@@ -77,7 +82,7 @@ class SqliteConfigManager(ConfigManager):
             self.db.commit()
             self.logger.info(f"Inserted config {config}")
             return
-        
+
         self.db.execute(
             """
             UPDATE printers SET data= ? WHERE id= ? AND token= ?
@@ -89,7 +94,7 @@ class SqliteConfigManager(ConfigManager):
             """
             SELECT id, token FROM printers
             """).fetchall()
-        
+
         # Loop over all configs
         for config in configs:
             # If the config is not in the manager
@@ -109,10 +114,10 @@ class SqliteConfigManager(ConfigManager):
         Ensure the config table exists.
         """
 
-        if not SqliteConfigManager.db or not self._database_file.exists():
-            SqliteConfigManager.db = sqlite3.connect(self._database_file, check_same_thread=False)
+        if not SQLiteConfigManager.db or not self._database_file.exists():
+            SQLiteConfigManager.db = sqlite3.connect(self._database_file, check_same_thread=False)
 
-        if SqliteConfigManager.table_exists:
+        if SQLiteConfigManager.table_exists:
             return
 
         self.db.execute(
@@ -124,7 +129,7 @@ class SqliteConfigManager(ConfigManager):
                 PRIMARY KEY (id, token)
             );
             """)
-        
+
         self.db.commit()
         self.logger.info("Created printers table")
-        SqliteConfigManager.table_exists = True
+        SQLiteConfigManager.table_exists = True

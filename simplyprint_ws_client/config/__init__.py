@@ -5,7 +5,7 @@ from .config import Config
 from .json import JsonConfigManager
 from .manager import ConfigManager
 from .memory import MemoryConfigManager
-from .sqlite3 import SqliteConfigManager
+from .sqlite import SQLiteConfigManager
 
 
 class ConfigManagerType(Enum):
@@ -17,7 +17,7 @@ class ConfigManagerType(Enum):
         if self == ConfigManagerType.MEMORY:
             return MemoryConfigManager
         elif self == ConfigManagerType.SQLITE:
-            return SqliteConfigManager
+            return SQLiteConfigManager
         elif self == ConfigManagerType.JSON:
             return JsonConfigManager
         else:

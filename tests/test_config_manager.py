@@ -4,7 +4,8 @@ from simplyprint_ws_client.config import Config
 from simplyprint_ws_client.config.json import JsonConfigManager
 from simplyprint_ws_client.config.manager import ConfigManager
 from simplyprint_ws_client.config.memory import MemoryConfigManager
-from simplyprint_ws_client.config.sqlite3 import SqliteConfigManager
+from simplyprint_ws_client.config.sqlite import SQLiteConfigManager
+
 
 class TestConfigManager(unittest.TestCase):
     def test_internal(self):
@@ -88,17 +89,17 @@ class TestConfigManager(unittest.TestCase):
         config = Config.get_blank()
         config_manager.persist(config)
         config_manager.flush()
-        
+
         config.id = 1336
         config.token = "Super cool token"
 
         config_manager.flush(config)
         config_manager.clear()
         config_manager.load()
-        
+
         self.assertEqual(len(config_manager), 1)
 
-        config_manager.deleteStorage()
+        config_manager.delete_storage()
 
     def test_json_manager(self):
         json_config_manager = JsonConfigManager()
@@ -106,6 +107,6 @@ class TestConfigManager(unittest.TestCase):
         self.assertFalse(json_config_manager._json_file.exists())
 
     def test_sqlite3_manager(self):
-        sqlite_config_manager = SqliteConfigManager()
-        self._test_manager(sqlite_config_manager)      
-        self.assertFalse(sqlite_config_manager._database_file.exists())  
+        sqlite_config_manager = SQLiteConfigManager()
+        self._test_manager(sqlite_config_manager)
+        self.assertFalse(sqlite_config_manager._database_file.exists())

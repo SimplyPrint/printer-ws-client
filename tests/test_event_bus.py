@@ -1,23 +1,27 @@
 import unittest
-from simplyprint_ws_client.events.client_events import ClientEvent
 
+from simplyprint_ws_client.events.client_events import ClientEvent
 from simplyprint_ws_client.events.event import Event
 from simplyprint_ws_client.events.event_bus import EventBus, EventBusListeners
 from simplyprint_ws_client.events.server_events import ServerEvent, ConnectEvent
 
+
 class CustomEvent(Event):
-    def __init__(self, data = None) -> None:
+    def __init__(self, data=None) -> None:
         self.data = data
 
     @classmethod
     def get_name(cls) -> str:
         return "custom"
 
+
 class CustomEventBus(EventBus[CustomEvent]):
     ...
 
+
 class DefaultEventBus(EventBus[Event]):
     ...
+
 
 class TestEventBus(unittest.IsolatedAsyncioTestCase):
     custom_event_bus: CustomEventBus
@@ -37,7 +41,7 @@ class TestEventBus(unittest.IsolatedAsyncioTestCase):
         self.default_event_bus = DefaultEventBus()
         self.default_event_bus.on(ClientEvent, self.on_client_event, generic=True)
         self.default_event_bus.on(ServerEvent, self.on_server_event, generic=True)
-    
+
     async def on_client_event(self, event: ClientEvent):
         if not isinstance(event, ClientEvent):
             raise Exception("Event is not a ClientEvent")
@@ -78,7 +82,7 @@ class TestEventBus(unittest.IsolatedAsyncioTestCase):
         await self.custom_event_bus.emit(CustomEvent())
 
         self.assertEqual(self.called_always, 3)
-    
+
     async def test_default_event_bus(self):
         await self.default_event_bus.emit(ClientEvent())
         await self.default_event_bus.emit(ConnectEvent("connected"))

@@ -2,6 +2,7 @@ import unittest
 
 from simplyprint_ws_client.helpers.intervals import IntervalException, IntervalTypes, Intervals
 
+
 class TimeControlledIntervals(Intervals):
     ms_time: float = 30000.0
 
@@ -17,9 +18,9 @@ class TimeControlledIntervals(Intervals):
     def now(cls) -> float:
         return cls.ms_time
 
+
 class TestConfigManager(unittest.TestCase):
     def test_intervals(self):
-
         intervals = TimeControlledIntervals()
         intervals.set_time(30000.0)
 
@@ -60,6 +61,5 @@ class TestConfigManager(unittest.TestCase):
 
         self.assertFalse(intervals.is_ready(IntervalTypes.PING))
         self.assertEqual(intervals.time_until_ready(IntervalTypes.PING), 1.0)
-
 
         self.assertTrue(IntervalTypes.PING.value in intervals.intervals)

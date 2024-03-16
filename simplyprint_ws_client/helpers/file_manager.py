@@ -7,6 +7,8 @@ File = NamedTuple("File", [("name", str), ("size", int), ("last_modified", int)]
 
 
 class FileManager:
+    """ Virtual file manager logic """
+
     max_age: int
     max_count: int
     max_size: int
