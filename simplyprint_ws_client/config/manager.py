@@ -35,6 +35,9 @@ class ConfigManager(ABC, Generic[TConfig]):
     def by_token(self, token: str) -> Config:
         return self.by_other(self.config_t(token=token))
 
+    def by_unique_id(self, unique_id: str) -> Config:
+        return self.by_other(self.config_t(unique_id=unique_id))
+
     def by_other(self, other: Config) -> Optional[Config]:
         for config in self.configurations:
             if config.partial_eq(other):
