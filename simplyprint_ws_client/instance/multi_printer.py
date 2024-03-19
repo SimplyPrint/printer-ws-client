@@ -68,17 +68,23 @@ class MultiPrinter(Instance[TClient, TConfig]):
 
         await self._send_add_printer(client)
 
+    async def deregister_client(self, client: TClient, remove_from_config=False, request_removal=True):
+        await super().deregister_client(client, remove_from_config)
+
+        if not request_removal:
+            return
+
+        if not self.connection.is_connected():
+            return
+
+        await self._send_remove_printer(client)
+
     async def remove_client(self, client: TClient) -> None:
         if not self.has_client(client):
             return
 
         self.logger.debug(f"Removing client {client.config.unique_id} from clients.")
         self.clients.pop(client.config.unique_id)
-
-        if not self.connection.is_connected():
-            return
-
-        await self._send_remove_printer(client)
 
     def get_clients(self) -> Iterable[TClient]:
         return self.clients.values()
@@ -125,9 +131,7 @@ class MultiPrinter(Instance[TClient, TConfig]):
             self.logger.debug(
                 f"Popped client {client.config.unique_id} from clients due to failed adding, status false.")
 
-            client = self.clients.pop(client.config.unique_id, None)
-            # If the client was removed, stop it.
-            self.stop_client_deferred(client)
+            await self.deregister_client(client, remove_from_config=False, request_removal=False)
 
             # TODO awaiting response codes from add_connection
             # Make printer pending when failed to add.

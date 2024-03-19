@@ -180,7 +180,7 @@ class ClientApp(Generic[TClient, TConfig]):
             pass
 
     async def _reload_client(self, client: Client):
-        await self.instance.delete_client(client)
+        await self.instance.deregister_client(client)
         new_client = self.create_client(client.config)
         await self._register_client(new_client)
 
@@ -188,7 +188,8 @@ class ClientApp(Generic[TClient, TConfig]):
         if self.client_cache:
             self.client_cache.remove(client)
 
-        return asyncio.run_coroutine_threadsafe(self.instance.delete_client(client), self.instance.get_loop())
+        return asyncio.run_coroutine_threadsafe(self.instance.deregister_client(client, remove_from_config=True),
+                                                self.instance.get_loop())
 
     def register_client(self, client: Client) -> asyncio.Future:
         return asyncio.run_coroutine_threadsafe(self._register_client(client), self.instance.get_loop())

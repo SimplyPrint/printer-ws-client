@@ -5,8 +5,9 @@ import threading
 import time
 from abc import ABC, abstractmethod
 from typing import (Any, Callable, Generic, Iterable, List,
-                    Optional, Tuple, TypeVar, Union, Dict, Coroutine)
+                    Optional, Tuple, TypeVar, Union, Coroutine)
 
+from .lifetime import InstanceLifetimeManager
 from ..client import Client, ClientConfigChangedEvent
 from ..config.config import Config
 from ..config.manager import ConfigManager
@@ -18,6 +19,7 @@ from ..events.client_events import (ClientEvent)
 from ..events.demand_events import DemandEvent
 from ..events.event_bus import Event, EventBus
 from ..events.server_events import ServerEvent
+from ..helpers.stoppable import SyncStoppable
 
 TClient = TypeVar("TClient", bound=Client)
 TConfig = TypeVar("TConfig", bound=Config)
@@ -27,7 +29,7 @@ class InstanceException(RuntimeError):
     ...
 
 
-class Instance(ABC, Generic[TClient, TConfig]):
+class Instance(ABC, SyncStoppable, Generic[TClient, TConfig]):
     """
 
     Abstract instance of a SimplyPrint client. This class
@@ -49,21 +51,16 @@ class Instance(ABC, Generic[TClient, TConfig]):
 
     url: Optional[str] = None
     connection: Connection
+
     config_manager: ConfigManager[TConfig]
+    lifetime_manager: InstanceLifetimeManager[TClient]
 
     allow_setup = False
     reconnect_timeout: float = 5.0
-    tick_rate: float = 1.0
-
-    # Allow supervisor to keep track of the last time the instance ticked
-    heartbeat: float = 0.0
 
     event_bus: EventBus[Event]
 
     _loop: Optional[asyncio.AbstractEventLoop] = None
-
-    # Allow the instance to be stopped
-    _stop_event: threading.Event
 
     # Ensure the instance can only be started once.
     _instance_lock: threading.Lock
@@ -77,10 +74,13 @@ class Instance(ABC, Generic[TClient, TConfig]):
     client_event_backlog: List[Tuple[TClient, ClientEvent]]
 
     def __init__(self, config_manager: ConfigManager[TConfig], allow_setup=False,
-                 reconnect_timeout=5.0, tick_rate=1.0) -> None:
-        self.config_manager = config_manager
+                 reconnect_timeout=5.0) -> None:
 
-        self._stop_event = threading.Event()
+        super().__init__()
+
+        self.config_manager = config_manager
+        self.lifetime_manager = InstanceLifetimeManager(stop_chained=self.stop_event)
+
         self._instance_lock = threading.Lock()
 
         self.event_bus = EventBus()
@@ -90,7 +90,6 @@ class Instance(ABC, Generic[TClient, TConfig]):
 
         self.allow_setup = allow_setup
         self.reconnect_timeout = reconnect_timeout
-        self.tick_rate = tick_rate
 
         self.event_bus.on(ServerEvent, self.on_server_event, generic=True)
 
@@ -111,9 +110,6 @@ class Instance(ABC, Generic[TClient, TConfig]):
             ConnectionPollEvent, self.on_poll_event)
 
         self.disconnect_lock = asyncio.Lock()
-
-    def is_stopped(self) -> bool:
-        return self._stop_event.is_set()
 
     def get_loop(self) -> asyncio.AbstractEventLoop:
         """
@@ -139,11 +135,13 @@ class Instance(ABC, Generic[TClient, TConfig]):
         self._loop = asyncio.get_running_loop()
 
         # Reset the stop event
-        self._stop_event.clear()
+        self.clear()
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         self._loop = None
-        self._stop_event.set()
+
+        # Set the stop event
+        super().stop()
         self.reset_connection()
         # Initialize a new connection
         self._instance_thread_id = None
@@ -156,7 +154,7 @@ class Instance(ABC, Generic[TClient, TConfig]):
 
         await asyncio.gather(
             self.poll_events(),
-            self.consume_clients()
+            self.lifetime_manager.loop()
         )
 
     def is_healthy(self, max_heartbeats_missed=2) -> bool:
@@ -184,70 +182,7 @@ class Instance(ABC, Generic[TClient, TConfig]):
             await asyncio.gather(*tasks, return_exceptions=True)
 
         asyncio.run_coroutine_threadsafe(async_stop(), self.get_loop())
-        self._stop_event.set()
-
-    async def consume_clients(self):
-        client_tasks: Dict[TClient, Tuple[asyncio.Task, float]] = {}
-
-        while not self.is_stopped():
-            dt = time.time()
-
-            try:
-                if not self.connection.is_connected():
-                    self.logger.debug("Consuming clients - not connected")
-                    await self.connection.event_bus.emit(ConnectionDisconnectEvent())
-                    raise InstanceException("Not connected - not consuming clients")
-
-                for client in self.get_clients():
-                    prev_task, started_at = client_tasks.get(client, (None, None))
-
-                    if prev_task is not None and not prev_task.done():
-                        if time.time() - started_at > self.tick_rate:
-                            client.logger.warning(
-                                f"Client tick took longer than {self.tick_rate} seconds")
-
-                        continue
-
-                    task = self.get_loop().create_task(self.consume_client(client))
-                    client_tasks[client] = (task, time.time())
-
-            except InstanceException:
-                # Jump to end.
-                pass
-            except Exception as e:
-                self.logger.exception(e)
-            finally:
-                await asyncio.sleep(max(0.0, self.tick_rate - (time.time() - dt)))
-                self.heartbeat = time.time()
-
-        # Stop all clients
-        for client in list(self.get_clients()):
-            self.stop_client_deferred(client)
-
-        self.logger.info("Stopped consuming clients")
-
-    @staticmethod
-    async def consume_client(client: TClient, timeout: float = 5.0) -> None:
-        # Only consume connected clients
-        if not client.connected:
-            client.logger.debug(f"Client not connected - not consuming")
-            return
-
-        try:
-            async with asyncio.timeout(timeout):
-                await client.tick()
-
-        except asyncio.TimeoutError:
-            client.logger.warning(f"Client timed out while ticking")
-
-        events_to_process = client.printer.get_dirty_events()
-
-        try:
-            async with asyncio.timeout(timeout):
-                await client.consume_state()
-
-        except asyncio.TimeoutError:
-            client.logger.warning(f"Client timed out while consuming state {events_to_process}")
+        super().stop()
 
     async def poll_events(self) -> None:
         while not self.is_stopped():
@@ -322,38 +257,6 @@ class Instance(ABC, Generic[TClient, TConfig]):
 
         self.config_manager.flush(client.config)
 
-    def stop_client_deferred(self, client: TClient):
-        """
-        Stops a client, but does not wait for it to stop.
-
-        Can perform complex operations such as saving state to disk.
-        Or operating on other threads and IO.
-        """
-
-        self.logger.info(f"Stopping client {client.config.unique_id} in the background")
-
-        def stop_client(c: TClient):
-            asyncio.run(c.stop())
-            sys.exit(0)
-
-        threading.Thread(target=stop_client, args=(client,)).start()
-
-    async def delete_client(self, client: TClient):
-        """
-        Deletes a client from the instance.
-        """
-
-        if not self.has_client(client):
-            raise InstanceException("Client not registered")
-
-        self.config_manager.remove(client.config)
-        self.config_manager.flush()
-
-        await self.remove_client(client)
-
-        # Client stop might be blocking.
-        self.stop_client_deferred(client)
-
     async def register_client(self, client: TClient):
         """
         Adds some default event handling for a client.
@@ -390,6 +293,23 @@ class Instance(ABC, Generic[TClient, TConfig]):
         await client.init()
 
         client.printer.mark_all_changed_dirty()
+
+    async def deregister_client(self, client: TClient, remove_from_config=False):
+        """
+        Deletes a client from the instance.
+        """
+
+        if not self.has_client(client):
+            raise InstanceException("Client not registered")
+
+        if remove_from_config:
+            self.config_manager.remove(client.config)
+            self.config_manager.flush()
+
+        await self.remove_client(client)
+
+        # Client stop might be blocking.
+        self.stop_client_deferred(client)
 
     @staticmethod
     async def consume_backlog(backlog: List[Tuple[Any, ...]],
@@ -462,14 +382,14 @@ class Instance(ABC, Generic[TClient, TConfig]):
 
     @abstractmethod
     async def add_client(self, client: TClient) -> None:
-        """
+        """ Internal
         Adds a client to the instance.
         """
         ...
 
     @abstractmethod
     async def remove_client(self, client: TClient) -> None:
-        """
+        """ Internal
         Removes a client from the instance.
         """
         ...
