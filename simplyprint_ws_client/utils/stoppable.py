@@ -3,7 +3,7 @@ import threading
 from abc import ABC, abstractmethod
 from typing import Optional, Union
 
-TEvent = Union[threading.Event, asyncio.Event]
+TStopEvent = Union[threading.Event, asyncio.Event]
 
 
 class Stoppable(ABC):
@@ -16,24 +16,24 @@ class Stoppable(ABC):
     a new instance.
 
     """
-    _stop_event: TEvent
+    __stop_event: TStopEvent
 
     @abstractmethod
-    def __init__(self, stop_chained: Optional[TEvent] = None):
+    def __init__(self, _: Optional[TStopEvent] = None):
         ...
 
     def stop(self):
-        self._stop_event.set()
+        self.__stop_event.set()
 
     def clear(self):
-        self._stop_event.clear()
+        self.__stop_event.clear()
 
     def is_stopped(self):
-        return self._stop_event.is_set()
+        return self.__stop_event.is_set()
 
     @property
     def stop_event(self):
-        return self._stop_event
+        return self.__stop_event
 
     @abstractmethod
     def wait(self, timeout: Optional[float] = None) -> bool:
@@ -41,19 +41,19 @@ class Stoppable(ABC):
 
 
 class SyncStoppable(Stoppable):
-    def __init__(self, stop_chained: Optional[threading.Event] = None):
-        self._stop_event = stop_chained or threading.Event()
+    def __init__(self, stop_event: Optional[threading.Event] = None):
+        self.__stop_event = stop_event or threading.Event()
 
     def wait(self, timeout: Optional[float] = None) -> bool:
-        return self._stop_event.wait(timeout)
+        return self.__stop_event.wait(timeout)
 
 
 class AsyncStoppable(Stoppable):
-    def __init__(self, stop_chained: Optional[asyncio.Event] = None):
-        self._stop_event = stop_chained or asyncio.Event()
+    def __init__(self, stop_event: Optional[asyncio.Event] = None):
+        self.__stop_event = stop_event or asyncio.Event()
 
     async def wait(self, timeout: Optional[float] = None) -> bool:
-        return await self._stop_event.wait(timeout)
+        return await self.__stop_event.wait(timeout)
 
 
 class StoppableThread(ABC, threading.Thread, SyncStoppable):

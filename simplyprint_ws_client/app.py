@@ -7,7 +7,7 @@ from typing import Callable, NamedTuple, Optional, Type, Generic, Dict
 from .client import Client
 from .config import Config, ConfigManager, ConfigManagerType
 from .const import APP_DIRS, SimplyPrintUrl, SimplyPrintBackend
-from .helpers.runner import Runner
+from simplyprint_ws_client.utils.event_loop_runner import EventLoopRunner
 from .helpers.sentry import Sentry
 from .instance import Instance, MultiPrinter, SinglePrinter
 from .instance.instance import InstanceException, TClient, TConfig
@@ -189,20 +189,20 @@ class ClientApp(Generic[TClient, TConfig]):
             self.client_cache.remove(client)
 
         return asyncio.run_coroutine_threadsafe(self.instance.deregister_client(client, remove_from_config=True),
-                                                self.instance.get_loop())
+                                                self.instance.event_loop)
 
     def register_client(self, client: Client) -> asyncio.Future:
-        return asyncio.run_coroutine_threadsafe(self._register_client(client), self.instance.get_loop())
+        return asyncio.run_coroutine_threadsafe(self._register_client(client), self.instance.event_loop)
 
     def add_new_client(self, config: Optional[Config]) -> asyncio.Future:
         new_client = self.create_client(config)
         return self.register_client(new_client)
 
     def reload_client(self, client: Client) -> asyncio.Future:
-        return asyncio.run_coroutine_threadsafe(self._reload_client(client), self.instance.get_loop())
+        return asyncio.run_coroutine_threadsafe(self._reload_client(client), self.instance.event_loop)
 
     def run_blocking(self):
-        with Runner() as runner:
+        with EventLoopRunner() as runner:
             runner.run(self.run())
 
     def run_detached(self):

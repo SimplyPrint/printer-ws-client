@@ -3,7 +3,7 @@ import threading
 from typing import Generic, Dict
 
 from .instance import TClient
-from ..helpers.stoppable import AsyncStoppable, SyncStoppable
+from simplyprint_ws_client.utils.stoppable import AsyncStoppable, SyncStoppable
 
 
 class InstanceClientLifetime(Generic[TClient], AsyncStoppable):
@@ -84,7 +84,7 @@ class InstanceLifetimeManager(Generic[TClient], SyncStoppable):
 
                         continue
 
-                    task = self.get_loop().create_task(self.consume_client(client))
+                    task = self.event_loop.create_task(self.consume_client(client))
                     client_tasks[client] = (task, time.time())
 
             except InstanceException:

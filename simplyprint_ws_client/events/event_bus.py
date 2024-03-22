@@ -5,6 +5,7 @@ from typing import (Callable, Dict, Generator, Generic, Hashable, List,
                     Optional, TypeVar, Union, get_args, Type, Any, Tuple)
 
 from .event import Event
+from ..utils.event_loop_provider import EventLoopProvider
 
 TEvent = TypeVar('TEvent', bound=object)
 
@@ -74,12 +75,12 @@ class EventBusListeners:
 
 
 class EventBus(Generic[TEvent]):
-    loop_factory: Callable[[], AbstractEventLoop]
     listeners: Dict[Hashable, EventBusListeners]
     event_klass: Type[TEvent]
+    event_loop_provider: EventLoopProvider[AbstractEventLoop]
 
-    def __init__(self, loop_factory: Optional[Callable[[], AbstractEventLoop]] = None) -> None:
-        self.loop_factory = loop_factory or asyncio.get_running_loop
+    def __init__(self, event_loop_provider: Optional[EventLoopProvider[AbstractEventLoop]] = None) -> None:
+        self.event_loop_provider = event_loop_provider or EventLoopProvider.default()
         self.listeners = {}
 
         # Extract the generic type from the class otherwise
@@ -193,7 +194,8 @@ class EventBus(Generic[TEvent]):
 
     def emit_task(self, event: Union[Hashable, TEvent], *args, **kwargs) -> asyncio.Future:
         """Allows for synchronous emitting of events. Useful cross-thread communication."""
-        return asyncio.run_coroutine_threadsafe(self.emit(event, *args, **kwargs), self.loop_factory())
+        return asyncio.run_coroutine_threadsafe(
+            self.emit(event, *args, **kwargs), self.event_loop_provider.event_loop)
 
     def emit_wrap(self, event: Union[Hashable, TEvent], sync_only=False, use_tasks=False) -> Callable:
         """

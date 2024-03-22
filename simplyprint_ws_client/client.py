@@ -2,7 +2,7 @@ import asyncio
 import logging
 import time
 from abc import ABC, abstractmethod
-from typing import Generic, Optional, TypeVar, Callable
+from typing import Generic, Optional, TypeVar
 
 from .config import Config
 from .events import demand_events as Demands
@@ -14,6 +14,7 @@ from .helpers.intervals import IntervalTypes, Intervals
 from .helpers.physical_machine import PhysicalMachine
 from .logging import *
 from .state.printer import PrinterState
+from .utils.event_loop_provider import EventLoopProvider
 
 
 class ClientConfigurationException(Exception):
@@ -36,15 +37,13 @@ class ClientConfigChangedEvent(Event):
 TConfig = TypeVar("TConfig", bound=Config)
 
 
-class Client(ABC, Generic[TConfig]):
+class Client(ABC, EventLoopProvider[asyncio.AbstractEventLoop], Generic[TConfig]):
     """
     Generic client class that handles and brokers information between the server and the client.
 
     Not necessarily a printer, but a client that can be connected to the server.
     But in some cases also an actual physical device.
     """
-
-    loop: Optional[asyncio.AbstractEventLoop] = None
 
     config: TConfig
     intervals: Intervals
@@ -56,16 +55,18 @@ class Client(ABC, Generic[TConfig]):
     physical_machine: [PhysicalMachine] = None
 
     event_bus: ClientEventBus
-    loop_factory: Optional[Callable[[], asyncio.AbstractEventLoop]] = None
 
-    def __init__(self, config: TConfig, loop_factory: Optional[Callable[[], asyncio.AbstractEventLoop]] = None):
+    def __init__(self, config: TConfig,
+                 event_loop_provider: Optional[EventLoopProvider[asyncio.AbstractEventLoop]] = None):
+
+        super().__init__(provider=event_loop_provider)
+
         self.config = config
         self.intervals = Intervals()
         self.printer = PrinterState()
 
         self._client_lock = asyncio.Lock()
-        self.event_bus = ClientEventBus(loop_factory=loop_factory)
-        self.loop_factory = loop_factory
+        self.event_bus = ClientEventBus(event_loop_provider=event_loop_provider)
 
         # Recover handles from the class
         # TODO: Generalize this under the event system.
@@ -126,18 +127,6 @@ class Client(ABC, Generic[TConfig]):
                 # Do not send events that are invalid.
                 # TODO Log?
                 continue
-
-    def get_loop(self) -> asyncio.AbstractEventLoop:
-        """
-        Get the event loop for the client.
-        """
-        if self.loop_factory:
-            self.loop = self.loop_factory()
-
-        if not self.loop:
-            raise RuntimeError("Loop not initialized")
-
-        return self.loop
 
     def set_info(self, name, version="0.0.1"):
         """ Set same info for all fields, both for UI / API and the client. """
@@ -215,7 +204,7 @@ class DefaultClient(Client[TConfig], ABC):
                 "list": ["M117 {}".format(message.replace('\n', ''))]
             })
 
-            self.get_loop().create_task(self.event_bus.emit(gcode_event))
+            self.event_loop.create_task(self.event_bus.emit(gcode_event))
 
         self.printer.observe(_on_display_message,
                              "current_display_message")

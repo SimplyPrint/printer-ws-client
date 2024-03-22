@@ -1,12 +1,12 @@
 import asyncio
 import logging
-import sys
 import threading
 import time
 from abc import ABC, abstractmethod
 from typing import (Any, Callable, Generic, Iterable, List,
                     Optional, Tuple, TypeVar, Union, Coroutine)
 
+from simplyprint_ws_client.utils.stoppable import SyncStoppable
 from .lifetime import InstanceLifetimeManager
 from ..client import Client, ClientConfigChangedEvent
 from ..config.config import Config
@@ -19,7 +19,7 @@ from ..events.client_events import (ClientEvent)
 from ..events.demand_events import DemandEvent
 from ..events.event_bus import Event, EventBus
 from ..events.server_events import ServerEvent
-from ..helpers.stoppable import SyncStoppable
+from ..utils.event_loop_provider import EventLoopProvider
 
 TClient = TypeVar("TClient", bound=Client)
 TConfig = TypeVar("TConfig", bound=Config)
@@ -29,7 +29,7 @@ class InstanceException(RuntimeError):
     ...
 
 
-class Instance(ABC, SyncStoppable, Generic[TClient, TConfig]):
+class Instance(ABC, SyncStoppable, EventLoopProvider, Generic[TClient, TConfig]):
     """
 
     Abstract instance of a SimplyPrint client. This class
@@ -60,8 +60,6 @@ class Instance(ABC, SyncStoppable, Generic[TClient, TConfig]):
 
     event_bus: EventBus[Event]
 
-    _loop: Optional[asyncio.AbstractEventLoop] = None
-
     # Ensure the instance can only be started once.
     _instance_lock: threading.Lock
     _instance_thread_id: Optional[int] = None
@@ -79,7 +77,7 @@ class Instance(ABC, SyncStoppable, Generic[TClient, TConfig]):
         super().__init__()
 
         self.config_manager = config_manager
-        self.lifetime_manager = InstanceLifetimeManager(stop_chained=self.stop_event)
+        self.lifetime_manager = InstanceLifetimeManager(stop_event=self.stop_event)
 
         self._instance_lock = threading.Lock()
 
@@ -111,19 +109,6 @@ class Instance(ABC, SyncStoppable, Generic[TClient, TConfig]):
 
         self.disconnect_lock = asyncio.Lock()
 
-    def get_loop(self) -> asyncio.AbstractEventLoop:
-        """
-        Get the event loop for the client.
-        """
-
-        if self.is_stopped():
-            raise RuntimeError("Instance stopped, no loop available.")
-
-        if not self._loop:
-            raise RuntimeError("Loop not initialized")
-
-        return self._loop
-
     async def __aenter__(self):
         if self._instance_thread_id is not None and self._instance_thread_id != threading.get_ident():
             self.logger.warning("Instance already started - waiting for it to stop")
@@ -132,13 +117,13 @@ class Instance(ABC, SyncStoppable, Generic[TClient, TConfig]):
 
         self._instance_thread_id = threading.get_ident()
 
-        self._loop = asyncio.get_running_loop()
+        self.use_running_loop()
 
         # Reset the stop event
         self.clear()
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        self._loop = None
+        self.reset_event_loop()
 
         # Set the stop event
         super().stop()
@@ -181,7 +166,7 @@ class Instance(ABC, SyncStoppable, Generic[TClient, TConfig]):
             tasks = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
             await asyncio.gather(*tasks, return_exceptions=True)
 
-        asyncio.run_coroutine_threadsafe(async_stop(), self.get_loop())
+        asyncio.run_coroutine_threadsafe(async_stop(), self.event_loop)
         super().stop()
 
     async def poll_events(self) -> None:
@@ -343,7 +328,7 @@ class Instance(ABC, SyncStoppable, Generic[TClient, TConfig]):
         if not isinstance(event, ServerEvent):
             raise InstanceException(f"Expected ServerEvent but got {event}")
 
-        _ = self.get_loop().create_task(client.event_bus.emit(event))
+        _ = self.event_loop.create_task(client.event_bus.emit(event))
 
     async def on_client_event(self, event: ClientEvent, client: Client[TConfig]):
         """

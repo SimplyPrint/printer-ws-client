@@ -7,7 +7,7 @@ except ImportError:
     from asyncio import run as async_run
 
 
-class Runner:
+class EventLoopRunner:
     """ Wrapper around uvloop/asyncio implementations for running the main event loop. """
 
     def __enter__(self):
