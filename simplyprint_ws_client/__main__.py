@@ -1,6 +1,6 @@
-from .app import ClientMode, ClientOptions
+from simplyprint_ws_client.client.app import ClientMode, ClientOptions
 from .cli import ClientCli
-from .config import ConfigManagerType
+from simplyprint_ws_client.client.config import ConfigManagerType
 from .examples.virtual.virtual_client import VirtualClient
 from .examples.virtual.virtual_config import VirtualConfig
 

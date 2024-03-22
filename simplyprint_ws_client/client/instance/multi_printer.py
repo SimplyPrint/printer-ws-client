@@ -3,13 +3,13 @@ from enum import Enum
 from typing import Dict, Iterable, Optional, Set
 
 from .instance import Instance, TClient, TConfig, InstanceException
-from ..client import Client
-from ..config.config import Config
-from ..config.manager import ConfigManager
-from ..connection import ConnectionConnectedEvent, ConnectionReconnectEvent, ConnectionPollEvent
-from ..const import SimplyPrintUrl
-from ..events.client_events import ClientEvent
-from ..events.server_events import MultiPrinterAddedEvent, MultiPrinterRemovedEvent
+from simplyprint_ws_client.client import Client
+from simplyprint_ws_client.client.config.config import Config
+from simplyprint_ws_client.client.config.manager import ConfigManager
+from simplyprint_ws_client.connection import ConnectionConnectedEvent, ConnectionReconnectEvent, ConnectionPollEvent
+from simplyprint_ws_client.const import SimplyPrintUrl
+from simplyprint_ws_client.events.client_events import ClientEvent
+from simplyprint_ws_client.events.server_events import MultiPrinterAddedEvent, MultiPrinterRemovedEvent
 
 
 class MultiPrinterException(InstanceException):

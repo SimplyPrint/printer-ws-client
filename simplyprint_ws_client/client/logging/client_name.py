@@ -6,8 +6,8 @@ except ImportError:
     from typing_extensions import Self
 
 if TYPE_CHECKING:
-    from ..client import Client
-    from ..config import Config
+    from simplyprint_ws_client.client import Client
+    from simplyprint_ws_client.client.config import Config
 
 
 class ClientName(str):

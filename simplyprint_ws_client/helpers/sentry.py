@@ -7,7 +7,7 @@ from sentry_sdk.integrations import Integration
 from ..const import VERSION
 
 if TYPE_CHECKING:
-    from ..app import ClientOptions
+    from simplyprint_ws_client.client.app import ClientOptions
 
 
 class Sentry:

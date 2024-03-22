@@ -4,17 +4,16 @@ import time
 from abc import ABC, abstractmethod
 from typing import Generic, Optional, TypeVar
 
-from .config import Config
-from .events import demand_events as Demands
-from .events import server_events as Events
-from .events.client_events import ClientEvent, PingEvent, StateChangeEvent, MachineDataEvent
-from .events.event import Event
-from .events.event_bus import EventBus
-from .helpers.intervals import IntervalTypes, Intervals
-from .helpers.physical_machine import PhysicalMachine
-from .logging import *
-from .state.printer import PrinterState
-from .utils.event_loop_provider import EventLoopProvider
+from simplyprint_ws_client.client.config import Config
+from simplyprint_ws_client.events import Demands, Events
+from simplyprint_ws_client.events.client_events import ClientEvent, PingEvent, StateChangeEvent, MachineDataEvent
+from simplyprint_ws_client.events.event import Event
+from simplyprint_ws_client.events.event_bus import EventBus
+from simplyprint_ws_client.helpers.intervals import IntervalTypes, Intervals
+from simplyprint_ws_client.helpers.physical_machine import PhysicalMachine
+from simplyprint_ws_client.client.logging import *
+from simplyprint_ws_client.client.state.printer import PrinterState
+from simplyprint_ws_client.utils.event_loop_provider import EventLoopProvider
 
 
 class ClientConfigurationException(Exception):
@@ -48,13 +47,11 @@ class Client(ABC, EventLoopProvider[asyncio.AbstractEventLoop], Generic[TConfig]
     config: TConfig
     intervals: Intervals
     printer: PrinterState
+    event_bus: ClientEventBus
+    physical_machine: [PhysicalMachine] = None
 
     _connected: bool = False
     _client_lock: asyncio.Lock
-
-    physical_machine: [PhysicalMachine] = None
-
-    event_bus: ClientEventBus
 
     def __init__(self, config: TConfig,
                  event_loop_provider: Optional[EventLoopProvider[asyncio.AbstractEventLoop]] = None):
@@ -64,9 +61,9 @@ class Client(ABC, EventLoopProvider[asyncio.AbstractEventLoop], Generic[TConfig]
         self.config = config
         self.intervals = Intervals()
         self.printer = PrinterState()
+        self.event_bus = ClientEventBus(event_loop_provider=event_loop_provider)
 
         self._client_lock = asyncio.Lock()
-        self.event_bus = ClientEventBus(event_loop_provider=event_loop_provider)
 
         # Recover handles from the class
         # TODO: Generalize this under the event system.
@@ -187,28 +184,6 @@ class DefaultClient(Client[TConfig], ABC):
 
         self.physical_machine = PhysicalMachine()
         self.logger = logging.getLogger(ClientName.from_client(self))
-
-        # Default M117 behaviour.
-        """
-        def _on_display_message(change):
-            message = change['new']
-
-            if self.printer.display_settings.branding:
-                if len(message) > 7:
-                    message = f"[SP] {message}"
-                else:
-                    message = f"[SimplyPrint] {message}"
-
-            # Pass on to gcode handling (Printer firmware)
-            gcode_event = Demands.GcodeEvent(name="demand", demand=Demands.GcodeEvent.demand, data={
-                "list": ["M117 {}".format(message.replace('\n', ''))]
-            })
-
-            self.event_loop.create_task(self.event_bus.emit(gcode_event))
-
-        self.printer.observe(_on_display_message,
-                             "current_display_message")
-        """
 
     async def send_ping(self):
         if not self.intervals.is_ready(IntervalTypes.PING):

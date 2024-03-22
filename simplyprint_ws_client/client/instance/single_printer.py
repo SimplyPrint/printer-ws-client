@@ -2,9 +2,9 @@ from typing import Iterable, Optional, Union
 
 from simplyprint_ws_client.const import SimplyPrintUrl
 from .instance import Instance, TClient, TConfig
-from ..client import Client
-from ..connection import ConnectionConnectedEvent, ConnectionReconnectEvent
-from ..events.client_events import ClientEvent
+from simplyprint_ws_client.client import Client
+from simplyprint_ws_client.connection import ConnectionConnectedEvent, ConnectionReconnectEvent
+from simplyprint_ws_client.events.client_events import ClientEvent
 
 
 class SinglePrinter(Instance[TClient, TConfig]):

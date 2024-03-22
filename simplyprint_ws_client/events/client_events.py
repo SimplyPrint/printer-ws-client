@@ -6,7 +6,7 @@ from ..helpers.intervals import IntervalTypes, IntervalTypeRef, IntervalExceptio
 
 if TYPE_CHECKING:
     from ..client import Client
-    from ..state.printer import PrinterState
+    from simplyprint_ws_client.client.state import PrinterState
 
 
 class PrinterEvent(Enum):

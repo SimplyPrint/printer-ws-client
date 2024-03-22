@@ -1,77 +1,12 @@
 import asyncio
-import heapq
 from asyncio import AbstractEventLoop
-from typing import (Callable, Dict, Generator, Generic, Hashable, List,
-                    Optional, TypeVar, Union, get_args, Type, Any, Tuple)
+from typing import (Callable, Dict, Generator, Generic, Hashable, Optional, TypeVar, Union, get_args, Type, Any, Tuple)
 
 from .event import Event
+from .event_listeners import EventBusListeners, ListenerUniqueness
 from ..utils.event_loop_provider import EventLoopProvider
 
 TEvent = TypeVar('TEvent', bound=object)
-
-
-class EventBusListener:
-    priority: int
-    handler: Callable
-    is_async: bool
-
-    async def __call__(self, *args, **kwargs):
-        if not self.is_async:
-            return self.handler(*args, **kwargs)
-
-        return await self.handler(*args, **kwargs)
-
-    def __init__(self, priority: int, handler: Callable) -> None:
-        self.priority = priority
-        self.handler = handler
-        self.is_async = asyncio.iscoroutinefunction(handler)
-
-    def __lt__(self, other: 'EventBusListener') -> bool:
-        return self.priority < other.priority
-
-    def __eq__(self, other: Union['EventBusListener', Callable]) -> bool:
-        if isinstance(other, EventBusListener):
-            return self.handler == other.handler
-
-        return self.handler == other
-
-    def __hash__(self) -> int:
-        return hash(self.handler)
-
-
-class EventBusListeners:
-    listeners: List[Tuple[int, EventBusListener]]
-
-    def __init__(self) -> None:
-        self.listeners = []
-
-    def add(self, listener: Callable, priority: int) -> None:
-        if self.contains(listener):
-            raise ValueError("Listener already registered")
-
-        heapq.heappush(self.listeners, (priority,
-                                        EventBusListener(priority, listener)))
-
-    def remove(self, listener: Callable) -> None:
-        for i, (_, reg_listener) in reversed(list(enumerate(self.listeners))):
-            if reg_listener == listener:
-                del self.listeners[i]
-                break
-
-    def contains(self, listener: Callable) -> bool:
-        for _, reg_listener in self.listeners:
-            if reg_listener == listener:
-                return True
-
-        return False
-
-    def __iter__(self) -> Generator[EventBusListener, None, None]:
-        """Iterate over listeners in priority order."""
-        for _, listener in heapq.nlargest(len(self.listeners), self.listeners):
-            yield listener
-
-    def __len__(self) -> int:
-        return len(self.listeners)
 
 
 class EventBus(Generic[TEvent]):
@@ -209,35 +144,42 @@ class EventBus(Generic[TEvent]):
         emit_func = self.emit_sync if sync_only else self.emit_task if use_tasks else self.emit
         return lambda *args, **kwargs: emit_func(event, *args, **kwargs)
 
-    def on(self, event_type: Hashable, listener: Optional[Callable] = None, priority: int = 0, generic: bool = False):
+    def on(self, event_type: Hashable, listener: Optional[Callable] = None, priority: int = 0, generic: bool = False,
+           unique: ListenerUniqueness = ListenerUniqueness.NONE):
         if listener is None:
-            return lambda lst: self._register_listeners(event_type, lst, priority, generic)
+            return lambda lst: self._register_listeners(event_type, lst, priority, generic, unique)
 
-        return self._register_listeners(event_type, listener, priority, generic)
+        return self._register_listeners(event_type, listener, priority, generic, unique)
 
     def _register_listeners(self, event_type: Union[Hashable, TEvent], listener: Callable, priority=0,
-                            generic: bool = False) -> Callable:
+                            generic: bool = False,
+                            unique: ListenerUniqueness = ListenerUniqueness.NONE) -> Callable:
         """
         Registers all listeners for a generic type given the type is an event type,
         otherwise wraps a single register call.
         """
 
         if not generic or not issubclass(event_type, self.event_klass):
-            self._register_listener(event_type, listener, priority)
+            self._register_listener(event_type, listener, priority, unique)
             return listener
 
         for klass in self._iterate_subclasses(event_type):
-            self._register_listener(klass, listener, priority)
+            self._register_listener(klass, listener, priority, unique)
 
         return listener
 
-    def _register_listener(self, event_type: Hashable, listener: Callable, priority=0) -> None:
+    def _register_listener(self, event_type: Hashable, listener: Callable, priority=0,
+                           unique: ListenerUniqueness = ListenerUniqueness.NONE) -> None:
         """Registers a single listener for a given event type."""
 
         if event_type not in self.listeners:
             self.listeners[event_type] = EventBusListeners()
 
-        self.listeners[event_type].add(listener, priority=priority)
+        self.listeners[event_type].add(listener, priority=priority, unique=unique)
+
+    def _register_from_class(self, klass: type):
+        """Register all listeners from a class (statically)."""
+        ...
 
     def _iterate_subclasses(self, klass: type) -> Generator[type, None, None]:
         """Perform class introspection to construct listeners generically"""

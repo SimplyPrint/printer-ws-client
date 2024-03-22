@@ -4,10 +4,10 @@ import logging
 import unittest
 from logging.handlers import BaseRotatingHandler
 
-from simplyprint_ws_client.config.config import Config
+from simplyprint_ws_client.client.config import Config
 
-from simplyprint_ws_client.logging.client_handler import ClientHandler
-from simplyprint_ws_client.logging.client_name import ClientName
+from simplyprint_ws_client.client.logging import ClientHandler
+from simplyprint_ws_client.client.logging import ClientName
 
 config = Config.get_blank()
 config.unique_id = "test"

@@ -1,10 +1,10 @@
 import unittest
 
-from simplyprint_ws_client.config import Config
-from simplyprint_ws_client.config.json import JsonConfigManager
-from simplyprint_ws_client.config.manager import ConfigManager
-from simplyprint_ws_client.config.memory import MemoryConfigManager
-from simplyprint_ws_client.config.sqlite import SQLiteConfigManager
+from simplyprint_ws_client.client.config import Config
+from simplyprint_ws_client.client.config.json import JsonConfigManager
+from simplyprint_ws_client.client.config import ConfigManager
+from simplyprint_ws_client.client.config.memory import MemoryConfigManager
+from simplyprint_ws_client.client.config.sqlite import SQLiteConfigManager
 
 
 class TestConfigManager(unittest.TestCase):

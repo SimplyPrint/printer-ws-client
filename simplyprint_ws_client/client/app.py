@@ -4,14 +4,14 @@ import threading
 from enum import Enum
 from typing import Callable, NamedTuple, Optional, Type, Generic, Dict
 
-from .client import Client
-from .config import Config, ConfigManager, ConfigManagerType
-from .const import APP_DIRS, SimplyPrintUrl, SimplyPrintBackend
+from simplyprint_ws_client.client import Client
+from simplyprint_ws_client.client.config import Config, ConfigManager, ConfigManagerType
+from simplyprint_ws_client.const import APP_DIRS, SimplyPrintUrl, SimplyPrintBackend
 from simplyprint_ws_client.utils.event_loop_runner import EventLoopRunner
-from .helpers.sentry import Sentry
-from .instance import Instance, MultiPrinter, SinglePrinter
-from .instance.instance import InstanceException, TClient, TConfig
-from .instance.multi_printer import MultiPrinterException
+from simplyprint_ws_client.helpers.sentry import Sentry
+from simplyprint_ws_client.client.instance import Instance, MultiPrinter, SinglePrinter
+from simplyprint_ws_client.client.instance.instance import InstanceException, TClient, TConfig
+from simplyprint_ws_client.client.instance.multi_printer import MultiPrinterException
 
 
 class ClientMode(Enum):

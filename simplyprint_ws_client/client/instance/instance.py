@@ -8,18 +8,18 @@ from typing import (Any, Callable, Generic, Iterable, List,
 
 from simplyprint_ws_client.utils.stoppable import SyncStoppable
 from .lifetime import InstanceLifetimeManager
-from ..client import Client, ClientConfigChangedEvent
-from ..config.config import Config
-from ..config.manager import ConfigManager
-from ..connection import (Connection, ConnectionConnectedEvent,
-                          ConnectionDisconnectEvent,
-                          ConnectionPollEvent,
-                          ConnectionReconnectEvent)
-from ..events.client_events import (ClientEvent)
-from ..events.demand_events import DemandEvent
-from ..events.event_bus import Event, EventBus
-from ..events.server_events import ServerEvent
-from ..utils.event_loop_provider import EventLoopProvider
+from simplyprint_ws_client.client import Client, ClientConfigChangedEvent
+from simplyprint_ws_client.client.config.config import Config
+from simplyprint_ws_client.client.config.manager import ConfigManager
+from simplyprint_ws_client.connection import (Connection, ConnectionConnectedEvent,
+                                              ConnectionDisconnectEvent,
+                                              ConnectionPollEvent,
+                                              ConnectionReconnectEvent)
+from simplyprint_ws_client.events.client_events import (ClientEvent)
+from simplyprint_ws_client.events.demand_events import DemandEvent
+from simplyprint_ws_client.events.event_bus import Event, EventBus
+from simplyprint_ws_client.events.server_events import ServerEvent
+from simplyprint_ws_client.utils.event_loop_provider import EventLoopProvider
 
 TClient = TypeVar("TClient", bound=Client)
 TConfig = TypeVar("TConfig", bound=Config)

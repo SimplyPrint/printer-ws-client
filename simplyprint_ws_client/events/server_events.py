@@ -123,7 +123,7 @@ class PrinterSettingsEvent(ServerEvent):
         self.event_type = self.data.get("name", "")
 
         # Import here to avoid circular imports
-        from ..state.printer import PrinterSettings, PrinterDisplaySettings
+        from simplyprint_ws_client.client.state import PrinterSettings, PrinterDisplaySettings
 
         self.printer_settings = PrinterSettings(has_psu=self.data.get("has_psu", False),
                                                 has_filament_sensor=self.data.get("has_filament_sensor", False))

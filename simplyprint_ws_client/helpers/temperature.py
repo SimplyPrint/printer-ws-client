@@ -3,7 +3,7 @@ from typing import Optional
 from traitlets import Float
 
 from ..events.client_events import TemperatureEvent
-from ..state import ClientState, to_event
+from simplyprint_ws_client.client.state import ClientState, to_event
 
 
 @to_event(TemperatureEvent, "actual", "target")

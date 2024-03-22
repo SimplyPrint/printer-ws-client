@@ -1,6 +1,6 @@
 import unittest
 
-from simplyprint_ws_client.config import Config
+from simplyprint_ws_client.client.config import Config
 
 class TestConfigManager(unittest.TestCase):
     def test_fields(self):

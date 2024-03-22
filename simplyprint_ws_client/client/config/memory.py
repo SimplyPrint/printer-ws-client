@@ -1,6 +1,6 @@
 from typing import Optional
 
-from simplyprint_ws_client.config.config import Config
+from simplyprint_ws_client.client.config.config import Config
 from .manager import ConfigManager
 
 

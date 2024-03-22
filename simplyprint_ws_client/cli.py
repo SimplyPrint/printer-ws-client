@@ -1,9 +1,11 @@
+# TODO: Change this.
+
 from typing import Any, Dict, Optional, Union, get_args, get_origin, Callable
 
 import click
 
-from .app import ClientApp
-from .config import Config
+from simplyprint_ws_client.client.app import ClientApp
+from simplyprint_ws_client.client.config import Config
 
 
 class CommandBag:

@@ -4,7 +4,7 @@ from traitlets import Float, Int
 
 from .temperature import Temperature
 from ..events.client_events import AmbientTemperatureEvent
-from ..state import ClientState, to_event
+from simplyprint_ws_client.client.state import ClientState, to_event
 
 
 class AmbientCheck:
