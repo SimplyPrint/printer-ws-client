@@ -23,6 +23,9 @@ netifaces = "^0.11.0"
 sentry-sdk = "^1.39.0"
 platformdirs = "^4.1.0"
 
+# Install typing-extensions for python < 3.11
+typing-extensions = { version = "*", python = "<3.11" }
+
 [tool.poetry.extras]
 uvloop = ["uvloop"]
 

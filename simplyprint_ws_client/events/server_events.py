@@ -130,7 +130,7 @@ class PrinterSettingsEvent(ServerEvent):
         self.display_settings = PrinterDisplaySettings(**self.data.get("display", {}))
 
 
-class MultiPrinterAddResponseEvent(ServerEvent):
+class MultiPrinterAddedEvent(ServerEvent):
     event_type = "add_connection"
 
     def on_event(self):
@@ -139,7 +139,7 @@ class MultiPrinterAddResponseEvent(ServerEvent):
         self.status: bool = self.data.get("status", False)
 
 
-class MultiPrinterRemoveEvent(ServerEvent):
+class MultiPrinterRemovedEvent(ServerEvent):
     event_type = "remove_connection"
 
     def on_event(self):

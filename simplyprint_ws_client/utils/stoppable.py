@@ -56,7 +56,7 @@ class AsyncStoppable(Stoppable):
         return await self.__stop_event.wait(timeout)
 
 
-class StoppableThread(ABC, threading.Thread, SyncStoppable):
+class StoppableThread(SyncStoppable, threading.Thread, ABC):
     @abstractmethod
     def run(self):
         ...

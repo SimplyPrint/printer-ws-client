@@ -9,7 +9,7 @@ from ..config.manager import ConfigManager
 from ..connection import ConnectionConnectedEvent, ConnectionReconnectEvent, ConnectionPollEvent
 from ..const import SimplyPrintUrl
 from ..events.client_events import ClientEvent
-from ..events.server_events import MultiPrinterAddResponseEvent, MultiPrinterRemoveEvent
+from ..events.server_events import MultiPrinterAddedEvent, MultiPrinterRemovedEvent
 
 
 class MultiPrinterException(InstanceException):
@@ -45,18 +45,18 @@ class MultiPrinterRemovePrinterEvent(ClientEvent):
 
 class MultiPrinter(Instance[TClient, TConfig]):
     clients: Dict[str, Client[TConfig]]
+
     # List of unique ids pending a response from add connection
     pending_unique_set: Set[str]
 
     def __init__(self, config_manager: ConfigManager[TConfig], **kwargs) -> None:
         super().__init__(config_manager, **kwargs)
 
-        self.event_bus.on(MultiPrinterAddResponseEvent,
-                          self.on_printer_added_response, priority=10)
-
-        self.event_bus.on(MultiPrinterRemoveEvent, self.on_printer_removed_response, priority=10)
+        self.event_bus.on(MultiPrinterAddedEvent, self.on_printer_added_response, priority=10)
+        self.event_bus.on(MultiPrinterRemovedEvent, self.on_printer_removed_response, priority=10)
 
         self.set_url(str(SimplyPrintUrl.current().ws_url / "mp" / 0 / 0))
+
         self.clients = dict()
         self.pending_unique_set = set()
 
@@ -111,12 +111,12 @@ class MultiPrinter(Instance[TClient, TConfig]):
     async def on_poll_event(self, event: ConnectionPollEvent):
         # Prevent issue where MultiPrinterRemove event is echoed back to us
         # then backlogged were it is reprocessed when the client is re-added.
-        if event.event in [MultiPrinterAddResponseEvent, MultiPrinterRemoveEvent]:
+        if event.event in [MultiPrinterAddedEvent, MultiPrinterRemovedEvent]:
             event.allow_backlog = False
 
         await super().on_poll_event(event)
 
-    async def on_printer_added_response(self, event: MultiPrinterAddResponseEvent, client: TClient):
+    async def on_printer_added_response(self, event: MultiPrinterAddedEvent, client: TClient):
         self.pending_unique_set.discard(client.config.unique_id)
 
         if event.status:
@@ -141,9 +141,9 @@ class MultiPrinter(Instance[TClient, TConfig]):
         # Do not propagate event further.
         event.stop_event()
 
-    async def on_printer_removed_response(self, event: MultiPrinterRemoveEvent, client: TClient):
-        self.logger.debug(f"Popped client {client.config.unique_id} from clients due to remove event.")
+    async def on_printer_removed_response(self, event: MultiPrinterRemovedEvent, client: TClient):
         client = self.clients.pop(client.config.unique_id, None)
+        self.logger.debug(f"Popped client {client.config.unique_id} from clients due to remove event.")
 
         # Do not propagate event further.
         event.stop_event()

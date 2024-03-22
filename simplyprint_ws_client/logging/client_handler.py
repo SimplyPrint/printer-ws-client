@@ -3,7 +3,7 @@ import re
 
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Dict
 
 try:
     from typing import Self
@@ -20,7 +20,7 @@ if TYPE_CHECKING:
 
 class ClientHandler(RotatingFileHandler):
     formatter = logging.Formatter('%(asctime)s | %(levelname)s | %(message)s', '%m-%d-%Y %H:%M:%S')
-    handlers: dict[str, 'ClientHandler'] = {}
+    handlers: Dict[str, 'ClientHandler'] = {}
 
     @classmethod
     def slugify(cls, name: str) -> str:
