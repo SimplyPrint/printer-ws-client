@@ -4,8 +4,8 @@ from typing import Callable, Optional, AsyncIterable
 
 import aiohttp
 
-from ..client import Client
-from ..state.printer import PrinterFileProgressState, FileProgressState
+from simplyprint_ws_client.client.state import PrinterFileProgressState, FileProgressState
+from ..client.client import Client
 
 
 class FileDownload:
@@ -47,7 +47,7 @@ class FileDownload:
                     self.state.percent = clamp_progress(total_percentage) if clamp_progress else total_percentage
 
                     # Ensure we send events to SimplyPrint
-                    asyncio.run_coroutine_threadsafe(self.client.consume_state(), self.client.get_loop())
+                    asyncio.run_coroutine_threadsafe(self.client.consume_state(), self.client.event_loop)
 
     async def download_as_bytes(self, url, clamp_progress: Optional[Callable] = None) -> bytes:
         # Bytes object to store the downloaded data

@@ -1,10 +1,10 @@
 import math
 
 from simplyprint_ws_client.client import DefaultClient
-from simplyprint_ws_client.config import Config
+from simplyprint_ws_client.client.config import Config
 from simplyprint_ws_client.events import Events, Demands
 from simplyprint_ws_client.helpers.file_download import FileDownload
-from simplyprint_ws_client.state.printer import FileProgressState, PrinterStatus
+from simplyprint_ws_client.client.state.printer import FileProgressState, PrinterStatus
 
 
 class VirtualConfig(Config):

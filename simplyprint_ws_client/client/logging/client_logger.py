@@ -1,4 +1,5 @@
 import logging
+from typing import Union
 
 try:
     from typing import Self
@@ -12,7 +13,7 @@ from .client_name import ClientName
 class ClientLogger(logging.Logger):
     name: ClientName
 
-    def __init__(self, name: ClientName, level: int | str = logging.NOTSET) -> None:
+    def __init__(self, name: ClientName, level: Union[int, str] = logging.NOTSET) -> None:
         # Pass the config as the name so the logger dynamically updates its name
         super().__init__(name, level)
 

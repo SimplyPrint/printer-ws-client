@@ -1,64 +1,24 @@
 import asyncio
 import logging
 import threading
-from enum import Enum
-from typing import Callable, NamedTuple, Optional, Type, Generic, Dict
+from typing import Callable, Optional, Type, Generic, Union
 
+from .cache import ClientCache
 from .client import Client
-from .config import Config, ConfigManager, ConfigManagerType
-from .const import APP_DIRS, SimplyPrintUrl, SimplyPrintBackend
-from .helpers.runner import Runner
-from .helpers.sentry import Sentry
-from .instance import Instance, MultiPrinter, SinglePrinter
+from .config import Config, ConfigManager
+from .instance import Instance
 from .instance.instance import InstanceException, TClient, TConfig
 from .instance.multi_printer import MultiPrinterException
-
-
-class ClientMode(Enum):
-    MULTI_PRINTER = "mp"
-    SINGLE = "p"
-
-    def get_class(self) -> Type[Instance]:
-        if self == ClientMode.MULTI_PRINTER:
-            return MultiPrinter
-        elif self == ClientMode.SINGLE:
-            return SinglePrinter
-        else:
-            raise ValueError("Invalid ClientMode")
-
-
-TConfigFactory = Type[Client] | Callable[..., Client]
-
-
-class ClientOptions(NamedTuple):
-    mode: ClientMode = ClientMode.SINGLE
-    backend: Optional[SimplyPrintBackend] = None
-    development: bool = False
-
-    # Client name and version used for various purposes.
-    name: Optional[str] = "printers"
-    version: Optional[str] = "0.1"
-
-    config_manager_type: ConfigManagerType = ConfigManagerType.MEMORY
-
-    client_t: Optional[TConfigFactory] = None
-    config_t: Optional[Type[Config]] = None
-
-    allow_setup: bool = False
-    cache_clients: bool = False  # Cache clients between restarts, important if state is re-source able.
-    reconnect_timeout = 5.0
-    tick_rate = 1.0
-
-    # Sentry DSN for sentry logging.
-    sentry_dsn: Optional[str] = None
-
-    def is_valid(self) -> bool:
-        return self.client_t is not None and self.config_t is not None
+from .options import ClientOptions
+from ..const import APP_DIRS
+from ..helpers.sentry import Sentry
+from ..helpers.url_builder import SimplyPrintUrl
+from ..utils.event_loop_runner import EventLoopRunner
 
 
 class ClientFactory:
     options: ClientOptions
-    client_t: Optional[Type[Client] | Callable[..., Client]] = None
+    client_t: Optional[Union[Type[Client], Callable[[], Client]]] = None
     config_t: Optional[Type[Config]] = None
 
     def __init__(self, options: ClientOptions, client_t: Optional[Type[Client]] = None,
@@ -69,35 +29,6 @@ class ClientFactory:
 
     def create_client(self, *args, config: Optional[Config] = None, **kwargs) -> Client:
         return self.client_t(*args, config=config or self.config_t.get_blank(), **kwargs)
-
-
-class ClientCache:
-    """ Caches clients to optimize re-addition of clients."""
-
-    clients: Dict[str, Client]
-
-    def __init__(self):
-        self.clients = {}
-
-    def add(self, client: Client):
-        self.clients[client.config.unique_id] = client
-
-    def remove(self, client: Client):
-        self.clients.pop(client.config.unique_id, None)
-
-    def sync(self, instance: Instance[TClient, TConfig]):
-        """ Ensure clients removed between start and stop are removed from the cache."""
-
-        for client in self.clients.values():
-            if not instance.has_client(client):
-                self.remove(client)
-
-    def by_other(self, config: Config) -> Optional[Client]:
-        for client in self.clients.values():
-            if config.partial_eq(client.config):
-                return client
-
-        return None
 
 
 class ClientApp(Generic[TClient, TConfig]):
@@ -126,10 +57,14 @@ class ClientApp(Generic[TClient, TConfig]):
 
         self.config_manager = config_manager_class(name=options.name, config_t=options.config_t)
         self.instance = instance_class(config_manager=self.config_manager,
-                                       allow_setup=options.allow_setup, reconnect_timeout=options.reconnect_timeout,
-                                       tick_rate=options.tick_rate)
+                                       allow_setup=options.allow_setup, reconnect_timeout=options.reconnect_timeout, )
 
-        self.client_factory = ClientFactory(options=options, client_t=options.client_t, config_t=options.config_t)
+        self.client_factory = ClientFactory(
+            options=options,
+            client_t=options.client_t,
+            config_t=options.config_t
+        )
+
         self.client_cache = ClientCache() if options.cache_clients else None
 
         log_file = APP_DIRS.user_log_path / f"{options.name}.log"
@@ -166,7 +101,7 @@ class ClientApp(Generic[TClient, TConfig]):
         self.logger.debug("Client instance has stopped")
 
     def create_client(self, config: Optional[Config]):
-        client = self.client_factory.create_client(config=config, loop_factory=self.instance.get_loop)
+        client = self.client_factory.create_client(config=config, event_loop_provider=self.instance)
 
         if self.client_cache:
             self.client_cache.add(client)
@@ -180,7 +115,7 @@ class ClientApp(Generic[TClient, TConfig]):
             pass
 
     async def _reload_client(self, client: Client):
-        await self.instance.delete_client(client)
+        await self.instance.deregister_client(client)
         new_client = self.create_client(client.config)
         await self._register_client(new_client)
 
@@ -188,20 +123,21 @@ class ClientApp(Generic[TClient, TConfig]):
         if self.client_cache:
             self.client_cache.remove(client)
 
-        return asyncio.run_coroutine_threadsafe(self.instance.delete_client(client), self.instance.get_loop())
+        return asyncio.run_coroutine_threadsafe(self.instance.deregister_client(client, remove_from_config=True),
+                                                self.instance.event_loop)
 
     def register_client(self, client: Client) -> asyncio.Future:
-        return asyncio.run_coroutine_threadsafe(self._register_client(client), self.instance.get_loop())
+        return asyncio.run_coroutine_threadsafe(self._register_client(client), self.instance.event_loop)
 
     def add_new_client(self, config: Optional[Config]) -> asyncio.Future:
         new_client = self.create_client(config)
         return self.register_client(new_client)
 
     def reload_client(self, client: Client) -> asyncio.Future:
-        return asyncio.run_coroutine_threadsafe(self._reload_client(client), self.instance.get_loop())
+        return asyncio.run_coroutine_threadsafe(self._reload_client(client), self.instance.event_loop)
 
     def run_blocking(self):
-        with Runner() as runner:
+        with EventLoopRunner() as runner:
             runner.run(self.run())
 
     def run_detached(self):

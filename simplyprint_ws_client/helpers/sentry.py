@@ -1,12 +1,13 @@
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, List
 
 import sentry_sdk
+from sentry_sdk.integrations import Integration
 
 from ..const import VERSION
 
 if TYPE_CHECKING:
-    from ..app import ClientOptions
+    from simplyprint_ws_client.client.app import ClientOptions
 
 
 class Sentry:
@@ -14,10 +15,10 @@ class Sentry:
     Configuration object for client information.
     """
 
-    integrations = []
+    integrations: List[Integration] = []
 
     @classmethod
-    def add_integration(cls, integration):
+    def add_integration(cls, integration: Integration):
         if cls.is_initialized():
             raise RuntimeError("Cannot add integrations after sentry is initialized")
 

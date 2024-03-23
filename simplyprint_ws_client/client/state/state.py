@@ -7,7 +7,7 @@ from typing import Type, TYPE_CHECKING
 from traitlets import HasTraits, List as TraitletsList, Bunch, Undefined
 
 if TYPE_CHECKING:
-    from ..events.client_events import ClientEvent
+    from simplyprint_ws_client.events.client_events import ClientEvent
 
 DEFAULT_EVENT = "__default__"
 

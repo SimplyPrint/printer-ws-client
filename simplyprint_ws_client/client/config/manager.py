@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Generic, List, Optional, Set, Type, TypeVar
 
 from .config import Config
-from ..const import APP_DIRS
+from simplyprint_ws_client.const import APP_DIRS
 
 TConfig = TypeVar("TConfig", bound=Config)
 

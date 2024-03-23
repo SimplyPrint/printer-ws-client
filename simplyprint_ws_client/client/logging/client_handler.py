@@ -3,24 +3,24 @@ import re
 
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Dict
 
 try:
     from typing import Self
 except ImportError:
     from typing_extensions import Self
 
-from ..const import APP_DIRS
+from ...const import APP_DIRS
 
 if TYPE_CHECKING:
-    from ..config import Config
+    from ...client.config import Config
     from .client_name import ClientName
-    from ..app import ClientOptions
+    from ...client.app import ClientOptions
 
 
 class ClientHandler(RotatingFileHandler):
     formatter = logging.Formatter('%(asctime)s | %(levelname)s | %(message)s', '%m-%d-%Y %H:%M:%S')
-    handlers: dict[str, 'ClientHandler'] = {}
+    handlers: Dict[str, 'ClientHandler'] = {}
 
     @classmethod
     def slugify(cls, name: str) -> str:

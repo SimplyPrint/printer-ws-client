@@ -1,0 +1,23 @@
+name: Pylint
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  lint:
+
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+      - name: Install dependencies
+        run: |
+          pip -q install pylint
+          pip -q install -e .
+      - name: Run pylint
+        run: |
+          python -m pylint simplyprint_ws_client

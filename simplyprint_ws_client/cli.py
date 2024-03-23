@@ -1,9 +1,11 @@
+# TODO: Change this.
+
 from typing import Any, Dict, Optional, Union, get_args, get_origin, Callable
 
 import click
 
-from .app import ClientApp
-from .config import Config
+from .client.app import ClientApp
+from .client.config import Config
 
 
 class CommandBag:
@@ -27,11 +29,13 @@ class ClientCliConfigManager(CommandBag, click.Group):
         self.app = app
         self.commands = {}
         self.add_command(click.Command("list", callback=self.list_configs))
-        self.add_command(click.Command("edit", callback=self.edit_config, params=[click.Argument(["index"], type=int)]))
+        self.add_command(click.Command("edit", callback=self.edit_config,
+                                       params=[click.Argument(["index"], type=int)]))
         self.add_command(click.Command("add", callback=self.add_config))
         self.add_command(click.Command("new", callback=self.add_new_config, help="Add a new configuration"))
         self.add_command(
-            click.Command("remove", callback=self.remove_config, params=[click.Argument(["index"], type=int)]))
+            click.Command("remove", callback=self.remove_config,
+                          params=[click.Argument(["index"], type=int)]))
 
     def list_configs(self):
         configs = self.app.config_manager.get_all()
@@ -59,9 +63,11 @@ class ClientCliConfigManager(CommandBag, click.Group):
             if get_origin(field_type) is Union:
                 field_type = get_args(field_type)[0]
 
-            field_default = self.get_config_default(field, getattr(config, field) if hasattr(config, field) else None)
+            field_default = self.get_config_default(
+                field, getattr(config, field) if hasattr(config, field) else None)
 
-            value = click.prompt(f"Input {field}", default=field_default, show_default=field_default != "",
+            value = click.prompt(f"Input {field}",
+                                 default=field_default, show_default=field_default != "",
                                  type=field_type)
 
             if value is None or value == "":

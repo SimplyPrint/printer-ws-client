@@ -1,5 +1,7 @@
 from typing import Type, Union
 
+from simplyprint_ws_client.events.event_listeners import ListenerUniqueness
+
 
 class EventTraits:
     def __eq__(self: Union[Type['Event'], 'Event'], other: object) -> bool:
@@ -41,3 +43,16 @@ class Event(EventTraits, metaclass=EventType):
 
     def stop_event(self) -> None:
         self.__stopped = True
+
+    @classmethod
+    def on(cls, generic=False, priority: int = 0, unique: ListenerUniqueness = ListenerUniqueness.NONE):
+        """Use as decorator to mark functions as event handlers"""
+
+        def decorator(func):
+            func._event_class = cls
+            func._event_generic = generic
+            func._event_priority = priority
+            func._event_unique = unique
+            return func
+
+        return decorator

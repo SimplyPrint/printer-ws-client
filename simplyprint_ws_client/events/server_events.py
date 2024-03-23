@@ -123,14 +123,14 @@ class PrinterSettingsEvent(ServerEvent):
         self.event_type = self.data.get("name", "")
 
         # Import here to avoid circular imports
-        from ..state.printer import PrinterSettings, PrinterDisplaySettings
+        from simplyprint_ws_client.client.state import PrinterSettings, PrinterDisplaySettings
 
         self.printer_settings = PrinterSettings(has_psu=self.data.get("has_psu", False),
                                                 has_filament_sensor=self.data.get("has_filament_sensor", False))
         self.display_settings = PrinterDisplaySettings(**self.data.get("display", {}))
 
 
-class MultiPrinterAddResponseEvent(ServerEvent):
+class MultiPrinterAddedEvent(ServerEvent):
     event_type = "add_connection"
 
     def on_event(self):
@@ -139,7 +139,7 @@ class MultiPrinterAddResponseEvent(ServerEvent):
         self.status: bool = self.data.get("status", False)
 
 
-class MultiPrinterRemoveEvent(ServerEvent):
+class MultiPrinterRemovedEvent(ServerEvent):
     event_type = "remove_connection"
 
     def on_event(self):

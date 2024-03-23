@@ -1,8 +1,7 @@
 import asyncio
-from enum import Enum
-from typing import Dict, List, Union, NamedTuple
-
 import time
+from enum import Enum
+from typing import Dict, List, Union, NamedTuple, Optional
 
 try:
     from typing import Self
@@ -78,7 +77,7 @@ class Intervals:
         return time.time() * 1000.0
 
     @classmethod
-    def choose_interval(cls, t: IntervalType, interval_ms: float) -> float:
+    def choose_interval(cls, t: IntervalType, interval_ms: Optional[float]) -> float:
         """ Chooses the interval to use based on the given interval_ms """
         if interval_ms is None:
             return t.default_timing
@@ -88,15 +87,16 @@ class Intervals:
 
         return t.default_timing
 
-    def __init__(self, data: Dict[IntervalTypeRef, float] = {}):
+    def __init__(self, data=None):
         """Construct the class from external arguments and fill in the rest with the defaults"""
         self.intervals = {}
         self.last_updates = {}
 
-        for t, interval in data.items():
-            t = IntervalTypes.from_any(t)
-            self.intervals[t] = self.choose_interval(t, interval)
-            self.last_updates[t] = self.now() - self.intervals[t]
+        if data:
+            for t, interval in data.items():
+                t = IntervalTypes.from_any(t)
+                self.intervals[t] = self.choose_interval(t, interval)
+                self.last_updates[t] = self.now() - self.intervals[t]
 
         for t in IntervalTypes.values():
             if t in self.intervals:
@@ -112,11 +112,11 @@ class Intervals:
             self.intervals[t] = interval
 
     def set(self, t: IntervalTypeRef, interval: float):
-        """Set the interval for a given intervaltype"""
+        """Set the interval for a given interval type"""
         t = IntervalTypes.from_any(t)
         self.intervals[t] = self.choose_interval(t, interval)
 
-        if not t in self.last_updates:
+        if t not in self.last_updates:
             self.last_updates[t] = self.now() - self.intervals[t]
 
     def update_raw(self, data: Dict[IntervalTypeRef, float]):
@@ -132,8 +132,7 @@ class Intervals:
         if t not in self.intervals:
             return t.default_timing
 
-        ms_until_ready = self.intervals[t] - \
-                         (self.now() - self.last_updates[t])
+        ms_until_ready = self.intervals[t] - (self.now() - self.last_updates[t])
 
         # Convert to seconds
         return ms_until_ready / 1000.0

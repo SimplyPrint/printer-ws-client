@@ -4,9 +4,9 @@ import sqlite3
 from pathlib import Path
 from typing import Optional
 
-from simplyprint_ws_client.config.config import Config
+from simplyprint_ws_client.client.config.config import Config
 from .manager import ConfigManager
-from ..helpers.file_backup import FileBackup
+from simplyprint_ws_client.helpers.file_backup import FileBackup
 
 
 class SQLiteConfigManager(ConfigManager):
@@ -17,10 +17,10 @@ class SQLiteConfigManager(ConfigManager):
     logger: logging.Logger = logging.getLogger("config.sqlite3")
 
     db: Optional[sqlite3.Connection] = None
-    table_exists: bool = False
+    __table_exists: bool = False
 
     def flush(self, config: Optional[Config] = None):
-        self._ensure_table()
+        self._ensure_database()
 
         try:
             if config is not None:
@@ -40,7 +40,7 @@ class SQLiteConfigManager(ConfigManager):
             self.db.commit()
 
     def load(self):
-        self._ensure_table()
+        self._ensure_database()
 
         configs = self.db.execute(
             """
@@ -60,7 +60,7 @@ class SQLiteConfigManager(ConfigManager):
         self._database_file.unlink()
 
     def backup_storage(self, *args, **kwargs):
-        self._ensure_table()
+        self._ensure_database()
         FileBackup.backup_file(self._database_file, *args, **kwargs)
 
     def _get_single(self, config: Config):
@@ -109,15 +109,15 @@ class SQLiteConfigManager(ConfigManager):
     def _database_file(self) -> Path:
         return self.base_directory / f"{self.name}.db"
 
-    def _ensure_table(self):
+    def _ensure_database(self):
         """
         Ensure the config table exists.
         """
 
-        if not SQLiteConfigManager.db or not self._database_file.exists():
-            SQLiteConfigManager.db = sqlite3.connect(self._database_file, check_same_thread=False)
+        if not self.db or not self._database_file.exists():
+            self.db = sqlite3.connect(self._database_file, check_same_thread=False)
 
-        if SQLiteConfigManager.table_exists:
+        if self.__table_exists:
             return
 
         self.db.execute(
@@ -132,4 +132,4 @@ class SQLiteConfigManager(ConfigManager):
 
         self.db.commit()
         self.logger.info("Created printers table")
-        SQLiteConfigManager.table_exists = True
+        self.__table_exists = True

@@ -1,10 +1,10 @@
 from typing import Iterable, Optional, Union
 
-from simplyprint_ws_client.const import SimplyPrintUrl
-from .instance import Instance, TClient, TConfig
-from ..client import Client
-from ..connection import ConnectionConnectedEvent, ConnectionReconnectEvent
-from ..events.client_events import ClientEvent
+from simplyprint_ws_client.client.instance.instance import Instance, TClient, TConfig
+from simplyprint_ws_client.client.client import Client
+from simplyprint_ws_client.connection.connection import ConnectionConnectedEvent, ConnectionReconnectEvent
+from simplyprint_ws_client.events.client_events import ClientEvent
+from simplyprint_ws_client.helpers.url_builder import SimplyPrintUrl
 
 
 class SinglePrinter(Instance[TClient, TConfig]):

@@ -8,11 +8,11 @@ from aiohttp import (ClientConnectorError, ClientSession,
                      ClientWebSocketResponse, WSMsgType,
                      WSServerHandshakeError, ClientOSError)
 
-from .client import Client
-from .events import DemandEvent, ServerEvent, EventFactory
-from .events.client_events import ClientEvent, ClientEventMode
-from .events.event import Event
-from .events.event_bus import EventBus
+from ..client.client import Client
+from ..events import DemandEvent, ServerEvent, EventFactory
+from ..events.client_events import ClientEvent, ClientEventMode
+from ..events.event import Event
+from ..events.event_bus import EventBus
 
 
 class ConnectionPollEvent(Event):

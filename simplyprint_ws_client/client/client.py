@@ -2,18 +2,18 @@ import asyncio
 import logging
 import time
 from abc import ABC, abstractmethod
-from typing import Generic, Optional, TypeVar, Callable
+from typing import Generic, Optional, TypeVar
 
 from .config import Config
-from .events import demand_events as Demands
-from .events import server_events as Events
-from .events.client_events import ClientEvent, PingEvent, StateChangeEvent, MachineDataEvent
-from .events.event import Event
-from .events.event_bus import EventBus
-from .helpers.intervals import IntervalTypes, Intervals
-from .helpers.physical_machine import PhysicalMachine
-from .logging import *
-from .state.printer import PrinterState
+from ..client.logging import *
+from ..client.state.printer import PrinterState
+from ..events import Demands, Events
+from ..events.client_events import ClientEvent, PingEvent, StateChangeEvent, MachineDataEvent
+from ..events.event import Event
+from ..events.event_bus import EventBus
+from ..helpers.intervals import IntervalTypes, Intervals
+from ..helpers.physical_machine import PhysicalMachine
+from ..utils.event_loop_provider import EventLoopProvider
 
 
 class ClientConfigurationException(Exception):
@@ -36,7 +36,7 @@ class ClientConfigChangedEvent(Event):
 TConfig = TypeVar("TConfig", bound=Config)
 
 
-class Client(ABC, Generic[TConfig]):
+class Client(ABC, EventLoopProvider[asyncio.AbstractEventLoop], Generic[TConfig]):
     """
     Generic client class that handles and brokers information between the server and the client.
 
@@ -44,28 +44,33 @@ class Client(ABC, Generic[TConfig]):
     But in some cases also an actual physical device.
     """
 
-    loop: Optional[asyncio.AbstractEventLoop] = None
-
     config: TConfig
     intervals: Intervals
     printer: PrinterState
+    event_bus: ClientEventBus
+    physical_machine: PhysicalMachine
+
+    logger: logging.Logger
 
     _connected: bool = False
     _client_lock: asyncio.Lock
 
-    physical_machine: [PhysicalMachine] = None
+    def __init__(
+            self,
+            config: TConfig,
+            event_loop_provider: Optional[EventLoopProvider[asyncio.AbstractEventLoop]] = None,
+    ):
+        super().__init__(provider=event_loop_provider)
 
-    event_bus: ClientEventBus
-    loop_factory: Optional[Callable[[], asyncio.AbstractEventLoop]] = None
-
-    def __init__(self, config: TConfig, loop_factory: Optional[Callable[[], asyncio.AbstractEventLoop]] = None):
         self.config = config
         self.intervals = Intervals()
         self.printer = PrinterState()
+        self.event_bus = ClientEventBus(event_loop_provider=event_loop_provider)
+        self.physical_machine = PhysicalMachine()
+
+        self.logger = logging.getLogger(ClientName.from_client(self))
 
         self._client_lock = asyncio.Lock()
-        self.event_bus = ClientEventBus(loop_factory=loop_factory)
-        self.loop_factory = loop_factory
 
         # Recover handles from the class
         # TODO: Generalize this under the event system.
@@ -127,18 +132,6 @@ class Client(ABC, Generic[TConfig]):
                 # TODO Log?
                 continue
 
-    def get_loop(self) -> asyncio.AbstractEventLoop:
-        """
-        Get the event loop for the client.
-        """
-        if self.loop_factory:
-            self.loop = self.loop_factory()
-
-        if not self.loop:
-            raise RuntimeError("Loop not initialized")
-
-        return self.loop
-
     def set_info(self, name, version="0.0.1"):
         """ Set same info for all fields, both for UI / API and the client. """
         self.set_api_info(name, version)
@@ -162,7 +155,7 @@ class Client(ABC, Generic[TConfig]):
 
     @abstractmethod
     async def tick(self):
-        """ 
+        """
         Define a continuous task that will be called every "tick"
         this is variable and made to optimize certain performance
         when running a lot of clients at once.
@@ -189,37 +182,11 @@ class DefaultClient(Client[TConfig], ABC):
     Client with default event handling, logging and more extra features.
     """
 
-    logger: logging.Logger
     reconnect_token: Optional[str] = None
     requested_snapshots: int = 0
 
     def __init__(self, config: TConfig, **kwargs):
         super().__init__(config, **kwargs)
-
-        self.physical_machine = PhysicalMachine()
-        self.logger = logging.getLogger(ClientName.from_client(self))
-
-        # Default M117 behaviour.
-        """
-        def _on_display_message(change):
-            message = change['new']
-
-            if self.printer.display_settings.branding:
-                if len(message) > 7:
-                    message = f"[SP] {message}"
-                else:
-                    message = f"[SimplyPrint] {message}"
-
-            # Pass on to gcode handling (Printer firmware)
-            gcode_event = Demands.GcodeEvent(name="demand", demand=Demands.GcodeEvent.demand, data={
-                "list": ["M117 {}".format(message.replace('\n', ''))]
-            })
-
-            self.get_loop().create_task(self.event_bus.emit(gcode_event))
-
-        self.printer.observe(_on_display_message,
-                             "current_display_message")
-        """
 
     async def send_ping(self):
         if not self.intervals.is_ready(IntervalTypes.PING):
