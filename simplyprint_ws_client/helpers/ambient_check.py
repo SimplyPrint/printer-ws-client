@@ -3,8 +3,8 @@ from typing import Callable, List, Optional, Tuple
 from traitlets import Float, Int
 
 from .temperature import Temperature
+from ..client.state import ClientState, to_event
 from ..events.client_events import AmbientTemperatureEvent
-from simplyprint_ws_client.client.state import ClientState, to_event
 
 
 class AmbientCheck:

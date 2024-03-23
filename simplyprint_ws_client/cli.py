@@ -4,8 +4,8 @@ from typing import Any, Dict, Optional, Union, get_args, get_origin, Callable
 
 import click
 
-from simplyprint_ws_client.client.app import ClientApp
-from simplyprint_ws_client.client.config import Config
+from .client.app import ClientApp
+from .client.config import Config
 
 
 class CommandBag:

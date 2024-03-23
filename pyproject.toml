@@ -26,6 +26,10 @@ platformdirs = "^4.1.0"
 # Install typing-extensions for python < 3.11
 typing-extensions = { version = "*", python = "<3.11" }
 
+[tool.poetry.dev-dependencies]
+unittest = "*"
+pylint = "*"
+
 [tool.poetry.extras]
 uvloop = ["uvloop"]
 

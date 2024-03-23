@@ -3,7 +3,7 @@ from os import environ
 
 from platformdirs import AppDirs
 
-from simplyprint_ws_client.helpers.url_builder import SimplyPrintBackend, SimplyPrintUrl
+from .helpers.url_builder import SimplyPrintBackend, SimplyPrintUrl
 
 VERSION = importlib.metadata.version("simplyprint_ws_client") or "development"
 APP_DIRS = AppDirs("SimplyPrint", "SimplyPrint")

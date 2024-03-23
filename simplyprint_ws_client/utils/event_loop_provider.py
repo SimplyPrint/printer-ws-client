@@ -2,7 +2,7 @@ import asyncio
 import functools
 from typing import Callable, Optional, TypeVar, Generic
 
-from simplyprint_ws_client.utils.stoppable import Stoppable
+from ..utils.stoppable import Stoppable
 
 TEventLoop = TypeVar("TEventLoop", bound=asyncio.AbstractEventLoop)
 TEventLoopFactory = Callable[[], TEventLoop]

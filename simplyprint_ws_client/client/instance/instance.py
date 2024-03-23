@@ -6,20 +6,20 @@ from abc import ABC, abstractmethod
 from typing import (Any, Callable, Generic, Iterable, List,
                     Optional, Tuple, TypeVar, Union, Coroutine)
 
-from simplyprint_ws_client.utils.stoppable import SyncStoppable
-from .lifetime import InstanceLifetimeManager
-from simplyprint_ws_client.client import Client, ClientConfigChangedEvent
-from simplyprint_ws_client.client.config.config import Config
-from simplyprint_ws_client.client.config.manager import ConfigManager
-from simplyprint_ws_client.connection import (Connection, ConnectionConnectedEvent,
-                                              ConnectionDisconnectEvent,
-                                              ConnectionPollEvent,
-                                              ConnectionReconnectEvent)
-from simplyprint_ws_client.events.client_events import (ClientEvent)
-from simplyprint_ws_client.events.demand_events import DemandEvent
-from simplyprint_ws_client.events.event_bus import Event, EventBus
-from simplyprint_ws_client.events.server_events import ServerEvent
-from simplyprint_ws_client.utils.event_loop_provider import EventLoopProvider
+from simplyprint_ws_client.client.lifetime.lifetime import InstanceLifetimeManager
+from ..client import Client, ClientConfigChangedEvent
+from ..config.config import Config
+from ..config.manager import ConfigManager
+from ...connection.connection import (Connection, ConnectionConnectedEvent,
+                                      ConnectionDisconnectEvent,
+                                      ConnectionPollEvent,
+                                      ConnectionReconnectEvent)
+from ...events.client_events import (ClientEvent)
+from ...events.demand_events import DemandEvent
+from ...events.event_bus import Event, EventBus
+from ...events.server_events import ServerEvent
+from ...utils.event_loop_provider import EventLoopProvider
+from ...utils.stoppable import SyncStoppable
 
 TClient = TypeVar("TClient", bound=Client)
 TConfig = TypeVar("TConfig", bound=Config)
@@ -77,7 +77,7 @@ class Instance(ABC, SyncStoppable, EventLoopProvider, Generic[TClient, TConfig])
         super().__init__()
 
         self.config_manager = config_manager
-        self.lifetime_manager = InstanceLifetimeManager(stop_event=self.stop_event)
+        self.lifetime_manager = InstanceLifetimeManager(stoppable=self)
 
         self._instance_lock = threading.Lock()
 

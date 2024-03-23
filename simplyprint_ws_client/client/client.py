@@ -4,16 +4,16 @@ import time
 from abc import ABC, abstractmethod
 from typing import Generic, Optional, TypeVar
 
-from simplyprint_ws_client.client.config import Config
-from simplyprint_ws_client.events import Demands, Events
-from simplyprint_ws_client.events.client_events import ClientEvent, PingEvent, StateChangeEvent, MachineDataEvent
-from simplyprint_ws_client.events.event import Event
-from simplyprint_ws_client.events.event_bus import EventBus
-from simplyprint_ws_client.helpers.intervals import IntervalTypes, Intervals
-from simplyprint_ws_client.helpers.physical_machine import PhysicalMachine
-from simplyprint_ws_client.client.logging import *
-from simplyprint_ws_client.client.state.printer import PrinterState
-from simplyprint_ws_client.utils.event_loop_provider import EventLoopProvider
+from .config import Config
+from ..client.logging import *
+from ..client.state.printer import PrinterState
+from ..events import Demands, Events
+from ..events.client_events import ClientEvent, PingEvent, StateChangeEvent, MachineDataEvent
+from ..events.event import Event
+from ..events.event_bus import EventBus
+from ..helpers.intervals import IntervalTypes, Intervals
+from ..helpers.physical_machine import PhysicalMachine
+from ..utils.event_loop_provider import EventLoopProvider
 
 
 class ClientConfigurationException(Exception):

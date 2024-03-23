@@ -1,59 +1,18 @@
 import asyncio
 import logging
 import threading
-from enum import Enum
-from typing import Callable, NamedTuple, Optional, Type, Generic, Dict
+from typing import Callable, Optional, Type, Generic
 
-from simplyprint_ws_client.client import Client
-from simplyprint_ws_client.client.config import Config, ConfigManager, ConfigManagerType
-from simplyprint_ws_client.const import APP_DIRS, SimplyPrintUrl, SimplyPrintBackend
-from simplyprint_ws_client.utils.event_loop_runner import EventLoopRunner
-from simplyprint_ws_client.helpers.sentry import Sentry
-from simplyprint_ws_client.client.instance import Instance, MultiPrinter, SinglePrinter
-from simplyprint_ws_client.client.instance.instance import InstanceException, TClient, TConfig
-from simplyprint_ws_client.client.instance.multi_printer import MultiPrinterException
-
-
-class ClientMode(Enum):
-    MULTI_PRINTER = "mp"
-    SINGLE = "p"
-
-    def get_class(self) -> Type[Instance]:
-        if self == ClientMode.MULTI_PRINTER:
-            return MultiPrinter
-        elif self == ClientMode.SINGLE:
-            return SinglePrinter
-        else:
-            raise ValueError("Invalid ClientMode")
-
-
-TConfigFactory = Type[Client] | Callable[..., Client]
-
-
-class ClientOptions(NamedTuple):
-    mode: ClientMode = ClientMode.SINGLE
-    backend: Optional[SimplyPrintBackend] = None
-    development: bool = False
-
-    # Client name and version used for various purposes.
-    name: Optional[str] = "printers"
-    version: Optional[str] = "0.1"
-
-    config_manager_type: ConfigManagerType = ConfigManagerType.MEMORY
-
-    client_t: Optional[TConfigFactory] = None
-    config_t: Optional[Type[Config]] = None
-
-    allow_setup: bool = False
-    cache_clients: bool = False  # Cache clients between restarts, important if state is re-source able.
-    reconnect_timeout = 5.0
-    tick_rate = 1.0
-
-    # Sentry DSN for sentry logging.
-    sentry_dsn: Optional[str] = None
-
-    def is_valid(self) -> bool:
-        return self.client_t is not None and self.config_t is not None
+from .cache import ClientCache
+from .client import Client
+from .config import Config, ConfigManager
+from .instance import Instance
+from .instance.instance import InstanceException, TClient, TConfig
+from .instance.multi_printer import MultiPrinterException
+from .options import ClientOptions
+from ..const import APP_DIRS, SimplyPrintUrl
+from ..helpers.sentry import Sentry
+from ..utils.event_loop_runner import EventLoopRunner
 
 
 class ClientFactory:
@@ -69,35 +28,6 @@ class ClientFactory:
 
     def create_client(self, *args, config: Optional[Config] = None, **kwargs) -> Client:
         return self.client_t(*args, config=config or self.config_t.get_blank(), **kwargs)
-
-
-class ClientCache:
-    """ Caches clients to optimize re-addition of clients."""
-
-    clients: Dict[str, Client]
-
-    def __init__(self):
-        self.clients = {}
-
-    def add(self, client: Client):
-        self.clients[client.config.unique_id] = client
-
-    def remove(self, client: Client):
-        self.clients.pop(client.config.unique_id, None)
-
-    def sync(self, instance: Instance[TClient, TConfig]):
-        """ Ensure clients removed between start and stop are removed from the cache."""
-
-        for client in self.clients.values():
-            if not instance.has_client(client):
-                self.remove(client)
-
-    def by_other(self, config: Config) -> Optional[Client]:
-        for client in self.clients.values():
-            if config.partial_eq(client.config):
-                return client
-
-        return None
 
 
 class ClientApp(Generic[TClient, TConfig]):

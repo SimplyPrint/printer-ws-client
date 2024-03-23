@@ -10,12 +10,12 @@ try:
 except ImportError:
     from typing_extensions import Self
 
-from simplyprint_ws_client.const import APP_DIRS
+from ...const import APP_DIRS
 
 if TYPE_CHECKING:
-    from simplyprint_ws_client.client.config import Config
+    from ...client.config import Config
     from .client_name import ClientName
-    from simplyprint_ws_client.client.app import ClientOptions
+    from ...client.app import ClientOptions
 
 
 class ClientHandler(RotatingFileHandler):

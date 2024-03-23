@@ -4,8 +4,8 @@ from typing import Callable, Optional, AsyncIterable
 
 import aiohttp
 
-from ..client import Client
 from simplyprint_ws_client.client.state import PrinterFileProgressState, FileProgressState
+from ..client.client import Client
 
 
 class FileDownload:

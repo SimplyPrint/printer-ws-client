@@ -1,8 +1,7 @@
-from simplyprint_ws_client.client.app import ClientMode, ClientOptions
 from .cli import ClientCli
-from simplyprint_ws_client.client.config import ConfigManagerType
-from .examples.virtual.virtual_client import VirtualClient
-from .examples.virtual.virtual_config import VirtualConfig
+from .client.app import ClientMode, ClientOptions
+from .client.config import ConfigManagerType
+from .examples.virtual_client import VirtualClient, VirtualConfig
 
 if __name__ == '__main__':
     options = ClientOptions(
