@@ -39,6 +39,10 @@ class LifetimeManager(AsyncStoppable):
     async def loop(self) -> None:
         while not self.is_stopped():
             for client, lifetime in list(self.lifetimes.items()):
+                # TODO retry the lifetime in a bit...
+                if lifetime.is_stopped():
+                    continue
+
                 if lifetime.is_healthy():
                     continue
 
