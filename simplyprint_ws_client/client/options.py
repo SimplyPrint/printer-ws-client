@@ -6,7 +6,7 @@ from .client import Client
 from .config import Config
 from .config import ConfigManagerType
 from .instance import Instance, MultiPrinter, SinglePrinter
-from ..const import SimplyPrintBackend
+from ..helpers.url_builder import SimplyPrintBackend
 
 
 class ClientMode(Enum):

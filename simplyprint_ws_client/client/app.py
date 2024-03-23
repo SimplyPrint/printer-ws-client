@@ -10,8 +10,9 @@ from .instance import Instance
 from .instance.instance import InstanceException, TClient, TConfig
 from .instance.multi_printer import MultiPrinterException
 from .options import ClientOptions
-from ..const import APP_DIRS, SimplyPrintUrl
+from ..const import APP_DIRS
 from ..helpers.sentry import Sentry
+from ..helpers.url_builder import SimplyPrintUrl
 from ..utils.event_loop_runner import EventLoopRunner
 
 
@@ -56,8 +57,7 @@ class ClientApp(Generic[TClient, TConfig]):
 
         self.config_manager = config_manager_class(name=options.name, config_t=options.config_t)
         self.instance = instance_class(config_manager=self.config_manager,
-                                       allow_setup=options.allow_setup, reconnect_timeout=options.reconnect_timeout,
-                                       tick_rate=options.tick_rate)
+                                       allow_setup=options.allow_setup, reconnect_timeout=options.reconnect_timeout, )
 
         self.client_factory = ClientFactory(options=options, client_t=options.client_t, config_t=options.config_t)
         self.client_cache = ClientCache() if options.cache_clients else None
@@ -96,7 +96,7 @@ class ClientApp(Generic[TClient, TConfig]):
         self.logger.debug("Client instance has stopped")
 
     def create_client(self, config: Optional[Config]):
-        client = self.client_factory.create_client(config=config, loop_factory=self.instance.get_loop)
+        client = self.client_factory.create_client(config=config, event_loop_provider=self.instance)
 
         if self.client_cache:
             self.client_cache.add(client)

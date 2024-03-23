@@ -1,15 +1,14 @@
 import asyncio
 import logging
 import threading
-import time
 from abc import ABC, abstractmethod
 from typing import (Any, Callable, Generic, Iterable, List,
                     Optional, Tuple, TypeVar, Union, Coroutine)
 
-from simplyprint_ws_client.client.lifetime.lifetime import InstanceLifetimeManager
 from ..client import Client, ClientConfigChangedEvent
 from ..config.config import Config
 from ..config.manager import ConfigManager
+from ..lifetime.lifetime_manager import LifetimeManager, LifetimeType
 from ...connection.connection import (Connection, ConnectionConnectedEvent,
                                       ConnectionDisconnectEvent,
                                       ConnectionPollEvent,
@@ -19,7 +18,7 @@ from ...events.demand_events import DemandEvent
 from ...events.event_bus import Event, EventBus
 from ...events.server_events import ServerEvent
 from ...utils.event_loop_provider import EventLoopProvider
-from ...utils.stoppable import SyncStoppable
+from ...utils.stoppable import AsyncStoppable
 
 TClient = TypeVar("TClient", bound=Client)
 TConfig = TypeVar("TConfig", bound=Config)
@@ -29,7 +28,7 @@ class InstanceException(RuntimeError):
     ...
 
 
-class Instance(ABC, SyncStoppable, EventLoopProvider, Generic[TClient, TConfig]):
+class Instance(AsyncStoppable, EventLoopProvider, Generic[TClient, TConfig], ABC):
     """
 
     Abstract instance of a SimplyPrint client. This class
@@ -53,7 +52,7 @@ class Instance(ABC, SyncStoppable, EventLoopProvider, Generic[TClient, TConfig])
     connection: Connection
 
     config_manager: ConfigManager[TConfig]
-    lifetime_manager: InstanceLifetimeManager[TClient]
+    lifetime_manager: LifetimeManager
 
     allow_setup = False
     reconnect_timeout: float = 5.0
@@ -77,7 +76,7 @@ class Instance(ABC, SyncStoppable, EventLoopProvider, Generic[TClient, TConfig])
         super().__init__()
 
         self.config_manager = config_manager
-        self.lifetime_manager = InstanceLifetimeManager(stoppable=self)
+        self.lifetime_manager = LifetimeManager()
 
         self._instance_lock = threading.Lock()
 
@@ -142,23 +141,9 @@ class Instance(ABC, SyncStoppable, EventLoopProvider, Generic[TClient, TConfig])
             self.lifetime_manager.loop()
         )
 
-    def is_healthy(self, max_heartbeats_missed=2) -> bool:
-        """ This function is intended to be available to the implementer to check if the instance is healthy."""
-
-        # While the instance is stopped or not started, it is considered healthy
-        if self.is_stopped():
-            return True
-
-        # While not connected, the instance is considered healthy
-        if not self.connection.is_connected():
-            return True
-
-        max_time_since_heartbeat = self.tick_rate * max_heartbeats_missed
-        time_since_last_heartbeat = time.time() - self.heartbeat
-
-        return time_since_last_heartbeat < max_time_since_heartbeat
-
     def stop(self) -> None:
+        self.lifetime_manager.stop()
+
         async def async_stop():
             self.logger.info("Stopping instance")
 
@@ -173,7 +158,7 @@ class Instance(ABC, SyncStoppable, EventLoopProvider, Generic[TClient, TConfig])
         while not self.is_stopped():
             if not self.connection.is_connected():
                 self.logger.debug("Not connected - not polling events")
-                await asyncio.sleep(self.reconnect_timeout)
+                await self.wait(self.reconnect_timeout)
                 await self.connection.event_bus.emit(ConnectionDisconnectEvent())
                 continue
 
@@ -211,7 +196,7 @@ class Instance(ABC, SyncStoppable, EventLoopProvider, Generic[TClient, TConfig])
             self.logger.info(
                 f"Disconnected from server - reconnecting in {self.reconnect_timeout} seconds")
 
-            await asyncio.sleep(self.reconnect_timeout)
+            await self.wait(self.reconnect_timeout)
 
             await self.connect()
 
@@ -279,6 +264,9 @@ class Instance(ABC, SyncStoppable, EventLoopProvider, Generic[TClient, TConfig])
 
         client.printer.mark_all_changed_dirty()
 
+        self.lifetime_manager.add(client, LifetimeType.ASYNC)
+        await self.lifetime_manager.start_lifetime(client)
+
     async def deregister_client(self, client: TClient, remove_from_config=False):
         """
         Deletes a client from the instance.
@@ -294,7 +282,7 @@ class Instance(ABC, SyncStoppable, EventLoopProvider, Generic[TClient, TConfig])
         await self.remove_client(client)
 
         # Client stop might be blocking.
-        self.stop_client_deferred(client)
+        self.lifetime_manager.remove(client)
 
     @staticmethod
     async def consume_backlog(backlog: List[Tuple[Any, ...]],

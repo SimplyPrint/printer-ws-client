@@ -1,8 +1,5 @@
 import asyncio
-import functools
 from typing import Callable, Optional, TypeVar, Generic
-
-from ..utils.stoppable import Stoppable
 
 TEventLoop = TypeVar("TEventLoop", bound=asyncio.AbstractEventLoop)
 TEventLoopFactory = Callable[[], TEventLoop]
@@ -22,7 +19,7 @@ class EventLoopProvider(Generic[TEventLoop]):
     def __init__(self, loop: Optional[TEventLoop] = None, factory: Optional[TEventLoopFactory] = None,
                  provider: "Optional[EventLoopProvider[TEventLoop]]" = None):
         self.__event_loop = loop
-        self.__event_loop_factory = factory or (provider and functools.partial(provider.event_loop))
+        self.__event_loop_factory = factory or (provider and (lambda *args, **kwargs: provider.event_loop))
 
     def use_running_loop(self):
         self.__event_loop = asyncio.get_running_loop()
@@ -35,6 +32,9 @@ class EventLoopProvider(Generic[TEventLoop]):
 
     @property
     def event_loop(self) -> TEventLoop:
+        # Circular import
+        from ..utils.stoppable import Stoppable
+
         if isinstance(self, Stoppable) and self.is_stopped():
             raise RuntimeError("No event loop will be provided for stopped classes")
 

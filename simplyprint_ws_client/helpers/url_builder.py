@@ -1,6 +1,9 @@
 from enum import Enum
+from os import environ
 from typing import NamedTuple, Optional, Tuple
 from urllib.parse import urlunparse
+
+from simplyprint_ws_client.const import IS_TESTING
 
 
 class SimplyPrintWsVersion(Enum):
@@ -111,3 +114,9 @@ class SimplyPrintUrl:
     @property
     def ws_url(self) -> UrlBuilder:
         return UrlBuilder("wss", DomainBuilder(self.version.ws_subdomain)) / SimplyPrintWsVersion.VERSION_0_2.value
+
+
+value = environ.get("SIMPLYPRINT_VERSION",
+                    (SimplyPrintBackend.TESTING if IS_TESTING else SimplyPrintBackend.PRODUCTION).value)
+
+SimplyPrintUrl.set_current(SimplyPrintBackend(value))

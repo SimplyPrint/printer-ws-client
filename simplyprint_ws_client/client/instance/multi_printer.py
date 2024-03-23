@@ -1,15 +1,15 @@
-import asyncio
 from enum import Enum
 from typing import Dict, Iterable, Optional, Set
 
-from simplyprint_ws_client.client.instance.instance import Instance, TClient, TConfig, InstanceException
 from simplyprint_ws_client.client.client import Client
 from simplyprint_ws_client.client.config import Config
 from simplyprint_ws_client.client.config import ConfigManager
-from simplyprint_ws_client.connection.connection import ConnectionConnectedEvent, ConnectionReconnectEvent, ConnectionPollEvent
-from simplyprint_ws_client.const import SimplyPrintUrl
+from simplyprint_ws_client.client.instance.instance import Instance, TClient, TConfig, InstanceException
+from simplyprint_ws_client.connection.connection import ConnectionConnectedEvent, ConnectionReconnectEvent, \
+    ConnectionPollEvent
 from simplyprint_ws_client.events.client_events import ClientEvent
 from simplyprint_ws_client.events.server_events import MultiPrinterAddedEvent, MultiPrinterRemovedEvent
+from simplyprint_ws_client.helpers.url_builder import SimplyPrintUrl
 
 
 class MultiPrinterException(InstanceException):
@@ -160,7 +160,7 @@ class MultiPrinter(Instance[TClient, TConfig]):
             self.config_manager.flush(client.config)
 
         # Attempt to reconnect the client.
-        await asyncio.sleep(self.reconnect_timeout)
+        await self.wait(self.reconnect_timeout)
 
         try:
             await self.register_client(client)

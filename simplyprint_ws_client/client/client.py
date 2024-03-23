@@ -48,7 +48,9 @@ class Client(ABC, EventLoopProvider[asyncio.AbstractEventLoop], Generic[TConfig]
     intervals: Intervals
     printer: PrinterState
     event_bus: ClientEventBus
-    physical_machine: [PhysicalMachine] = None
+    physical_machine: PhysicalMachine
+
+    logger: logging.Logger
 
     _connected: bool = False
     _client_lock: asyncio.Lock
@@ -62,6 +64,9 @@ class Client(ABC, EventLoopProvider[asyncio.AbstractEventLoop], Generic[TConfig]
         self.intervals = Intervals()
         self.printer = PrinterState()
         self.event_bus = ClientEventBus(event_loop_provider=event_loop_provider)
+        self.physical_machine = PhysicalMachine()
+
+        self.logger = logging.getLogger(ClientName.from_client(self))
 
         self._client_lock = asyncio.Lock()
 
@@ -175,15 +180,11 @@ class DefaultClient(Client[TConfig], ABC):
     Client with default event handling, logging and more extra features.
     """
 
-    logger: logging.Logger
     reconnect_token: Optional[str] = None
     requested_snapshots: int = 0
 
     def __init__(self, config: TConfig, **kwargs):
         super().__init__(config, **kwargs)
-
-        self.physical_machine = PhysicalMachine()
-        self.logger = logging.getLogger(ClientName.from_client(self))
 
     async def send_ping(self):
         if not self.intervals.is_ready(IntervalTypes.PING):
