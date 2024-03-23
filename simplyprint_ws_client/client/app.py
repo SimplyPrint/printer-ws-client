@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import threading
-from typing import Callable, Optional, Type, Generic
+from typing import Callable, Optional, Type, Generic, Union
 
 from .cache import ClientCache
 from .client import Client
@@ -18,7 +18,7 @@ from ..utils.event_loop_runner import EventLoopRunner
 
 class ClientFactory:
     options: ClientOptions
-    client_t: Optional[Type[Client] | Callable[..., Client]] = None
+    client_t: Optional[Union[Type[Client], Callable[[], Client]]] = None
     config_t: Optional[Type[Config]] = None
 
     def __init__(self, options: ClientOptions, client_t: Optional[Type[Client]] = None,
@@ -59,7 +59,12 @@ class ClientApp(Generic[TClient, TConfig]):
         self.instance = instance_class(config_manager=self.config_manager,
                                        allow_setup=options.allow_setup, reconnect_timeout=options.reconnect_timeout, )
 
-        self.client_factory = ClientFactory(options=options, client_t=options.client_t, config_t=options.config_t)
+        self.client_factory = ClientFactory(
+            options=options,
+            client_t=options.client_t,
+            config_t=options.config_t
+        )
+
         self.client_cache = ClientCache() if options.cache_clients else None
 
         log_file = APP_DIRS.user_log_path / f"{options.name}.log"

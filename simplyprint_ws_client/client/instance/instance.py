@@ -18,7 +18,7 @@ from ...events.demand_events import DemandEvent
 from ...events.event_bus import Event, EventBus
 from ...events.server_events import ServerEvent
 from ...utils.event_loop_provider import EventLoopProvider
-from ...utils.stoppable import AsyncStoppable
+from ...utils.stoppable import AsyncStoppable, SyncStoppable
 
 TClient = TypeVar("TClient", bound=Client)
 TConfig = TypeVar("TConfig", bound=Config)
@@ -62,6 +62,7 @@ class Instance(AsyncStoppable, EventLoopProvider, Generic[TClient, TConfig], ABC
     # Ensure the instance can only be started once.
     _instance_lock: threading.Lock
     _instance_thread_id: Optional[int] = None
+    _instance_stoppable: SyncStoppable
 
     # Ensure we only allow one disconnect event to be processed at a time
     disconnect_lock: asyncio.Lock
@@ -79,6 +80,7 @@ class Instance(AsyncStoppable, EventLoopProvider, Generic[TClient, TConfig], ABC
         self.lifetime_manager = LifetimeManager()
 
         self._instance_lock = threading.Lock()
+        self._instance_stoppable = SyncStoppable()
 
         self.event_bus = EventBus()
 
@@ -141,9 +143,10 @@ class Instance(AsyncStoppable, EventLoopProvider, Generic[TClient, TConfig], ABC
             self.lifetime_manager.loop()
         )
 
-    def stop(self) -> None:
-        self.lifetime_manager.stop()
+    def stop_all(self):
+        self.shared_stoppable.stop()
 
+    def stop(self) -> None:
         async def async_stop():
             self.logger.info("Stopping instance")
 
@@ -285,8 +288,8 @@ class Instance(AsyncStoppable, EventLoopProvider, Generic[TClient, TConfig], ABC
         self.lifetime_manager.remove(client)
 
     @staticmethod
-    async def consume_backlog(backlog: List[Tuple[Any, ...]],
-                              consumer: Callable[[Any, ...], Coroutine[Any, Any, None]]):
+    async def consume_backlog(backlog: List[Tuple[Any, Any]],
+                              consumer: Callable[[Any, Any], Coroutine[Any, Any, None]]):
         """
         Consumes any events that were received before the client was registered
         this will push elements still not consumed to the end of the list,

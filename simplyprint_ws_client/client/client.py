@@ -55,9 +55,11 @@ class Client(ABC, EventLoopProvider[asyncio.AbstractEventLoop], Generic[TConfig]
     _connected: bool = False
     _client_lock: asyncio.Lock
 
-    def __init__(self, config: TConfig,
-                 event_loop_provider: Optional[EventLoopProvider[asyncio.AbstractEventLoop]] = None):
-
+    def __init__(
+            self,
+            config: TConfig,
+            event_loop_provider: Optional[EventLoopProvider[asyncio.AbstractEventLoop]] = None,
+    ):
         super().__init__(provider=event_loop_provider)
 
         self.config = config
@@ -153,7 +155,7 @@ class Client(ABC, EventLoopProvider[asyncio.AbstractEventLoop], Generic[TConfig]
 
     @abstractmethod
     async def tick(self):
-        """ 
+        """
         Define a continuous task that will be called every "tick"
         this is variable and made to optimize certain performance
         when running a lot of clients at once.

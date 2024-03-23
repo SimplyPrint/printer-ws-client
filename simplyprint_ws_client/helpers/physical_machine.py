@@ -6,8 +6,12 @@ import socket
 import subprocess
 from typing import Optional
 
-import netifaces
 import psutil
+
+try:
+    import netifaces
+except ImportError:
+    netifaces = None
 
 
 def callonce(func):

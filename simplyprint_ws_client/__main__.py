@@ -1,5 +1,5 @@
 from .cli import ClientCli
-from .client.app import ClientMode, ClientOptions
+from .client import ClientMode, ClientOptions
 from .client.config import ConfigManagerType
 from .examples.virtual_client import VirtualClient, VirtualConfig
 

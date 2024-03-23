@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import NamedTuple, Type, Callable
+from typing import NamedTuple, Type, Callable, Union
 from typing import Optional
 
 from .client import Client
@@ -22,7 +22,7 @@ class ClientMode(Enum):
             raise ValueError("Invalid ClientMode")
 
 
-TConfigFactory = Type[Client] | Callable[..., Client]
+TConfigFactory = Union[Type[Client], Callable[[], Client]]
 
 
 class ClientOptions(NamedTuple):

@@ -7,7 +7,21 @@ TStopEvent = TypeVar("TStopEvent", bound=Union[threading.Event, asyncio.Event])
 TAnyStoppable = Union["Stoppable", TStopEvent]
 
 
-class Stoppable(Generic[TStopEvent], ABC):
+class StoppableInterface(ABC):
+    @abstractmethod
+    def is_stopped(self) -> bool:
+        ...
+
+    @abstractmethod
+    def stop(self) -> None:
+        ...
+
+    @abstractmethod
+    def clear(self) -> None:
+        ...
+
+
+class Stoppable(Generic[TStopEvent], StoppableInterface, ABC):
     """A Stoppable class represents an object that has
     some never ending logic that needs to be able to
     terminate for cleanup.
@@ -43,11 +57,16 @@ class Stoppable(Generic[TStopEvent], ABC):
         return stoppable
 
     @abstractmethod
-    def __init__(self, stoppable: Optional[TAnyStoppable] = None):
-        self.__parent_stop_event = self._extract_stop_event(stoppable)
+    def __init__(self, nested_stoppable: Optional[TAnyStoppable] = None,
+                 parent_stoppable: Optional[TAnyStoppable] = None):
+        self.__parent_stop_event = self._extract_stop_event(parent_stoppable)
+        self.__stop_event = self._extract_stop_event(nested_stoppable)
 
     def is_stopped(self):
-        return self.__stop_event.is_set() or (self.__parent_stop_event and self.__parent_stop_event.is_set())
+        if self._parent_stop_event_property is not None:
+            return self.__stop_event.is_set() or self.__parent_stop_event.is_set()
+
+        return self.__stop_event.is_set()
 
     def stop(self):
         self.__stop_event.set()
@@ -78,8 +97,13 @@ class SyncStoppable(Stoppable[threading.Event]):
 
     @staticmethod
     def _extract_condition(
-            stoppable: Optional["SyncStoppable"] = None,
-            default: Optional[threading.Condition] = None) -> threading.Condition:
+            nested_stoppable: Optional["SyncStoppable"] = None,
+            parent_stoppable: Optional["SyncStoppable"] = None,
+            default: Optional[threading.Condition] = None,
+            **kwargs,
+    ) -> threading.Condition:
+        stoppable = nested_stoppable or parent_stoppable
+
         if not stoppable or not isinstance(stoppable, SyncStoppable):
             return default or threading.Condition()
 
@@ -87,9 +111,8 @@ class SyncStoppable(Stoppable[threading.Event]):
 
     def __init__(self, *args, condition: Optional[threading.Condition] = None, **kwargs):
         super().__init__(*args, **kwargs)
-
         self.__condition = SyncStoppable._extract_condition(**kwargs, default=condition)
-        self._stop_event_property = threading.Event()
+        self._stop_event_property = self._stop_event_property or threading.Event()
 
     def stop(self):
         super().stop()
@@ -106,7 +129,7 @@ class SyncStoppable(Stoppable[threading.Event]):
 class AsyncStoppable(Stoppable[asyncio.Event]):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._stop_event_property = asyncio.Event()
+        self._stop_event_property = self._stop_event_property or asyncio.Event()
 
     async def wait(self, timeout: Optional[float] = None) -> bool:
         try:

@@ -32,13 +32,20 @@ class LifetimeManager(AsyncStoppable):
         return self.lifetimes.get(client)
 
     def add(self, client: Client, lifetime_type: LifetimeType = LifetimeType.ASYNC) -> ClientLifetime:
-        lifetime = lifetime_type.get_cls()(client, stoppable=self)
+        lifetime = lifetime_type.get_cls()(client, parent_stoppable=self)
         self.lifetimes[client] = lifetime
         return lifetime
 
     async def loop(self) -> None:
         while not self.is_stopped():
-            # Main manager loop.
+            for client, lifetime in list(self.lifetimes.items()):
+                if lifetime.is_healthy():
+                    continue
+
+                client.logger.warning(f"Client lifetime unhealthy - restarting")
+
+                await self.stop_lifetime(client)
+                await self.start_lifetime(client)
 
             await self.wait(10)
 
@@ -56,7 +63,7 @@ class LifetimeManager(AsyncStoppable):
         if not lifetime:
             return
 
-        await lifetime.stop()
+        lifetime.stop()
 
     def remove(self, client: Client) -> None:
         lifetime = self.lifetimes.pop(client, None)
