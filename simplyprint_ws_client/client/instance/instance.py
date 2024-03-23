@@ -77,7 +77,7 @@ class Instance(AsyncStoppable, EventLoopProvider, Generic[TClient, TConfig], ABC
         super().__init__()
 
         self.config_manager = config_manager
-        self.lifetime_manager = LifetimeManager()
+        self.lifetime_manager = LifetimeManager(parent_stoppable=self)
 
         self._instance_lock = threading.Lock()
         self._instance_stoppable = SyncStoppable()
