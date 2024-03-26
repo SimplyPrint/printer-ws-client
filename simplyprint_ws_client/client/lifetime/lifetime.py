@@ -2,7 +2,7 @@ import asyncio
 import threading
 import time
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, List, Optional
+from typing import TYPE_CHECKING, List, Optional, NamedTuple
 
 from ...utils.stoppable import AsyncStoppable
 
@@ -10,10 +10,20 @@ if TYPE_CHECKING:
     from ..client import Client
 
 
+class BoundedInterval(NamedTuple):
+    max: float
+    step: float
+
+    def increment_until_bound(self, value: float) -> float:
+        return min(value + self.step, self.max)
+
+
+TimeoutBoundedInterval = BoundedInterval(60.0, 1.0)
+TickRateBoundedInterval = BoundedInterval(10.0, 0.1)
+
+
 class ClientLifetime(AsyncStoppable, ABC):
-    timeout_upper_bound = 60.0
-    tick_rate_upper_bound = 10.0
-    heartbeat_delta = 0.1
+    heartbeat_delta = 0.5
 
     client: "Client"
     timeout = 5.0
@@ -61,7 +71,7 @@ class ClientLifetime(AsyncStoppable, ABC):
 
         except asyncio.TimeoutError:
             self.client.logger.warning(f"Client timed out while ticking")
-            self.timeout = self.increment_until_bound(self.timeout, 1.0, self.timeout_upper_bound)
+            self.timeout = TimeoutBoundedInterval.increment_until_bound(self.timeout)
 
         events_to_process = self.client.printer.get_dirty_events()
 
@@ -71,9 +81,9 @@ class ClientLifetime(AsyncStoppable, ABC):
 
         except asyncio.TimeoutError:
             self.client.logger.warning(f"Client timed out while consuming state {events_to_process}")
-            self.timeout = self.increment_until_bound(self.timeout, 1.0, self.timeout_upper_bound)
+            self.timeout = TimeoutBoundedInterval.increment_until_bound(self.timeout)
 
-    def is_healthy(self, timeout: float = 0.0) -> bool:
+    def is_healthy(self) -> bool:
         average_heartbeat_duration = self.average_heartbeat_duration()
 
         # Not enough heartbeats to calculate average
@@ -81,8 +91,7 @@ class ClientLifetime(AsyncStoppable, ABC):
             return True
 
         if average_heartbeat_duration > self.tick_rate + self.heartbeat_delta:
-            self.tick_rate = self.increment_until_bound(self.tick_rate, self.heartbeat_delta,
-                                                        self.tick_rate_upper_bound)
+            self.tick_rate = TickRateBoundedInterval.increment_until_bound(self.tick_rate)
 
             self.client.logger.warning(
                 f"Client is almost unhealthy: average heartbeat duration is {average_heartbeat_duration} " +
@@ -90,7 +99,15 @@ class ClientLifetime(AsyncStoppable, ABC):
             )
 
         # We are healthy if the average heartbeat duration is less than the tick rate + timeout
-        return average_heartbeat_duration < self.tick_rate + timeout
+        if not average_heartbeat_duration < self.tick_rate + self.timeout:
+            self.client.logger.warning(
+                f"Client is unhealthy: average heartbeat duration is {average_heartbeat_duration} " +
+                f"expected less than {self.tick_rate + self.timeout}"
+            )
+
+            return False
+
+        return True
 
     async def loop(self):
         while not self.is_stopped():
