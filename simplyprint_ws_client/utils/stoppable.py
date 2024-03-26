@@ -1,9 +1,11 @@
 import asyncio
+import multiprocessing
 import threading
 from abc import ABC, abstractmethod
 from typing import Optional, Union, TypeVar, Generic
 
-TStopEvent = TypeVar("TStopEvent", bound=Union[threading.Event, asyncio.Event])
+TStopEvent = TypeVar("TStopEvent", bound=Union[threading.Event, asyncio.Event, multiprocessing.Condition])
+TCondition = TypeVar("TCondition", bound=Union[threading.Condition, asyncio.Condition, multiprocessing.Condition])
 TAnyStoppable = Union["Stoppable", TStopEvent]
 
 
@@ -21,7 +23,7 @@ class StoppableInterface(ABC):
         ...
 
 
-class Stoppable(Generic[TStopEvent], StoppableInterface, ABC):
+class Stoppable(Generic[TStopEvent, TCondition], StoppableInterface, ABC):
     """A Stoppable class represents an object that has
     some never ending logic that needs to be able to
     terminate for cleanup.
@@ -37,6 +39,9 @@ class Stoppable(Generic[TStopEvent], StoppableInterface, ABC):
 
     """
 
+    # Implement wait group with a chained condition
+    __condition: Optional[TCondition]
+
     __parent_stop_event: Optional[TStopEvent]
     __stop_event: TStopEvent
 
@@ -51,14 +56,40 @@ class Stoppable(Generic[TStopEvent], StoppableInterface, ABC):
         if isinstance(stoppable, Stoppable):
             return stoppable._stop_event_property
 
-        if not isinstance(stoppable, (threading.Event, asyncio.Event)):
+        if not isinstance(stoppable, (threading.Event, asyncio.Event, multiprocessing.Event)):
             return default
 
         return stoppable
 
+    @staticmethod
+    def _extract_condition(
+            nested_stoppable: Optional["SyncStoppable"] = None,
+            parent_stoppable: Optional["SyncStoppable"] = None,
+            default: Optional[TCondition] = None,
+            **kwargs,
+    ) -> TCondition:
+        stoppable = nested_stoppable or parent_stoppable
+
+        if not stoppable or not isinstance(stoppable, Stoppable):
+            return default
+
+        return stoppable.__condition
+
     @abstractmethod
-    def __init__(self, nested_stoppable: Optional[TAnyStoppable] = None,
-                 parent_stoppable: Optional[TAnyStoppable] = None):
+    def __init__(
+            self,
+            nested_stoppable: Optional[TAnyStoppable] = None,
+            parent_stoppable: Optional[TAnyStoppable] = None,
+            condition: Optional[TCondition] = None,
+            default_condition: Optional[TCondition] = None,
+    ):
+        # Only set a condition if it is explicitly passed (and used)
+        # for instance, the async stoppable does not use a condition.
+        if default_condition:
+            self.__condition = self._extract_condition(nested_stoppable, parent_stoppable, default=default_condition)
+        else:
+            self.__condition = condition
+
         self.__parent_stop_event = self._extract_stop_event(parent_stoppable)
         self.__stop_event = self._extract_stop_event(nested_stoppable)
 
@@ -70,6 +101,10 @@ class Stoppable(Generic[TStopEvent], StoppableInterface, ABC):
 
     def stop(self):
         self.__stop_event.set()
+
+        if self.__condition:
+            with self.__condition:
+                self.__condition.notify_all()
 
     def clear(self):
         self.__stop_event.clear()
@@ -90,43 +125,24 @@ class Stoppable(Generic[TStopEvent], StoppableInterface, ABC):
     def _parent_stop_event_property(self):
         return self.__parent_stop_event
 
+    @property
+    def _condition_property(self):
+        return self.__condition
 
-class SyncStoppable(Stoppable[threading.Event]):
-    # Implement wait group with a chained condition
-    __condition: threading.Condition
 
-    @staticmethod
-    def _extract_condition(
-            nested_stoppable: Optional["SyncStoppable"] = None,
-            parent_stoppable: Optional["SyncStoppable"] = None,
-            default: Optional[threading.Condition] = None,
-            **kwargs,
-    ) -> threading.Condition:
-        stoppable = nested_stoppable or parent_stoppable
+class SyncStoppable(Stoppable[threading.Event, threading.Condition]):
 
-        if not stoppable or not isinstance(stoppable, SyncStoppable):
-            return default or threading.Condition()
-
-        return stoppable.__condition
-
-    def __init__(self, *args, condition: Optional[threading.Condition] = None, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.__condition = SyncStoppable._extract_condition(**kwargs, default=condition)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs, default_condition=threading.Condition())
         self._stop_event_property = self._stop_event_property or threading.Event()
 
-    def stop(self):
-        super().stop()
-
-        with self.__condition:
-            self.__condition.notify_all()
-
     def wait(self, timeout: Optional[float] = None) -> bool:
-        with self.__condition:
-            self.__condition.wait(timeout)
+        with self._condition_property:
+            self._condition_property.wait(timeout)
         return self.is_stopped()
 
 
-class AsyncStoppable(Stoppable[asyncio.Event]):
+class AsyncStoppable(Stoppable[asyncio.Event, asyncio.Condition]):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._stop_event_property = self._stop_event_property or asyncio.Event()
@@ -148,10 +164,31 @@ class AsyncStoppable(Stoppable[asyncio.Event]):
             return self.is_stopped()
 
 
+class ProcessStoppable(Stoppable[multiprocessing.Event, multiprocessing.Condition]):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs, default_condition=multiprocessing.Condition())
+        self._stop_event_property = self._stop_event_property or multiprocessing.Event()
+
+    def wait(self, timeout: Optional[float] = None) -> bool:
+        with self._condition_property:
+            self._condition_property.wait(timeout)
+        return self.is_stopped()
+
+
 class StoppableThread(SyncStoppable, threading.Thread, ABC):
     def __init__(self, *args, **kwargs):
         SyncStoppable.__init__(self, *args, **kwargs)
         threading.Thread.__init__(self)
+
+    @abstractmethod
+    def run(self):
+        ...
+
+
+class StoppableProcess(ProcessStoppable, multiprocessing.Process, ABC):
+    def __init__(self, *args, **kwargs):
+        ProcessStoppable.__init__(self, *args, **kwargs)
+        multiprocessing.Process.__init__(self)
 
     @abstractmethod
     def run(self):
