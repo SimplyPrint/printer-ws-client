@@ -143,9 +143,6 @@ class Instance(AsyncStoppable, EventLoopProvider, Generic[TClient, TConfig], ABC
             self.lifetime_manager.loop()
         )
 
-    def stop_all(self):
-        self.shared_stoppable.stop()
-
     def stop(self) -> None:
         async def async_stop():
             self.logger.info("Stopping instance")
