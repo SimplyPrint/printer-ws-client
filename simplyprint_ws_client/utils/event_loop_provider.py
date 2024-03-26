@@ -30,6 +30,12 @@ class EventLoopProvider(Generic[TEventLoop]):
     def reset_event_loop(self):
         self.__event_loop = None
 
+    def event_loop_is_running(self) -> bool:
+        try:
+            return self.event_loop and not self.event_loop.is_closed()
+        except RuntimeError:
+            return False
+
     @property
     def event_loop(self) -> TEventLoop:
         # Circular import
