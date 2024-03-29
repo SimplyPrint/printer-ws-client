@@ -13,6 +13,7 @@ from .options import ClientOptions
 from ..const import APP_DIRS
 from ..helpers.sentry import Sentry
 from ..helpers.url_builder import SimplyPrintUrl
+from ..utils import traceability
 from ..utils.event_loop_runner import EventLoopRunner
 
 
@@ -136,17 +137,18 @@ class ClientApp(Generic[TClient, TConfig]):
     def reload_client(self, client: Client) -> asyncio.Future:
         return asyncio.run_coroutine_threadsafe(self._reload_client(client), self.instance.event_loop)
 
-    def run_blocking(self):
+    def run_blocking(self, enable_tracing=False):
         with EventLoopRunner() as runner:
-            runner.run(self.run())
+            with traceability.enable_traceable(enable_tracing):
+                runner.run(self.run())
 
-    def run_detached(self):
+    def run_detached(self, *args, **kwargs):
         """ Run the client in a separate thread. """
         if self.instance_thread:
             self.logger.warning("Client instance already running - stopping old instance")
             self.stop()
 
-        self.instance_thread = threading.Thread(target=self.run_blocking)
+        self.instance_thread = threading.Thread(target=self.run_blocking, args=args, kwargs=kwargs)
         self.instance_thread.start()
 
     def stop(self):

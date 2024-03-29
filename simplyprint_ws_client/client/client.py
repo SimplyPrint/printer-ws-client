@@ -14,6 +14,7 @@ from ..events.event_bus import EventBus
 from ..helpers.intervals import IntervalTypes, Intervals
 from ..helpers.physical_machine import PhysicalMachine
 from ..utils.event_loop_provider import EventLoopProvider
+from ..utils.traceability import traceable
 
 
 class ClientConfigurationException(Exception):
@@ -75,14 +76,12 @@ class Client(ABC, EventLoopProvider[asyncio.AbstractEventLoop], Generic[TConfig]
         # Recover handles from the class
         # TODO: Generalize this under the event system.
         for name in dir(self):
-            if not hasattr(self, name):
-                continue
-
-            attr = getattr(self, name)
-
-            if hasattr(attr, "_event"):
-                event_cls = attr._event
-                self.event_bus.on(event_cls, attr, attr._pre)
+            try:
+                attr = getattr(self, name)
+                event_cls = getattr(attr, "_event")
+                self.event_bus.on(event_cls, attr, getattr(attr, "_pre"))
+            except (AttributeError, RuntimeError):
+                pass
 
     async def __aenter__(self):
         """ Acquire a client to perform order sensitive operations."""
@@ -94,13 +93,15 @@ class Client(ABC, EventLoopProvider[asyncio.AbstractEventLoop], Generic[TConfig]
         self._client_lock.release()
 
     @property
+    @traceable(with_retval=True, with_stack=True)
     def connected(self) -> bool:
         """
         Check if the client is connected to the server.
         """
-        return self._connected
+        return self._connected and self.is_external_connected()
 
     @connected.setter
+    @traceable(with_args=True, with_stack=True)
     def connected(self, value: bool):
         self._connected = value
 
@@ -145,6 +146,13 @@ class Client(ABC, EventLoopProvider[asyncio.AbstractEventLoop], Generic[TConfig]
     def set_ui_info(self, ui: str, ui_version: str):
         self.printer.info.ui = ui
         self.printer.info.ui_version = ui_version
+
+    def is_external_connected(self):
+        """
+        Check if the client is connected to an external device.
+        """
+
+        return True
 
     @abstractmethod
     async def init(self):

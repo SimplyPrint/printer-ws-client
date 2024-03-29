@@ -42,3 +42,24 @@ class FileBackup:
 
         # Now create the new backup by copying the original file
         shutil.copy(file, file.parent / f"{file.name}.bak.0")
+
+    @staticmethod
+    def strip_log_file(file: Path, max_size: int = 100 * 1024 * 1024):
+        """Strip a log file to a maximum size"""
+
+        if not file.exists():
+            return
+
+        if file.stat().st_size <= max_size:
+            return
+
+        # Use the size to start seeking from the end of the file
+        # and then read the file in chunks of 1024 bytes until we have read the last size
+        # then overwrite the file with the new content
+        with open(file, "r+") as f:
+            f.seek(0, 2)
+            f.seek(f.tell() - max_size, 0)
+            content = f.read()
+            f.seek(0)
+            f.write(content)
+            f.truncate()

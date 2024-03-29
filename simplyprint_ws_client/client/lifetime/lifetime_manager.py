@@ -1,10 +1,14 @@
 import logging
 from enum import Enum
-from typing import Dict
+from typing import Dict, TYPE_CHECKING
 
 from .lifetime import ClientLifetime, ClientAsyncLifetime
 from ..client import Client
+from ...utils import traceability
 from ...utils.stoppable import AsyncStoppable
+
+if TYPE_CHECKING:
+    from ..instance import Instance
 
 
 class LifetimeType(Enum):
@@ -22,11 +26,15 @@ class LifetimeType(Enum):
 class LifetimeManager(AsyncStoppable):
     logger: logging.Logger
     lifetime_check_interval = 10
+
+    instance: 'Instance'
     lifetimes: Dict[Client, ClientLifetime]
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, instance: 'Instance', *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.logger = logging.getLogger("lifetime_manager")
+
+        self.logger = instance.logger.getChild("lifetime_manager")
+        self.instance = instance
         self.lifetimes = {}
 
     def contains(self, client: Client) -> bool:
@@ -55,13 +63,21 @@ class LifetimeManager(AsyncStoppable):
                 if lifetime.is_stopped():
                     continue
 
-                if lifetime.is_healthy():
+                if not lifetime.is_healthy():
+                    client.logger.warning(f"Client lifetime unhealthy - restarting")
+                    await self.restart_lifetime(client)
                     continue
 
-                client.logger.warning(f"Client lifetime unhealthy - restarting")
+                if self.instance.connection.is_connected() and not client._connected:
+                    connected_trace = traceability.from_class(client).get("connected", None)
 
-                await self.stop_lifetime(client)
-                await self.start_lifetime(client)
+                    client.logger.warning(
+                        f"Instance is connected but client has not received connected event yet. Last {len(connected_trace.call_record)} traces:")
+
+                    for record in connected_trace.get_call_record():
+                        client.logger.warning(
+                            f"[{record.called_at}] Called connected with args {record.args} retval {record.retval}",
+                            exc_info=record.stack)
 
             await self.wait(self.lifetime_check_interval)
 
@@ -90,6 +106,10 @@ class LifetimeManager(AsyncStoppable):
             return
 
         lifetime.stop()
+
+    async def restart_lifetime(self, client: Client) -> None:
+        await self.stop_lifetime(client)
+        await self.start_lifetime(client)
 
     def remove(self, client: Client) -> None:
         lifetime = self.lifetimes.pop(client, None)

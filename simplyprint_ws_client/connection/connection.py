@@ -13,6 +13,7 @@ from ..events import DemandEvent, ServerEvent, EventFactory
 from ..events.client_events import ClientEvent, ClientEventMode
 from ..events.event import Event
 from ..events.event_bus import EventBus
+from ..utils.traceability import traceable
 
 
 class ConnectionPollEvent(Event):
@@ -167,6 +168,7 @@ class Connection:
             self.logger.error(f"Failed to send event {event}", exc_info=e)
             await self.on_disconnect()
 
+    @traceable
     async def poll_event(self, timeout=None) -> None:
         if not self.is_connected():
             self.logger.debug(f"Did not poll event because not connected")
