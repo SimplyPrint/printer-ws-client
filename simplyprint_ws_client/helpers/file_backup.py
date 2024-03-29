@@ -56,10 +56,9 @@ class FileBackup:
         # Use the size to start seeking from the end of the file
         # and then read the file in chunks of 1024 bytes until we have read the last size
         # then overwrite the file with the new content
-        with open(file, "r+") as f:
-            f.seek(0, 2)
-            f.seek(f.tell() - max_size, 0)
-            content = f.read()
+        with open(file, "rb+") as f:
+            f.seek(-max_size, 2)
+            data = f.read()
             f.seek(0)
-            f.write(content)
+            f.write(data)
             f.truncate()
