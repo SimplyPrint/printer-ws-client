@@ -1,4 +1,5 @@
 import logging
+import traceback
 from enum import Enum
 from typing import Dict, TYPE_CHECKING
 
@@ -57,6 +58,9 @@ class LifetimeManager(AsyncStoppable):
     async def loop(self) -> None:
         self.logger.info("Starting lifetime manager loop")
 
+        # Start after a delay as this is just a manager
+        await self.wait(self.lifetime_check_interval)
+
         while not self.is_stopped():
             for client, lifetime in list(self.lifetimes.items()):
                 # TODO retry the lifetime in a bit...
@@ -76,8 +80,9 @@ class LifetimeManager(AsyncStoppable):
 
                     for record in connected_trace.get_call_record():
                         client.logger.warning(
-                            f"[{record.called_at}] Called connected with args {record.args} retval {record.retval}",
-                            exc_info=record.stack)
+                            f"""[{record.called_at}] Called connected with args {record.args} retval {record.retval}
+{''.join(traceback.StackSummary.from_list(record.stack).format()) if record.stack else "No stack"}
+                            """)
 
             await self.wait(self.lifetime_check_interval)
 

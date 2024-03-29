@@ -123,7 +123,7 @@ def traceable(*args, record_calls=False, with_stack=False, with_args=False, with
                     )
 
                     if with_stack:
-                        record.stack = traceback.format_stack()
+                        record.stack = traceback.extract_stack()
 
                     traceability.call_record.append(record)
 
