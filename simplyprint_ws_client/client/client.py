@@ -93,7 +93,6 @@ class Client(ABC, EventLoopProvider[asyncio.AbstractEventLoop], Generic[TConfig]
         self._client_lock.release()
 
     @property
-    @traceable(with_retval=True, with_stack=True)
     def connected(self) -> bool:
         """
         Check if the client is connected to the server.
@@ -101,7 +100,7 @@ class Client(ABC, EventLoopProvider[asyncio.AbstractEventLoop], Generic[TConfig]
         return self._connected and self.is_external_connected()
 
     @connected.setter
-    @traceable(with_args=True, with_stack=True)
+    @traceable(with_args=True, with_stack=True, record_count=20)
     def connected(self, value: bool):
         self._connected = value
 
@@ -214,12 +213,15 @@ class DefaultClient(Client[TConfig], ABC):
 
     @Events.ConnectEvent.before
     async def before_connect(self, event: Events.ConnectEvent):
+        self.logger.debug("Client received connected event")
+
         async with self:
             self.connected = True
+            self.config.name = event.printer_name
+            self.config.in_setup = event.in_setup
+            self.config.short_id = event.short_id
 
-        self.config.name = event.printer_name
-        self.config.in_setup = event.in_setup
-        self.config.short_id = event.short_id
+        self.logger.info(f"Connected to server {event}")
 
         self.intervals.update(event.intervals)
 
