@@ -133,7 +133,9 @@ class TestTraceability(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(trace_b_record.args, (1, 2))
         self.assertEqual(trace_b_record.retval, None)
         self.assertEqual(trace_b_record.kwargs, {"extra_custom_arg": "test"})
-        self.assertEqual(any("traceable_function_b" in frame for frame in trace_b_record.stack), True)
+        self.assertEqual(any('traceable_function_b(1, 2, extra_custom_arg="test")' in frame.line in frame for frame in
+                             trace_b_record.stack),
+                         True)
 
     def test_basic_traceability(self):
         @traceability.traceable

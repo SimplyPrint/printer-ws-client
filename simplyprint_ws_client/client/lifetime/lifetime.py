@@ -61,9 +61,10 @@ class ClientLifetime(AsyncStoppable, ABC):
 
     async def consume(self):
         # Only consume connected clients
+        # For now we will consume even if not connected
         if not self.client.connected:
-            self.client.logger.debug(f"Client not connected - not consuming")
-            return
+            self.client.logger.warning(f"Client not connected - still consuming this is an error.")
+        #   return
 
         try:
             async with asyncio.timeout(self.timeout):

@@ -76,9 +76,15 @@ class LifetimeManager(AsyncStoppable):
                     connected_trace = traceability.from_class(client).get("connected", None)
 
                     client.logger.warning(
-                        f"Instance is connected but client has not received connected event yet. Last {len(connected_trace.call_record)} traces:")
+                        f"Instance is connected but client has not received connected event yet. Last {len(connected_trace.call_record) if connected_trace else 0} traces:")
 
-                    for record in connected_trace.get_call_record():
+                    if not connected_trace or not connected_trace.call_record:
+                        continue
+
+                    records = connected_trace.get_call_record()
+                    connected_trace.call_record.clear()
+
+                    for record in records:
                         client.logger.warning(
                             f"""[{record.called_at}] Called connected with args {record.args} retval {record.retval}
 {''.join(traceback.StackSummary.from_list(record.stack).format()) if record.stack else "No stack"}

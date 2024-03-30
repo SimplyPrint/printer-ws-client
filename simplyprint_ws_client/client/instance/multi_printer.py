@@ -120,6 +120,11 @@ class MultiPrinter(Instance[TClient, TConfig]):
         self.pending_unique_set.discard(client.config.unique_id)
 
         if event.status:
+            # For multi-printer we can mark a client as connected
+            # when it was successfully added.
+
+            client.connected = True
+
             client.config.id = event.printer_id
             self.config_manager.flush(client.config)
 

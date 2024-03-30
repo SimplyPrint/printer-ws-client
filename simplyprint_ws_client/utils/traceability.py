@@ -5,7 +5,7 @@ import time
 import traceback
 from collections import deque
 from functools import wraps
-from typing import Optional, List
+from typing import Optional
 
 _traceability_enabled = contextvars.ContextVar("_traceability_enabled", default=False)
 
@@ -78,12 +78,10 @@ def traceable(*args, record_calls=False, with_stack=False, with_args=False, with
         if not callable(func):
             raise ValueError("traceable decorator must be used on a callable")
 
-        # All functions also get a static key
-        _, key, _ = traceable_location_from_func(func)
-
+        # Required as property is mirrored by @wraps so we can reference "func" in this context
         setattr(func, "__traceability__", Traceability(
             last_called=None,
-            call_record=deque(maxlen=10) if should_record_calls else None
+            call_record=deque(maxlen=record_count) if should_record_calls else None
         ))
 
         @wraps(func)
@@ -195,7 +193,7 @@ class TraceabilityRecord:
     args: Optional[tuple] = None
     kwargs: Optional[dict] = None
     retval: Optional[object] = None
-    stack: Optional[List[str]] = None
+    stack: Optional[traceback.StackSummary] = None
 
 
 @dataclasses.dataclass(slots=True)
