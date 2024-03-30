@@ -51,9 +51,12 @@ class LifetimeManager(AsyncStoppable):
         if self.contains(client):
             return self.get(client)
 
-        lifetime = lifetime_type.get_cls()(client, parent_stoppable=self)
+        lifetime = lifetime_type.get_cls()(self, client)
         self.lifetimes[client] = lifetime
         return lifetime
+
+    def should_consume(self, client: Client) -> bool:
+        return self.instance.connection.is_connected()
 
     async def loop(self) -> None:
         self.logger.info("Starting lifetime manager loop")

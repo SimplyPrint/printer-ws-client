@@ -122,12 +122,11 @@ class MultiPrinter(Instance[TClient, TConfig]):
         if event.status:
             # For multi-printer we can mark a client as connected
             # when it was successfully added.
+            async with client:
+                client.connected = True
+                client.config.id = event.printer_id
 
-            client.connected = True
-
-            client.config.id = event.printer_id
             self.config_manager.flush(client.config)
-
             client.printer.mark_all_changed_dirty()
 
             await self.consume_backlog(self.server_event_backlog, self.on_poll_event)

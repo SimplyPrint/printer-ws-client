@@ -8,6 +8,7 @@ from ...utils.stoppable import AsyncStoppable
 
 if TYPE_CHECKING:
     from ..client import Client
+    from .lifetime_manager import LifetimeManager
 
 
 class BoundedInterval(NamedTuple):
@@ -26,14 +27,16 @@ class ClientLifetime(AsyncStoppable, ABC):
     heartbeat_delta = 0.5
 
     client: "Client"
+    parent: "LifetimeManager"
     timeout = 5.0
     tick_rate = 1.0
 
     last_ten_heartbeats: List[Optional[float]] = [None] * 10
 
-    def __init__(self, client: "Client", *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, parent: "LifetimeManager", client: "Client"):
+        super().__init__(parent_stoppable=parent)
         self.client = client
+        self.parent = parent
 
     @abstractmethod
     async def start(self):
@@ -60,6 +63,12 @@ class ClientLifetime(AsyncStoppable, ABC):
         return min(value + increment, upper_bound)
 
     async def consume(self):
+        # If the parent context (LifetimeManager) does not want us to consume, we don't
+        # for instance when we are globally disconnected.
+        if not self.parent.should_consume(self.client):
+            self.client.logger.debug("LifetimeManager does not want Lifetime to consume.")
+            return
+
         # Only consume connected clients
         # For now we will consume even if not connected
         if not self.client.connected:
