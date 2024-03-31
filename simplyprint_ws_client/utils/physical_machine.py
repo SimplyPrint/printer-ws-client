@@ -38,7 +38,7 @@ class PhysicalMachine:
 
     @staticmethod
     def get_usage():
-        temperature: Optional[float] = None
+        temperature: float = 0
         temperatures = psutil.sensors_temperatures()
 
         # Find the first temperature sensor that is not None
