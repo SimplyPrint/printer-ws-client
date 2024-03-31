@@ -22,18 +22,14 @@ class TestTraceability(unittest.IsolatedAsyncioTestCase):
 
             class_traces = traceability.from_class(client)
 
-            self.assertTrue("connected" in class_traces)
-
-            connected_traces = class_traces["connected"]
-
-            # Accessed once via the event initializer.
-            self.assertEqual(len(connected_traces.get_call_record()), 1)
-
-            # Purge it.
-            connected_traces.call_record.pop()
+            self.assertTrue(len(class_traces) == 0)
 
             async with client:
                 client.connected = True
+
+            class_traces = traceability.from_class(client)
+            self.assertTrue("connected" in class_traces)
+            connected_traces = class_traces["connected"]
 
             self.assertEqual(len(connected_traces.get_call_record()), 1)
 
