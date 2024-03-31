@@ -1,6 +1,7 @@
 import contextlib
 import contextvars
 import dataclasses
+import sys
 import time
 import traceback
 from collections import deque
@@ -164,7 +165,10 @@ def from_class(cls):
     return from_class_instance(cls)
 
 
-@dataclasses.dataclass(slots=True)
+py310 = sys.version_info.minor >= 10 or sys.version_info.major > 3
+
+
+@dataclasses.dataclass(**({"slots": True} if py310 else {}))
 class TraceabilityRecord:
     called_at: float
     args: Optional[tuple] = None
@@ -173,7 +177,7 @@ class TraceabilityRecord:
     stack: Optional[traceback.StackSummary] = None
 
 
-@dataclasses.dataclass(slots=True)
+@dataclasses.dataclass(**({"slots": True} if py310 else {}))
 class Traceability:
     last_called: Optional[float]
     call_record: Optional[deque[TraceabilityRecord]] = None
