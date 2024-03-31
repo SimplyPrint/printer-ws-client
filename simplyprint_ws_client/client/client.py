@@ -12,7 +12,7 @@ from ..events.client_events import ClientEvent, PingEvent, StateChangeEvent, Mac
 from ..events.event import Event
 from ..events.event_bus import EventBus
 from ..helpers.intervals import IntervalTypes, Intervals
-from ..helpers.physical_machine import PhysicalMachine
+from ..utils.physical_machine import PhysicalMachine
 from ..utils.event_loop_provider import EventLoopProvider
 from ..utils.traceability import traceable
 
@@ -49,7 +49,6 @@ class Client(ABC, EventLoopProvider[asyncio.AbstractEventLoop], Generic[TConfig]
     intervals: Intervals
     printer: PrinterState
     event_bus: ClientEventBus
-    physical_machine: PhysicalMachine
 
     logger: logging.Logger
 
@@ -67,7 +66,6 @@ class Client(ABC, EventLoopProvider[asyncio.AbstractEventLoop], Generic[TConfig]
         self.intervals = Intervals()
         self.printer = PrinterState()
         self.event_bus = ClientEventBus(event_loop_provider=event_loop_provider)
-        self.physical_machine = PhysicalMachine()
 
         self.logger = logging.getLogger(ClientName.from_client(self))
 
@@ -282,13 +280,13 @@ class PhysicalClient(DefaultClient[TConfig], ABC):
         super().__init__(*args, **kwargs)
 
         # Set information about the physical machine
-        for k, v in self.physical_machine.get_info().items():
+        for k, v in PhysicalMachine.get_info().items():
             self.printer.info.set_trait(k, v)
 
     @Demands.SystemRestartEvent.on
     async def on_system_restart(self, event: Demands.SystemRestartEvent):
-        self.physical_machine.restart()
+        PhysicalMachine.restart()
 
     @Demands.SystemShutdownEvent.on
     async def on_system_shutdown(self, event: Demands.SystemShutdownEvent):
-        self.physical_machine.shutdown()
+        PhysicalMachine.shutdown()

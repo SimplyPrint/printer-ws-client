@@ -7,6 +7,8 @@ from collections import deque
 from functools import wraps
 from typing import Optional
 
+from ._exception_as_value import _exception_as_value
+
 _traceability_enabled = contextvars.ContextVar("_traceability_enabled", default=False)
 
 
@@ -18,31 +20,6 @@ def enable_traceable(enabled=True):
         yield
     finally:
         _traceability_enabled.reset(token)
-
-
-def exception_as_value(*args, return_none=False, **kwargs):
-    """ Internal decorator to return an exception as a value
-
-    Only used to minimize runtime overhead.
-    """
-
-    def decorator(func):
-        if not callable(func):
-            raise ValueError("exception_as_value decorator must be used on a callable")
-
-        @wraps(func)
-        def wrapper(*fargs, **fkwargs):
-            try:
-                return func(*fargs, **fkwargs)
-            except Exception as e:
-                return e if not return_none else None
-
-        return wrapper
-
-    if args and callable(args[0]):
-        return decorator(args[0])
-
-    return decorator
 
 
 def traceable_location_from_func(func, *args, **kwargs):
@@ -133,7 +110,7 @@ def traceable(*args, record_calls=False, with_stack=False, with_args=False, with
     return decorator
 
 
-@exception_as_value(return_none=True)
+@_exception_as_value(return_none=True)
 def from_func(func):
     obj, key, _ = traceable_location_from_func(func)
 
@@ -148,7 +125,7 @@ def from_func(func):
     return traceability
 
 
-@exception_as_value(return_none=True)
+@_exception_as_value(return_none=True)
 def from_property(prop: property):
     return from_func(prop.fget), from_func(prop.fset)
 
@@ -179,7 +156,7 @@ def from_class_static(cls):
     }
 
 
-@exception_as_value(return_none=True)
+@_exception_as_value(return_none=True)
 def from_class(cls):
     if isinstance(cls, type):
         return from_class_static(cls)
