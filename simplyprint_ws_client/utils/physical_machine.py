@@ -38,6 +38,7 @@ class PhysicalMachine:
 
     @staticmethod
     def get_usage():
+        temperature: Optional[float] = None
         temperatures = psutil.sensors_temperatures()
 
         # Find the first temperature sensor that is not None
@@ -49,9 +50,10 @@ class PhysicalMachine:
                                "soc_thermal"
                            } & set(temperatures.keys())
 
-        temperature = temperatures[temperature_keys.pop()][0].current if len(temperature_keys) > 0 and \
-                                                                         temperatures[temperature_keys.pop()][
-                                                                             0].current is not None else 0
+        if len(temperature_keys) > 0:
+            temperature_key = temperature_keys.pop()
+            temperature = temperatures[temperature_key][0].current if temperatures[temperature_key][
+                                                                          0].current is not None else 0
 
         return {
             "usage": round(psutil.cpu_percent()),

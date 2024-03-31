@@ -166,6 +166,8 @@ def from_class(cls):
 
 
 py310 = sys.version_info.minor >= 10 or sys.version_info.major > 3
+py38 = sys.version_info.minor <= 8 or sys.version_info.major <= 3
+TRecords = deque if py38 else deque["TraceabilityRecord"]
 
 
 @dataclasses.dataclass(**({"slots": True} if py310 else {}))
@@ -180,7 +182,7 @@ class TraceabilityRecord:
 @dataclasses.dataclass(**({"slots": True} if py310 else {}))
 class Traceability:
     last_called: Optional[float]
-    call_record: Optional[deque[TraceabilityRecord]] = None
+    call_record: Optional[TRecords] = None
 
     def stats(self):
         return {
