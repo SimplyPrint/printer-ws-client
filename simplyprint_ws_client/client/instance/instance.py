@@ -151,7 +151,9 @@ class Instance(AsyncStoppable, EventLoopProvider, Generic[TClient, TConfig], ABC
             tasks = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
             await asyncio.gather(*tasks, return_exceptions=True)
 
-        asyncio.run_coroutine_threadsafe(async_stop(), self.event_loop)
+        if self.event_loop_is_running():
+            asyncio.run_coroutine_threadsafe(async_stop(), self.event_loop)
+
         super().stop()
 
     async def poll_events(self) -> None:

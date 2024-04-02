@@ -174,7 +174,7 @@ class ClientAsyncLifetime(ClientLifetime, AsyncStoppable):
         """
 
         self.client.logger.info(f"Stopping client in the background")
-        threading.Thread(target=asyncio.run, args=(self.client.stop(),)).start()
+        threading.Thread(target=asyncio.run, args=(self.client.stop(),), daemon=True).start()
 
     async def start(self):
         if self.async_task and not self.async_task.done():
