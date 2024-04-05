@@ -2,25 +2,22 @@ import asyncio
 import threading
 import time
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, List, Optional, NamedTuple
+from typing import TYPE_CHECKING, List, Optional
 
+from ...utils.bounded_variable import BoundedInterval
 from ...utils.stoppable import AsyncStoppable
 
 if TYPE_CHECKING:
     from ..client import Client
     from .lifetime_manager import LifetimeManager
+    from ...utils.bounded_variable import BoundedVariable
 
+# Bounds for the client lifetime
+TimeoutBoundedInterval: BoundedInterval[float] = BoundedInterval(60.0, 1.0, default=5.0)
+TickRateBoundedInterval: BoundedInterval[float] = BoundedInterval(10.0, 0.1, default=1.0)
 
-class BoundedInterval(NamedTuple):
-    max: float
-    step: float
-
-    def increment_until_bound(self, value: float) -> float:
-        return min(value + self.step, self.max)
-
-
-TimeoutBoundedInterval = BoundedInterval(60.0, 1.0)
-TickRateBoundedInterval = BoundedInterval(10.0, 0.1)
+# Space warning out 10 ticks before warning about connected state to prevent log spamming
+ConsumeBeforeWarningBoundedInterval: BoundedInterval[int] = BoundedInterval(10, 1, default=10)
 
 
 class ClientLifetime(AsyncStoppable, ABC):
@@ -28,8 +25,9 @@ class ClientLifetime(AsyncStoppable, ABC):
 
     client: "Client"
     parent: "LifetimeManager"
-    timeout = 5.0
-    tick_rate = 1.0
+    timeout: "BoundedVariable[float]"
+    tick_rate: "BoundedVariable[float]"
+    consume_warning: "BoundedVariable[int]"
 
     last_ten_heartbeats: List[Optional[float]] = [None] * 10
 
@@ -37,6 +35,9 @@ class ClientLifetime(AsyncStoppable, ABC):
         super().__init__(parent_stoppable=parent)
         self.client = client
         self.parent = parent
+        self.timeout = TimeoutBoundedInterval.create_variable()
+        self.tick_rate = TickRateBoundedInterval.create_variable()
+        self.consume_warning = ConsumeBeforeWarningBoundedInterval.create_variable()
 
     @abstractmethod
     async def start(self):
@@ -58,39 +59,37 @@ class ClientLifetime(AsyncStoppable, ABC):
         durations = self.heartbeat_durations()
         return sum(durations) / len(durations) if durations else None
 
-    @staticmethod
-    def increment_until_bound(value: float, increment: float, upper_bound: float) -> float:
-        return min(value + increment, upper_bound)
-
     async def consume(self):
         # If the parent context (LifetimeManager) does not want us to consume, we don't
         # for instance when we are globally disconnected.
         if not self.parent.should_consume(self.client):
-            self.client.logger.debug("LifetimeManager does not want Lifetime to consume.")
+            if self.consume_warning.guard_until_bound():
+                self.client.logger.debug("LifetimeManager does not want Lifetime to consume.")
             return
 
         # Only consume connected clients
         if not self.client.connected:
-            self.client.logger.warning(f"Client not connected - still consuming this is an error.")
+            if self.consume_warning.guard_until_bound():
+                self.client.logger.warning(f"Client not connected - still consuming this is an error.")
             return
 
         try:
-            async with asyncio.timeout(self.timeout):
+            async with asyncio.timeout(self.timeout.value):
                 await self.client.tick()
 
         except asyncio.TimeoutError:
             self.client.logger.warning(f"Client timed out while ticking")
-            self.timeout = TimeoutBoundedInterval.increment_until_bound(self.timeout)
+            self.timeout.increment()
 
         events_to_process = self.client.printer.get_dirty_events()
 
         try:
-            async with asyncio.timeout(self.timeout):
+            async with asyncio.timeout(self.timeout.value):
                 await self.client.consume_state()
 
         except asyncio.TimeoutError:
             self.client.logger.warning(f"Client timed out while consuming state {events_to_process}")
-            self.timeout = TimeoutBoundedInterval.increment_until_bound(self.timeout)
+            self.timeout.increment()
 
     def is_healthy(self) -> bool:
         average_heartbeat_duration = self.average_heartbeat_duration()
@@ -99,19 +98,19 @@ class ClientLifetime(AsyncStoppable, ABC):
         if average_heartbeat_duration is None:
             return True
 
-        if average_heartbeat_duration > self.tick_rate + self.heartbeat_delta:
-            self.tick_rate = TickRateBoundedInterval.increment_until_bound(self.tick_rate)
+        if average_heartbeat_duration > self.tick_rate.value + self.heartbeat_delta:
+            self.tick_rate.increment()
 
             self.client.logger.warning(
                 f"Client is almost unhealthy: average heartbeat duration is {average_heartbeat_duration} " +
-                f"incrementing to keep up, tick rate is now at {self.tick_rate}"
+                f"incrementing to keep up, tick rate is now at {self.tick_rate.value}"
             )
 
         # We are healthy if the average heartbeat duration is less than the tick rate + timeout
-        if not average_heartbeat_duration < self.tick_rate + self.timeout:
+        if not average_heartbeat_duration < self.tick_rate.value + self.timeout.value:
             self.client.logger.warning(
                 f"Client is unhealthy: average heartbeat duration is {average_heartbeat_duration} " +
-                f"expected less than {self.tick_rate + self.timeout}"
+                f"expected less than {self.tick_rate.value + self.timeout.value}"
             )
 
             return False
@@ -128,7 +127,7 @@ class ClientLifetime(AsyncStoppable, ABC):
                 self.client.logger.error("An error occurred while consuming the client", exc_info=e)
             finally:
                 self.heartbeat()
-                await self.wait(max(0.0, self.tick_rate - (time.time() - dt)))
+                await self.wait(max(0.0, self.tick_rate.value - (time.time() - dt)))
 
         # Client implements custom stop logic
         self.stop_deferred()

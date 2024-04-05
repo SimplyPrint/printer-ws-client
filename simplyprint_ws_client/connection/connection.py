@@ -30,14 +30,13 @@ class ConnectionPollEvent(Event):
 
 
 class ConnectionConnectedEvent(Event):
-    ...
+    reconnect: bool = False
+
+    def __init__(self, reconnect: bool = False) -> None:
+        self.reconnect = reconnect
 
 
 class ConnectionDisconnectEvent(Event):
-    ...
-
-
-class ConnectionReconnectEvent(Event):
     ...
 
 
@@ -88,8 +87,16 @@ class Connection:
             socket = None
 
             try:
-                socket = await self.session.ws_connect(self.url, timeout=timeout, autoclose=False, max_msg_size=0,
-                                                       compress=False)
+                socket = await self.session.ws_connect(
+                    self.url,
+                    timeout=timeout,
+                    autoclose=True,
+                    autoping=True,
+                    heartbeat=10,
+                    max_msg_size=0,
+                    compress=False,
+                )
+
             except WSServerHandshakeError as e:
                 self.logger.info(
                     f"Failed to connect to {self.url} with status code {e.status}: {e.message}")
@@ -105,12 +112,8 @@ class Connection:
 
             self.socket = socket
 
-            if reconnected:
-                self.logger.debug(f"Reconnected to {self.url}")
-                await self.event_bus.emit(ConnectionReconnectEvent())
-            else:
-                self.logger.debug(f"Connected to {self.url}")
-                await self.event_bus.emit(ConnectionConnectedEvent())
+            self.logger.debug(f"Connected to {self.url} {reconnected=}")
+            await self.event_bus.emit(ConnectionConnectedEvent(reconnect=reconnected))
 
     async def close_internal(self):
         try:

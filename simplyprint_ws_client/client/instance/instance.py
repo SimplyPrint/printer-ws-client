@@ -12,7 +12,7 @@ from ..lifetime.lifetime_manager import LifetimeManager, LifetimeType
 from ...connection.connection import (Connection, ConnectionConnectedEvent,
                                       ConnectionDisconnectEvent,
                                       ConnectionPollEvent,
-                                      ConnectionReconnectEvent)
+                                      )
 from ...events.client_events import (ClientEvent)
 from ...events.demand_events import DemandEvent
 from ...events.event_bus import Event, EventBus
@@ -103,8 +103,7 @@ class Instance(AsyncStoppable, EventLoopProvider, Generic[TClient, TConfig], ABC
         self.connection.event_bus.on(ConnectionConnectedEvent, self.on_connect)
         self.connection.event_bus.on(
             ConnectionDisconnectEvent, self.on_disconnect)
-        self.connection.event_bus.on(
-            ConnectionReconnectEvent, self.on_reconnect)
+
         self.connection.event_bus.on(
             ConnectionPollEvent, self.on_poll_event)
 
@@ -383,14 +382,5 @@ class Instance(AsyncStoppable, EventLoopProvider, Generic[TClient, TConfig], ABC
 
         Here the appropriate startup logic for an instance can
         be implemented.
-        """
-        ...
-
-    @abstractmethod
-    async def on_reconnect(self, _: ConnectionReconnectEvent):
-        """
-        Called when the connection is re-established.
-
-        Here it is the instances job to re-add any clients to the connection
         """
         ...

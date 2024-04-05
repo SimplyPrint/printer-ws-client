@@ -1,7 +1,7 @@
 from enum import Enum
 from os import environ
 from typing import NamedTuple, Optional, Tuple
-from urllib.parse import urlunparse
+from urllib.parse import urlparse, urlunparse
 
 from simplyprint_ws_client.const import IS_TESTING
 
@@ -44,13 +44,31 @@ class SimplyPrintBackend(Enum):
         raise ValueError(f"Unknown subdomain for {self.value}")
 
 
+class NetLocBuilder(NamedTuple):
+    username: Optional[str] = None
+    password: Optional[str] = None
+    hostname: str = ""
+    port: Optional[int] = None
+
+    def __str__(self):
+        netloc = str(self.hostname)
+        
+        if self.port:
+            netloc += f":{self.port}"
+
+        if self.username:
+            netloc = self.username + (f":{self.password}" if self.password else "") + "@" + netloc
+
+        return netloc
+
+
 class DomainBuilder(NamedTuple):
     subdomain: str = None
     domain: str = "simplyprint"
     tld: str = "io"
 
     def to_url(self) -> 'UrlBuilder':
-        return UrlBuilder(netloc=self)
+        return UrlBuilder(netloc=NetLocBuilder(hostname=self))
 
     def __str__(self) -> str:
         return ".".join(filter(None, [self.subdomain, self.domain, self.tld]))
@@ -58,11 +76,32 @@ class DomainBuilder(NamedTuple):
 
 class UrlBuilder(NamedTuple):
     scheme: str = "https"
-    netloc: DomainBuilder = DomainBuilder()
+    netloc: NetLocBuilder = NetLocBuilder()
     path: str = ""
     params: str = ""
     query: str = ""
     fragment: str = ""
+
+    @staticmethod
+    def from_url(url: str) -> 'UrlBuilder':
+        parsed_url = urlparse(url)
+        netloc = NetLocBuilder(
+            username=parsed_url.username,
+            password=parsed_url.password,
+            hostname=parsed_url.hostname,
+            port=parsed_url.port
+        )
+
+        assert str(netloc) == str(parsed_url.netloc)
+
+        return UrlBuilder(
+            scheme=parsed_url.scheme,
+            netloc=netloc,
+            path=parsed_url.path,
+            params=parsed_url.params,
+            query=parsed_url.query,
+            fragment=parsed_url.fragment
+        )
 
     def __str__(self) -> str:
         return urlunparse(map(str, self))

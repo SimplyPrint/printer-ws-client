@@ -1,10 +1,10 @@
 from typing import Iterable, Optional, Union
 
-from simplyprint_ws_client.client.instance.instance import Instance, TClient, TConfig
-from simplyprint_ws_client.client.client import Client
-from simplyprint_ws_client.connection.connection import ConnectionConnectedEvent, ConnectionReconnectEvent
-from simplyprint_ws_client.events.client_events import ClientEvent
-from simplyprint_ws_client.helpers.url_builder import SimplyPrintUrl
+from ..client import Client
+from ..instance.instance import Instance, TClient, TConfig
+from ...connection.connection import ConnectionConnectedEvent
+from ...events.client_events import ClientEvent
+from ...helpers.url_builder import SimplyPrintUrl
 
 
 class SinglePrinter(Instance[TClient, TConfig]):
@@ -35,9 +35,6 @@ class SinglePrinter(Instance[TClient, TConfig]):
         return self.client is not None
 
     async def on_connect(self, _: ConnectionConnectedEvent):
-        await self.consume_backlog(self.client_event_backlog, self.on_client_event)
-
-    async def on_reconnect(self, _: ConnectionReconnectEvent):
         # Mark certain events to always be sent to the server
         self.client.printer.mark_all_changed_dirty()
 

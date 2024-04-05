@@ -1,15 +1,14 @@
 from enum import Enum
 from typing import Dict, Iterable, Optional, Set
 
-from simplyprint_ws_client.client.client import Client
-from simplyprint_ws_client.client.config import Config
-from simplyprint_ws_client.client.config import ConfigManager
-from simplyprint_ws_client.client.instance.instance import Instance, TClient, TConfig, InstanceException
-from simplyprint_ws_client.connection.connection import ConnectionConnectedEvent, ConnectionReconnectEvent, \
-    ConnectionPollEvent
-from simplyprint_ws_client.events.client_events import ClientEvent
-from simplyprint_ws_client.events.server_events import MultiPrinterAddedEvent, MultiPrinterRemovedEvent
-from simplyprint_ws_client.helpers.url_builder import SimplyPrintUrl
+from ..client import Client
+from ..config import Config
+from ..config import ConfigManager
+from ..instance.instance import Instance, TClient, TConfig, InstanceException
+from ...connection.connection import ConnectionConnectedEvent, ConnectionPollEvent
+from ...events.client_events import ClientEvent
+from ...events.server_events import MultiPrinterAddedEvent, MultiPrinterRemovedEvent
+from ...helpers.url_builder import SimplyPrintUrl
 
 
 class MultiPrinterException(InstanceException):
@@ -157,11 +156,12 @@ class MultiPrinter(Instance[TClient, TConfig]):
 
         # If the printer was deleted handle.
         if event.deleted:
-            client.config.id = 0
-            client.config.in_setup = True
-            client.config.short_id = None
+            async with client:
+                client.config.id = 0
+                client.config.in_setup = True
+                client.config.short_id = None
 
-            self.config_manager.flush(client.config)
+                self.config_manager.flush(client.config)
 
         # Attempt to reconnect the client.
         await self.wait(self.reconnect_timeout)
@@ -171,21 +171,17 @@ class MultiPrinter(Instance[TClient, TConfig]):
         except InstanceException:
             pass
 
-    async def on_connect(self, _: ConnectionConnectedEvent):
-        self.pending_unique_set.clear()
-
-        for client in self.clients.values():
-            if client.connected:
-                continue
-
-            await self._send_add_printer(client)
-
-    async def on_reconnect(self, _: ConnectionReconnectEvent):
+    async def on_connect(self, event: ConnectionConnectedEvent):
         self.pending_unique_set.clear()
 
         for client in self.clients.values():
             async with client:
-                client.connected = False
+                if event.reconnect:
+                    client.connected = False
+
+                if client.connected:
+                    continue
+
                 await self._send_add_printer(client)
 
     async def _send_add_printer(self, client: TClient):
