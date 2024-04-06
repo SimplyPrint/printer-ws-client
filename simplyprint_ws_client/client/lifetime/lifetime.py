@@ -63,8 +63,6 @@ class ClientLifetime(AsyncStoppable, ABC):
         # If the parent context (LifetimeManager) does not want us to consume, we don't
         # for instance when we are globally disconnected.
         if not self.parent.should_consume(self.client):
-            if self.consume_warning.guard_until_bound():
-                self.client.logger.debug("LifetimeManager does not want Lifetime to consume.")
             return
 
         # Only consume connected clients

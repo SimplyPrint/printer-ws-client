@@ -18,7 +18,7 @@ from ...events.demand_events import DemandEvent
 from ...events.event_bus import Event, EventBus
 from ...events.server_events import ServerEvent
 from ...utils.event_loop_provider import EventLoopProvider
-from ...utils.stoppable import AsyncStoppable, SyncStoppable
+from ...utils.stoppable import AsyncStoppable, Stoppable
 
 TClient = TypeVar("TClient", bound=Client)
 TConfig = TypeVar("TConfig", bound=Config)
@@ -60,9 +60,11 @@ class Instance(AsyncStoppable, EventLoopProvider, Generic[TClient, TConfig], ABC
     event_bus: EventBus[Event]
 
     # Ensure the instance can only be started once.
-    _instance_lock: threading.Lock
-    _instance_thread_id: Optional[int] = None
-    _instance_stoppable: SyncStoppable
+    __instance_lock: threading.Lock
+    # Ensure calls to stop are thread safe.
+    __instance_stop_lock: threading.Lock
+    # Ensure the instance is only started once.
+    __instance_thread_id: Optional[int] = None
 
     # Ensure we only allow one disconnect event to be processed at a time
     disconnect_lock: asyncio.Lock
@@ -79,8 +81,8 @@ class Instance(AsyncStoppable, EventLoopProvider, Generic[TClient, TConfig], ABC
         self.config_manager = config_manager
         self.lifetime_manager = LifetimeManager(self, parent_stoppable=self)
 
-        self._instance_lock = threading.Lock()
-        self._instance_stoppable = SyncStoppable()
+        self.__instance_lock = threading.Lock()
+        self.__instance_stop_lock = threading.Lock()
 
         self.event_bus = EventBus()
 
@@ -110,12 +112,12 @@ class Instance(AsyncStoppable, EventLoopProvider, Generic[TClient, TConfig], ABC
         self.disconnect_lock = asyncio.Lock()
 
     async def __aenter__(self):
-        if self._instance_thread_id is not None and self._instance_thread_id != threading.get_ident():
+        if self.__instance_thread_id is not None and self.__instance_thread_id != threading.get_ident():
             self.logger.warning("Instance already started - waiting for it to stop")
 
-        self._instance_lock.acquire()
+        self.__instance_lock.acquire()
 
-        self._instance_thread_id = threading.get_ident()
+        self.__instance_thread_id = threading.get_ident()
 
         self.use_running_loop()
 
@@ -126,15 +128,17 @@ class Instance(AsyncStoppable, EventLoopProvider, Generic[TClient, TConfig], ABC
         self.reset_event_loop()
 
         # Set the stop event
-        super().stop()
+        with self.__instance_stop_lock:
+            Stoppable.stop(self)
+
         self.reset_connection()
         # Initialize a new connection
-        self._instance_thread_id = None
-        self._instance_lock.release()
+        self.__instance_thread_id = None
+        self.__instance_lock.release()
 
     async def run(self) -> None:
         """ Only call this method once per thread."""
-        if not self._instance_lock.locked() or self._instance_thread_id != threading.get_ident():
+        if not self.__instance_lock.locked() or self.__instance_thread_id != threading.get_ident():
             raise InstanceException("Instance.run() can only run inside its context manager")
 
         await asyncio.gather(
@@ -150,10 +154,16 @@ class Instance(AsyncStoppable, EventLoopProvider, Generic[TClient, TConfig], ABC
             tasks = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
             await asyncio.gather(*tasks, return_exceptions=True)
 
-        if self.event_loop_is_running():
-            asyncio.run_coroutine_threadsafe(async_stop(), self.event_loop)
+        def locked_stop():
+            with self.__instance_stop_lock:
+                Stoppable.stop(self)
 
-        super().stop()
+        if self.event_loop_is_running():
+            self.event_loop.call_soon_threadsafe(locked_stop)
+            asyncio.run_coroutine_threadsafe(async_stop(), self.event_loop)
+        else:
+            self.logger.warning("Event loop not running - stopping instance synchronously, this is not thread safe")
+            locked_stop()
 
     async def poll_events(self) -> None:
         while not self.is_stopped():
