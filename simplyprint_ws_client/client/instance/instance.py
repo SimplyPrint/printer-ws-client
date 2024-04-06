@@ -159,8 +159,8 @@ class Instance(AsyncStoppable, EventLoopProvider, Generic[TClient, TConfig], ABC
                 Stoppable.stop(self)
 
         if self.event_loop_is_running():
-            self.event_loop.call_soon_threadsafe(locked_stop)
             asyncio.run_coroutine_threadsafe(async_stop(), self.event_loop)
+            self.event_loop.call_soon_threadsafe(locked_stop)
         else:
             self.logger.warning("Event loop not running - stopping instance synchronously, this is not thread safe")
             locked_stop()
