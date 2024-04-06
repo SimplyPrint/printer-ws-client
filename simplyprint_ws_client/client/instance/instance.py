@@ -150,10 +150,12 @@ class Instance(AsyncStoppable, EventLoopProvider, Generic[TClient, TConfig], ABC
         async def async_stop():
             self.logger.info("Stopping instance")
 
-            await self.connection.close_internal()
             tasks = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
             await asyncio.gather(*tasks, return_exceptions=True)
 
+            self.logger.info("Stopped instance")
+
+        # Asyncio event is not threadsafe.
         def locked_stop():
             with self.__instance_stop_lock:
                 Stoppable.stop(self)
@@ -162,7 +164,7 @@ class Instance(AsyncStoppable, EventLoopProvider, Generic[TClient, TConfig], ABC
             asyncio.run_coroutine_threadsafe(async_stop(), self.event_loop)
             self.event_loop.call_soon_threadsafe(locked_stop)
         else:
-            self.logger.warning("Event loop not running - stopping instance synchronously, this is not thread safe")
+            self.logger.warning("Event loop not running - stopping instance synchronously.")
             locked_stop()
 
     async def poll_events(self) -> None:
@@ -173,7 +175,12 @@ class Instance(AsyncStoppable, EventLoopProvider, Generic[TClient, TConfig], ABC
                 await self.connection.event_bus.emit(ConnectionDisconnectEvent())
                 continue
 
-            await self.connection.poll_event()
+            loop = asyncio.get_running_loop()
+
+            await asyncio.wait([
+                loop.create_task(self.wait()),
+                loop.create_task(self.connection.poll_event())
+            ], return_when=asyncio.FIRST_COMPLETED)
 
         await self.connection.close_internal()
         self.logger.info("Stopped polling events")
