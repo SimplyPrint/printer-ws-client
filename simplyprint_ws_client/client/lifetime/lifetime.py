@@ -178,4 +178,7 @@ class ClientAsyncLifetime(ClientLifetime, AsyncStoppable):
             # Await the task to ensure it is stopped
             await self.async_task
 
+        # Initialize client
+        await self.client.init()
+
         self.async_task = asyncio.create_task(self.loop())

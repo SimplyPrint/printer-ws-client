@@ -278,8 +278,6 @@ class Instance(AsyncStoppable, EventLoopProvider, Generic[TClient, TConfig], ABC
         if not self.connection.is_connected():
             await self.connect()
 
-        await client.init()
-
         client.printer.mark_all_changed_dirty()
 
         self.lifetime_manager.add(client, LifetimeType.ASYNC)
