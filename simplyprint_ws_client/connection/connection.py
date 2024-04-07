@@ -13,6 +13,7 @@ from ..events import DemandEvent, ServerEvent, EventFactory
 from ..events.client_events import ClientEvent, ClientEventMode
 from ..events.event import Event
 from ..events.event_bus import EventBus
+from ..utils.event_loop_provider import EventLoopProvider
 from ..utils.traceability import traceable
 
 
@@ -44,7 +45,7 @@ class ConnectionEventBus(EventBus[Event]):
     ...
 
 
-class Connection:
+class Connection(EventLoopProvider[asyncio.AbstractEventLoop]):
     logger = logging.getLogger("websocket")
 
     event_bus: ConnectionEventBus
@@ -58,8 +59,9 @@ class Connection:
     url: Optional[str] = None
     timeout: float = 5.0
 
-    def __init__(self) -> None:
-        self.event_bus = ConnectionEventBus()
+    def __init__(self, event_loop_provider: Optional[EventLoopProvider] = None) -> None:
+        super().__init__(event_loop_provider)
+        self.event_bus = ConnectionEventBus(event_loop_provider=self)
         self.connection_lock = asyncio.Lock()
 
     def is_connected(self) -> bool:
@@ -67,6 +69,8 @@ class Connection:
 
     async def connect(self, url: Optional[str] = None, timeout: Optional[float] = None) -> None:
         async with self.connection_lock:
+            self.use_running_loop()
+
             reconnected = False
 
             if self.socket:

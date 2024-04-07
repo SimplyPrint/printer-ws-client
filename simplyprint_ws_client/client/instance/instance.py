@@ -100,7 +100,7 @@ class Instance(AsyncStoppable, EventLoopProvider, Generic[TClient, TConfig], ABC
         self.url = url
 
     def reset_connection(self):
-        self.connection = Connection()
+        self.connection = Connection(event_loop_provider=self)
 
         self.connection.event_bus.on(ConnectionConnectedEvent, self.on_connect)
         self.connection.event_bus.on(
