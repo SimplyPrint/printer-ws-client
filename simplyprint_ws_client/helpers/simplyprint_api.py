@@ -36,8 +36,7 @@ class SimplyPrintApi:
         # Request /printers/ReceiveLogs with the token as post data
         # And each of the files as multipart/form-data
 
-        endpoint = SimplyPrintUrl.current().api_url / "printers" / "ReceiveLogs"
-        endpoint = endpoint.with_query(pid=printer_id)
+        endpoint = SimplyPrintUrl.current().api_url / "printers" / "ReceiveLogs" % {"pid": printer_id}
 
         data = {
             "token": token,
