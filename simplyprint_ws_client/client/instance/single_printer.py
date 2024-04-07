@@ -12,7 +12,7 @@ class SinglePrinter(Instance[TClient, TConfig]):
 
     async def add_client(self, client: TClient) -> None:
         self.set_url(
-            str(SimplyPrintUrl.current().ws_url / "p" / client.config.id / client.config.token))
+            str(SimplyPrintUrl.current().ws_url / "p" / str(client.config.id) / str(client.config.token)))
 
         self.client = client
 

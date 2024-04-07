@@ -54,7 +54,7 @@ class MultiPrinter(Instance[TClient, TConfig]):
         self.event_bus.on(MultiPrinterAddedEvent, self.on_printer_added_response, priority=10)
         self.event_bus.on(MultiPrinterRemovedEvent, self.on_printer_removed_response, priority=10)
 
-        self.set_url(str(SimplyPrintUrl.current().ws_url / "mp" / 0 / 0))
+        self.set_url(str(SimplyPrintUrl.current().ws_url / "mp" / "0" / "0"))
 
         self.clients = dict()
         self.pending_unique_set = set()

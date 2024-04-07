@@ -1,7 +1,8 @@
 from enum import Enum
 from os import environ
-from typing import NamedTuple, Optional, Tuple
-from urllib.parse import urlparse, urlunparse
+from typing import NamedTuple, Optional
+
+from yarl import URL
 
 from simplyprint_ws_client.const import IS_TESTING
 
@@ -44,84 +45,16 @@ class SimplyPrintBackend(Enum):
         raise ValueError(f"Unknown subdomain for {self.value}")
 
 
-class NetLocBuilder(NamedTuple):
-    username: Optional[str] = None
-    password: Optional[str] = None
-    hostname: str = ""
-    port: Optional[int] = None
-
-    def __str__(self):
-        netloc = str(self.hostname)
-        
-        if self.port:
-            netloc += f":{self.port}"
-
-        if self.username:
-            netloc = self.username + (f":{self.password}" if self.password else "") + "@" + netloc
-
-        return netloc
-
-
 class DomainBuilder(NamedTuple):
     subdomain: str = None
     domain: str = "simplyprint"
     tld: str = "io"
 
-    def to_url(self) -> 'UrlBuilder':
-        return UrlBuilder(netloc=NetLocBuilder(hostname=self))
+    def to_url(self) -> URL:
+        return URL.build(scheme="https", host=str(self))
 
     def __str__(self) -> str:
         return ".".join(filter(None, [self.subdomain, self.domain, self.tld]))
-
-
-class UrlBuilder(NamedTuple):
-    scheme: str = "https"
-    netloc: NetLocBuilder = NetLocBuilder()
-    path: str = ""
-    params: str = ""
-    query: str = ""
-    fragment: str = ""
-
-    @staticmethod
-    def from_url(url: str) -> 'UrlBuilder':
-        parsed_url = urlparse(url)
-        netloc = NetLocBuilder(
-            username=parsed_url.username,
-            password=parsed_url.password,
-            hostname=parsed_url.hostname,
-            port=parsed_url.port
-        )
-
-        assert str(netloc) == str(parsed_url.netloc)
-
-        return UrlBuilder(
-            scheme=parsed_url.scheme,
-            netloc=netloc,
-            path=parsed_url.path,
-            params=parsed_url.params,
-            query=parsed_url.query,
-            fragment=parsed_url.fragment
-        )
-
-    def __str__(self) -> str:
-        return urlunparse(map(str, self))
-
-    def __truediv__(self, other: str) -> "UrlBuilder":
-        return self._replace(path=f"{self.path}/{other}")
-
-    # When adding with a tuple add to query
-    def __add__(self, other: Tuple[str, Optional[str]]) -> "UrlBuilder":
-        qs = "&" if self.query else ""
-
-        if not isinstance(other, tuple) or len(other) not in (1, 2):
-            raise ValueError("Can only add tuples of length 1 or 2")
-
-        if other[1] is not None:
-            qs += f"{other[0]}={other[1]}"
-        else:
-            qs += other[0]
-
-        return self._replace(query=f"{self.query}{qs}")
 
 
 class SimplyPrintUrl:
@@ -139,20 +72,21 @@ class SimplyPrintUrl:
         SimplyPrintUrl._current_url = SimplyPrintUrl(version)
 
     @property
-    def root_url(self) -> UrlBuilder:
+    def root_url(self) -> URL:
         return DomainBuilder(self.version.root_subdomain).to_url()
 
     @property
-    def api_url(self) -> UrlBuilder:
+    def api_url(self) -> URL:
         return self.root_url / "api"
 
     @property
-    def standalone_api_url(self) -> UrlBuilder:
+    def standalone_api_url(self) -> URL:
         return DomainBuilder(self.version.api_subdomain).to_url()
 
     @property
-    def ws_url(self) -> UrlBuilder:
-        return UrlBuilder("wss", DomainBuilder(self.version.ws_subdomain)) / SimplyPrintWsVersion.VERSION_0_2.value
+    def ws_url(self) -> URL:
+        return URL.build(scheme="wss",
+                         host=str(DomainBuilder(self.version.ws_subdomain))) / SimplyPrintWsVersion.VERSION_0_1.value
 
 
 value = environ.get("SIMPLYPRINT_VERSION",
