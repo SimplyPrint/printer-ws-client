@@ -163,8 +163,10 @@ class EventBus(Generic[TEvent]):
         The fallback is to emit the event asynchronously as a task in the provided event loop.
         """
 
-        emit_func = self.emit_sync if sync_only and blocking else (
-            self.emit_sync_thread if sync_only else self.emit_task)
+        if sync_only:
+            emit_func = self.emit_sync if blocking else self.emit_sync_thread
+        else:
+            emit_func = self.emit if blocking else self.emit_task
 
         return functools.partial(emit_func, event)
 
