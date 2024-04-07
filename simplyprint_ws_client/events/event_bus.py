@@ -1,4 +1,6 @@
 import asyncio
+import functools
+import threading
 from asyncio import AbstractEventLoop
 from typing import (Callable, Dict, Generator, Generic, Hashable, Optional, TypeVar, Union, get_args, Type, Any, Tuple)
 
@@ -127,22 +129,44 @@ class EventBus(Generic[TEvent]):
             ret = listener.handler(*args, **kwargs)
             args = self.update_args(event, args, ret)
 
+    def emit_sync_thread(self, event: Union[Hashable, TEvent], *args, **kwargs) -> threading.Thread:
+        """Spawns a daemon thread to emit the event synchronously."""
+
+        t = threading.Thread(target=self.emit_sync, args=(event, *args), kwargs=kwargs, daemon=True)
+        t.start()
+
+        return t
+
     def emit_task(self, event: Union[Hashable, TEvent], *args, **kwargs) -> asyncio.Future:
         """Allows for synchronous emitting of events. Useful cross-thread communication."""
         return asyncio.run_coroutine_threadsafe(
             self.emit(event, *args, **kwargs), self.event_loop_provider.event_loop)
 
-    def emit_wrap(self, event: Union[Hashable, TEvent], sync_only=False, use_tasks=False) -> Callable:
+    def emit_task_thread(self, event: Union[Hashable, TEvent], *args, **kwargs) -> threading.Thread:
+        """Spawns a daemon thread with an event loop to emit the event asynchronously.
+        Note this runs the async code in another event loop that its resources might be attached to.
+        """
+
+        t = threading.Thread(target=asyncio.run, args=(self.emit(event, *args, **kwargs),), daemon=True)
+        t.start()
+
+        return t
+
+    def emit_wrap(self, event: Union[Hashable, TEvent], sync_only=False, blocking=False) -> Callable:
         """
         Returns a curried function that emits the given event with any arguments passed to it.
         
         When sync_only is specified the function will only invoke synchronous listeners.
 
-        When use_tasks is specified the function will emit the event in a separate task and return their futures.
+        If blocking is true we will block synchronously until all listeners have been invoked.
+
+        The fallback is to emit the event asynchronously as a task in the provided event loop.
         """
 
-        emit_func = self.emit_sync if sync_only else self.emit_task if use_tasks else self.emit
-        return lambda *args, **kwargs: emit_func(event, *args, **kwargs)
+        emit_func = self.emit_sync if sync_only and blocking else (
+            self.emit_sync_thread if sync_only else self.emit_task)
+
+        return functools.partial(emit_func, event)
 
     def on(self, event_type: Hashable, listener: Optional[Callable] = None, priority: int = 0, generic: bool = False,
            unique: ListenerUniqueness = ListenerUniqueness.NONE):
