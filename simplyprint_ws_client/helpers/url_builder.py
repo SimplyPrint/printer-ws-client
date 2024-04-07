@@ -86,7 +86,7 @@ class SimplyPrintUrl:
     @property
     def ws_url(self) -> URL:
         return URL.build(scheme="wss",
-                         host=str(DomainBuilder(self.version.ws_subdomain))) / SimplyPrintWsVersion.VERSION_0_1.value
+                         host=str(DomainBuilder(self.version.ws_subdomain))) / SimplyPrintWsVersion.VERSION_0_2.value
 
 
 value = environ.get("SIMPLYPRINT_VERSION",
