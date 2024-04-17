@@ -1,60 +1,16 @@
-import collections
-from typing import Dict, Optional
+from typing import Self
 
-from state_effect.property_path import PropertyPath, p
+from state_effect.version import Version
 
 
-class _Versioned(object):
-    __slots__ = ('__last_seen', '__global_version', '__property_versions')
+class Value:
+    """A reactive value, holds its version and update function."""
 
-    __last_seen: int
-    __global_version: int
-    __property_versions: Dict[PropertyPath, int]
+    __version: Version
 
     def __init__(self):
-        self.__last_seen = 0
-        self.__global_version = 0
-        self.__property_versions = {}
+        self.__version = Version()
 
-    @property
-    def current_version(self):
-        return self.__global_version
-
-    @property
-    def last_seen_version(self):
-        return self.__last_seen
-
-    def mark_seen(self):
-        self.__last_seen = self.__global_version
-
-    def update_properties(self, *properties: PropertyPath):
-        self.__global_version += 1
-
-        for path in properties:
-            self.__property_versions[path] = self.__global_version
-
-    def get_changed_since(self, version: Optional[int] = None):
-        if not version:
-            version = self.__last_seen
-
-        for path, property_version in self.__property_versions.items():
-            if property_version <= version:
-                continue
-
-            yield path, property_version
-
-    def get_changed_by_version(self):
-        properties = collections.defaultdict(set)
-
-        for path, property_version in self.get_changed_since():
-            properties[property_version].add(path)
-
-        return properties
-
-
-if __name__ == "__main__":
-    v = _Versioned()
-    v.update_properties(p.a)
-    v.update_properties(p.b)
-
-    print(list(v.get_changed_since(v.__global_version)))
+    @classmethod
+    def of(cls, obj: object) -> Self:
+        ...
