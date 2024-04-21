@@ -1,23 +1,21 @@
-from dataclasses import dataclass, is_dataclass
+from dataclasses import dataclass, is_dataclass, Field, fields
+from typing import Iterable
 
-from state_effect.hooks.hook import Hook
-from state_effect.property_path import PropertyPath
-from state_effect.version import Version
+from state_effect.hooks.base import Hook, ObjectField
 
 
-class DataclassesHook(Hook):
+def _convert_field_to_object_field(field: Field) -> ObjectField:
+    """Converts a dataclass field to a custom object field (generic type)"""
+    return ObjectField(field.name, field.type)
 
-    @staticmethod
-    def is_object(obj: object) -> bool:
+
+class DataclassHook(Hook):
+
+    def is_valid_object(self, obj: object) -> bool:
         return is_dataclass(obj)
 
-    @staticmethod
-    def load_value(ver: Version, obj: object, parent=PropertyPath()):
-        def _setattr(name, value):
-            super(type(obj), obj).__setattr__(name, value)
-            ver.update_props(parent.attr(name))
-
-        obj.__setattr__ = _setattr
+    def get_object_fields(self, obj: object) -> Iterable[ObjectField]:
+        return map(_convert_field_to_object_field, fields(obj))
 
 
 @dataclass

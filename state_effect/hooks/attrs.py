@@ -1,6 +1,6 @@
 from attrs import define
 
-from state_effect.hooks.hook import Hook
+from state_effect.hooks.base import Hook
 
 
 class AttrsHook(Hook):
