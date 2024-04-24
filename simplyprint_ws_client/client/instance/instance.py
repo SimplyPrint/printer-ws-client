@@ -141,6 +141,9 @@ class Instance(AsyncStoppable, EventLoopProvider, Generic[TClient, TConfig], ABC
         if not self.__instance_lock.locked() or self.__instance_thread_id != threading.get_ident():
             raise InstanceException("Instance.run() can only run inside its context manager")
 
+        # Initial connect
+        await self.connect()
+
         await asyncio.gather(
             self.poll_events(),
             self.lifetime_manager.loop()
@@ -274,9 +277,6 @@ class Instance(AsyncStoppable, EventLoopProvider, Generic[TClient, TConfig], ABC
 
         await self.add_client(client)
         await self.consume_backlog(self.server_event_backlog, self.on_poll_event)
-
-        if not self.connection.is_connected():
-            await self.connect()
 
         client.printer.mark_all_changed_dirty()
 

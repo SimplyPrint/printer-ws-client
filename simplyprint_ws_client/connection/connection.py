@@ -60,7 +60,7 @@ class Connection(EventLoopProvider[asyncio.AbstractEventLoop]):
     timeout: float = 5.0
 
     def __init__(self, event_loop_provider: Optional[EventLoopProvider] = None) -> None:
-        super().__init__(event_loop_provider)
+        super().__init__(provider=event_loop_provider)
         self.event_bus = ConnectionEventBus(event_loop_provider=self)
         self.connection_lock = asyncio.Lock()
 

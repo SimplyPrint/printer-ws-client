@@ -75,7 +75,9 @@ class ClientApp(Generic[TClient, TConfig]):
             provider = self.provider_factory(config=config)
             self.client_providers[config] = provider
 
-        asyncio.run_coroutine_threadsafe(provider.ensure(), self.instance.event_loop)
+        task = provider.ensure()
+        asyncio.run_coroutine_threadsafe(task, self.instance.event_loop)
+        return task
 
     def unload(self, config: Config):
         provider = self.client_providers.get(config)
@@ -85,7 +87,9 @@ class ClientApp(Generic[TClient, TConfig]):
 
         del self.client_providers[config]
 
-        asyncio.run_coroutine_threadsafe(provider.ensure(remove=True), self.instance.event_loop)
+        task = provider.ensure(remove=True)
+        asyncio.run_coroutine_threadsafe(task, self.instance.event_loop)
+        return task
 
     def reload(self, config: Config, create_if_not_exists=False):
         provider = self.client_providers.get(config)
@@ -100,13 +104,15 @@ class ClientApp(Generic[TClient, TConfig]):
             await provider.ensure(remove=True)
             await provider.ensure()
 
-        asyncio.run_coroutine_threadsafe(_reload(), self.instance.event_loop)
+        task = _reload()
+        asyncio.run_coroutine_threadsafe(task, self.instance.event_loop)
+        return task
 
     async def run(self):
         async with self.instance:
             # Register all clients
             for config in self.config_manager.get_all():
-                self.load(config)
+                await self.load(config)
 
             await self.instance.run()
 
