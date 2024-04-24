@@ -133,3 +133,7 @@ class ClientApp(Generic[TClient, TConfig]):
         if self.instance_thread:
             self.instance_thread.join()
             self.instance_thread = None
+
+        # Cleanup all providers
+        for provider in list(self.client_providers.keys()):
+            del self.client_providers[provider]
