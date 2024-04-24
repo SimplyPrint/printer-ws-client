@@ -55,7 +55,7 @@ class LifetimeManager(AsyncStoppable):
         self.lifetimes[client] = lifetime
         return lifetime
 
-    def should_consume(self, client: Client) -> bool:
+    def should_consume(self, _client: Client) -> bool:
         return self.instance.connection.is_connected()
 
     async def loop(self) -> None:
