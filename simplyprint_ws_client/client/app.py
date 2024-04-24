@@ -91,22 +91,8 @@ class ClientApp(Generic[TClient, TConfig]):
         asyncio.run_coroutine_threadsafe(task, self.instance.event_loop)
         return task
 
-    def reload(self, config: Config, create_if_not_exists=False):
-        provider = self.client_providers.get(config)
-
-        if not provider:
-            if create_if_not_exists:
-                self.load(config)
-
-            return
-
-        async def _reload():
-            await provider.ensure(remove=True)
-            await provider.ensure()
-
-        task = _reload()
-        asyncio.run_coroutine_threadsafe(task, self.instance.event_loop)
-        return task
+    def get_provider(self, config: Config):
+        return self.client_providers.get(config)
 
     async def run(self):
         async with self.instance:

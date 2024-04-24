@@ -39,6 +39,7 @@ class MultiPrinterRemovePrinterEvent(ClientEvent):
     def __init__(self, config: Config) -> None:
         super().__init__({
             "pid": config.id,
+            "unique_id": config.unique_id,
         })
 
 
