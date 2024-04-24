@@ -1,35 +1,20 @@
 import asyncio
+import functools
 import logging
 import threading
-from typing import Callable, Optional, Type, Generic, Union
+from typing import Optional, Generic, Dict
 
-from .cache import ClientCache
-from .client import Client
 from .config import Config, ConfigManager
+from .factory import ClientFactory
 from .instance import Instance
-from .instance.instance import InstanceException, TClient, TConfig
-from .instance.multi_printer import MultiPrinterException
+from .instance.instance import TClient, TConfig
 from .options import ClientOptions
+from .provider import ClientProvider, BasicClientProvider, TClientProviderFactory
 from ..const import APP_DIRS
 from ..helpers.sentry import Sentry
 from ..helpers.url_builder import SimplyPrintUrl
 from ..utils import traceability
 from ..utils.event_loop_runner import EventLoopRunner
-
-
-class ClientFactory:
-    options: ClientOptions
-    client_t: Optional[Union[Type[Client], Callable[[], Client]]] = None
-    config_t: Optional[Type[Config]] = None
-
-    def __init__(self, options: ClientOptions, client_t: Optional[Type[Client]] = None,
-                 config_t: Optional[Type[Config]] = None) -> None:
-        self.options = options
-        self.client_t = client_t
-        self.config_t = config_t
-
-    def create_client(self, *args, config: Optional[Config] = None, **kwargs) -> Client:
-        return self.client_t(*args, config=config or self.config_t.get_blank(), **kwargs)
 
 
 class ClientApp(Generic[TClient, TConfig]):
@@ -40,10 +25,10 @@ class ClientApp(Generic[TClient, TConfig]):
     instance_thread: Optional[threading.Thread] = None
 
     config_manager: ConfigManager
-    client_factory: ClientFactory
-    client_cache: Optional[ClientCache] = None
+    client_providers: Dict[Config, ClientProvider]
+    provider_factory: TClientProviderFactory
 
-    def __init__(self, options: ClientOptions) -> None:
+    def __init__(self, options: ClientOptions, provider_factory: Optional[TClientProviderFactory] = None) -> None:
         if not options.is_valid():
             raise ValueError("Invalid options")
 
@@ -60,13 +45,20 @@ class ClientApp(Generic[TClient, TConfig]):
         self.instance = instance_class(config_manager=self.config_manager,
                                        allow_setup=options.allow_setup, reconnect_timeout=options.reconnect_timeout, )
 
-        self.client_factory = ClientFactory(
+        self.client_providers = {}
+
+        client_factory = ClientFactory(
             options=options,
             client_t=options.client_t,
             config_t=options.config_t
         )
 
-        self.client_cache = ClientCache() if options.cache_clients else None
+        if provider_factory:
+            self.provider_factory = functools.partial(provider_factory, app=self, factory=client_factory)
+        else:
+            self.provider_factory = BasicClientProvider.get_factory(app=self,
+                                                                    factory=client_factory,
+                                                                    is_cached=options.cache_clients)
 
         log_file = APP_DIRS.user_log_path / f"{options.name}.log"
 
@@ -76,66 +68,49 @@ class ClientApp(Generic[TClient, TConfig]):
         if options.sentry_dsn:
             Sentry.initialize_sentry(self.options)
 
+    def load(self, config: Config):
+        if config in self.client_providers:
+            provider = self.client_providers.get(config)
+        else:
+            provider = self.provider_factory(config=config)
+            self.client_providers[config] = provider
+
+        asyncio.run_coroutine_threadsafe(provider.ensure(), self.instance.event_loop)
+
+    def unload(self, config: Config):
+        provider = self.client_providers.get(config)
+
+        if not provider:
+            return
+
+        del self.client_providers[config]
+
+        asyncio.run_coroutine_threadsafe(provider.ensure(remove=True), self.instance.event_loop)
+
+    def reload(self, config: Config, create_if_not_exists=False):
+        provider = self.client_providers.get(config)
+
+        if not provider:
+            if create_if_not_exists:
+                self.load(config)
+
+            return
+
+        async def _reload():
+            await provider.ensure(remove=True)
+            await provider.ensure()
+
+        asyncio.run_coroutine_threadsafe(_reload(), self.instance.event_loop)
+
     async def run(self):
         async with self.instance:
             # Register all clients
             for config in self.config_manager.get_all():
-                client = None
-
-                self.logger.debug(f"Registering client {config}")
-
-                if self.client_cache:
-                    client = self.client_cache.by_other(config)
-
-                if not client:
-                    client = self.create_client(config)
-
-                try:
-                    await self.instance.register_client(client)
-                except MultiPrinterException as e:
-                    self.logger.error(f"Failed to register client: {e}")
-                except InstanceException as e:
-                    self.logger.error(f"Failed to register client {config}: {e}")
+                self.load(config)
 
             await self.instance.run()
 
         self.logger.debug("Client instance has stopped")
-
-    def create_client(self, config: Optional[Config]):
-        client = self.client_factory.create_client(config=config, event_loop_provider=self.instance)
-
-        if self.client_cache:
-            self.client_cache.add(client)
-
-        return client
-
-    async def _register_client(self, client: Client):
-        try:
-            await self.instance.register_client(client)
-        except InstanceException:
-            pass
-
-    async def _reload_client(self, client: Client):
-        await self.instance.deregister_client(client)
-        new_client = self.create_client(client.config)
-        await self._register_client(new_client)
-
-    def delete_client(self, client: Client) -> asyncio.Future:
-        if self.client_cache:
-            self.client_cache.remove(client)
-
-        return asyncio.run_coroutine_threadsafe(self.instance.deregister_client(client, remove_from_config=True),
-                                                self.instance.event_loop)
-
-    def register_client(self, client: Client) -> asyncio.Future:
-        return asyncio.run_coroutine_threadsafe(self._register_client(client), self.instance.event_loop)
-
-    def add_new_client(self, config: Optional[Config]) -> asyncio.Future:
-        new_client = self.create_client(config)
-        return self.register_client(new_client)
-
-    def reload_client(self, client: Client) -> asyncio.Future:
-        return asyncio.run_coroutine_threadsafe(self._reload_client(client), self.instance.event_loop)
 
     def run_blocking(self, enable_tracing=False):
         with EventLoopRunner() as runner:
@@ -152,10 +127,6 @@ class ClientApp(Generic[TClient, TConfig]):
         self.instance_thread.start()
 
     def stop(self):
-        # Cleanup cache before stopping
-        if self.client_cache:
-            self.client_cache.sync(self.instance)
-
         self.instance.stop()
 
         # If the instance is running in a separate thread, wait for it to stop

@@ -12,8 +12,8 @@ from ..events.client_events import ClientEvent, PingEvent, StateChangeEvent, Mac
 from ..events.event import Event
 from ..events.event_bus import EventBus
 from ..helpers.intervals import IntervalTypes, Intervals
-from ..utils.physical_machine import PhysicalMachine
 from ..utils.event_loop_provider import EventLoopProvider
+from ..utils.physical_machine import PhysicalMachine
 from ..utils.traceability import traceable
 
 
@@ -95,7 +95,7 @@ class Client(ABC, EventLoopProvider[asyncio.AbstractEventLoop], Generic[TConfig]
         """
         Check if the client is connected to the server.
         """
-        return self._connected and self.is_external_connected()
+        return self._connected
 
     @connected.setter
     @traceable(with_args=True, with_stack=True, record_count=20)
@@ -143,13 +143,6 @@ class Client(ABC, EventLoopProvider[asyncio.AbstractEventLoop], Generic[TConfig]
     def set_ui_info(self, ui: str, ui_version: str):
         self.printer.info.ui = ui
         self.printer.info.ui_version = ui_version
-
-    def is_external_connected(self):
-        """
-        Check if the client is connected to an external device.
-        """
-
-        return True
 
     @abstractmethod
     async def init(self):
