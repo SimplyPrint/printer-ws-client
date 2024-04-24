@@ -174,8 +174,13 @@ class Instance(AsyncStoppable, EventLoopProvider, Generic[TClient, TConfig], ABC
         while not self.is_stopped():
             if not self.connection.is_connected():
                 self.logger.debug("Not connected - not polling events")
-                await self.wait(self.reconnect_timeout)
                 await self.connection.event_bus.emit(ConnectionDisconnectEvent())
+
+                # If we are not connected yet just wait the timeout anyhow
+                # to prevent a tight loop.
+                if not self.connection.is_connected():
+                    await self.wait(self.reconnect_timeout)
+
                 continue
 
             loop = asyncio.get_running_loop()

@@ -111,8 +111,8 @@ class ClientApp(Generic[TClient, TConfig]):
     async def run(self):
         async with self.instance:
             # Register all clients
-            for config in self.config_manager.get_all():
-                await self.load(config)
+            await asyncio.gather(*[self.load(config) for config in self.config_manager.get_all()],
+                                 return_exceptions=True)
 
             await self.instance.run()
 
