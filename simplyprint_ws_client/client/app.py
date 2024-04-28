@@ -87,7 +87,11 @@ class ClientApp(Generic[TClient, TConfig]):
 
         del self.client_providers[config]
 
-        task = provider.ensure(remove=True)
+        async def _unload():
+            await provider.ensure(remove=True)
+            await provider.delete()
+
+        task = _unload()
         asyncio.run_coroutine_threadsafe(task, self.instance.event_loop)
         return task
 

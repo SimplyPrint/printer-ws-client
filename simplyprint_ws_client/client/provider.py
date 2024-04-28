@@ -60,6 +60,12 @@ class ClientProvider(ABC, Generic[TConfig], EventLoopProvider[asyncio.AbstractEv
 
         self.__retry_task = asyncio.create_task(self._retry(timeout=timeout))
 
+    async def delete(self):
+        """Called when the provider is deleted."""
+        if self.__retry_task is not None:
+            self.__retry_task.cancel()
+            self.__retry_task = None
+
     async def ensure(self, remove=False):
         _remove = remove
 
@@ -83,6 +89,10 @@ class ClientProvider(ABC, Generic[TConfig], EventLoopProvider[asyncio.AbstractEv
                 # Retry ensure whenever we remove a client automatically.
                 if not remove:
                     await self._ensure_retry()
+                elif self.__retry_task is not None:
+                    # Disable retry if we manually remove the client.
+                    self.__retry_task.cancel()
+                    self.__retry_task = None
 
                 return
 
