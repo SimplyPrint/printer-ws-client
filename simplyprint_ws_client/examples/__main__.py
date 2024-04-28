@@ -22,7 +22,7 @@ def start_client(app: ClientApp):
 
 if __name__ == "__main__":
     client_options = ClientOptions(
-        name="VirtualPrinters",
+        name="VirtualClient",
         mode=ClientMode.MULTI_PRINTER,
         client_t=VirtualClient,
         config_t=VirtualConfig,
@@ -31,14 +31,13 @@ if __name__ == "__main__":
         backend=SimplyPrintBackend.TESTING
     )
 
-    client_app = ClientApp(client_options)
-    client_cli = ClientCli(client_app)
-    client_cli.start_client = start_client
-
     logging.basicConfig(
         level=logging.DEBUG,
         format="[%(asctime)s] %(levelname)s %(name)s.%(funcName)s: %(message)s",
         handlers=[logging.StreamHandler(), ClientHandler.root_handler(client_options)]
     )
 
-    client_cli()
+    app = ClientApp(client_options)
+    cli = ClientCli(app)
+    cli.start_client = start_client
+    cli(prog_name="python -m simplyprint_ws_client")

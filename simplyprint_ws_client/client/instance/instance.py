@@ -16,7 +16,7 @@ from ...connection.connection import (Connection, ConnectionConnectedEvent,
 from ...events.client_events import (ClientEvent)
 from ...events.demand_events import DemandEvent
 from ...events.event_bus import Event, EventBus
-from ...events.server_events import ServerEvent
+from ...events.server_events import ServerEvent, ConnectEvent
 from ...utils.event_loop_provider import EventLoopProvider
 from ...utils.stoppable import AsyncStoppable, Stoppable
 
@@ -66,6 +66,8 @@ class Instance(AsyncStoppable, EventLoopProvider, Generic[TClient, TConfig], ABC
     # Ensure the instance is only started once.
     __instance_thread_id: Optional[int] = None
 
+    # Allow logic to wait until ws-connection responds with ready message.
+    connection_is_ready: Optional[asyncio.Event] = None
     # Ensure we only allow one disconnect event to be processed at a time
     disconnect_lock: asyncio.Lock
 
@@ -109,6 +111,7 @@ class Instance(AsyncStoppable, EventLoopProvider, Generic[TClient, TConfig], ABC
         self.connection.event_bus.on(
             ConnectionPollEvent, self.on_poll_event)
 
+        self.connection_is_ready = asyncio.Event()
         self.disconnect_lock = asyncio.Lock()
 
     async def __aenter__(self):
@@ -193,12 +196,12 @@ class Instance(AsyncStoppable, EventLoopProvider, Generic[TClient, TConfig], ABC
         await self.connection.close_internal()
         self.logger.info("Stopped polling events")
 
-    async def connect(self) -> None:
+    async def connect(self, ignore_connect_criteria=False, block_until_connected=True) -> None:
         if self.is_stopped():
             self.logger.info("Instance stopped - not connecting")
             return
 
-        if not self.should_connect():
+        if not ignore_connect_criteria and not self.should_connect():
             self.logger.info("No clients to connect - not connecting")
             return
 
@@ -207,11 +210,23 @@ class Instance(AsyncStoppable, EventLoopProvider, Generic[TClient, TConfig], ABC
                 "Already connected - not connecting, call connection connect manually to force a reconnect")
             return
 
-        await self.connection.connect(url=self.url)
+        await self.connection.connect(url=self.url, allow_reconnects=False)
+
+        if block_until_connected:
+            # Wait until the first connect event is received
+            await self.connection_is_ready.wait()
 
     async def on_disconnect(self, _: ConnectionDisconnectEvent):
         async with self.disconnect_lock:
-            if self.is_stopped() or not self.should_connect() or self.connection.is_connected():
+            if self.is_stopped() or self.connection.is_connected():
+                self.logger.debug("Still connected somehow so we are not reconnecting")
+                return
+
+            # Reset the waiter
+            self.connection_is_ready.clear()
+
+            if not self.should_connect():
+                self.logger.debug("No clients to reconnect so we stay disconnected.")
                 return
 
             # Mark all printers as disconnected
@@ -224,7 +239,11 @@ class Instance(AsyncStoppable, EventLoopProvider, Generic[TClient, TConfig], ABC
 
             await self.wait(self.reconnect_timeout)
 
-            await self.connect()
+            # If reconnections fails, connect dispatches a new event
+            # which runs in another coroutine, so on_disconnect should not block
+            # the disconnect lock, so that another task can take over, other tasks
+            # will block on connect until another task has made the connection.
+            await self.connect(block_until_connected=False)
 
     async def on_poll_event(self, event: ConnectionPollEvent):
         """
@@ -237,6 +256,9 @@ class Instance(AsyncStoppable, EventLoopProvider, Generic[TClient, TConfig], ABC
             config = Config(id=event.for_client)
 
         client = self.get_client(config)
+
+        if not client and event.event == ConnectEvent:
+            self.connection_is_ready.set()
 
         if not client or self.is_stopped():
             if event.allow_backlog:
@@ -280,7 +302,11 @@ class Instance(AsyncStoppable, EventLoopProvider, Generic[TClient, TConfig], ABC
         # Listen to custom events for internal use.
         client.event_bus.on(ClientConfigChangedEvent, on_client_config_changed)
 
-        await self.add_client(client)
+        try:
+            await self.add_client(client)
+        except InstanceException:
+            raise
+
         await self.consume_backlog(self.server_event_backlog, self.on_poll_event)
 
         client.printer.mark_all_changed_dirty()
@@ -376,7 +402,7 @@ class Instance(AsyncStoppable, EventLoopProvider, Generic[TClient, TConfig], ABC
 
     @abstractmethod
     async def add_client(self, client: TClient) -> None:
-        """ Internal
+        """Internal
         Adds a client to the instance.
         """
         ...

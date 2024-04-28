@@ -1,5 +1,6 @@
+import asyncio
 from enum import Enum
-from typing import Dict, Iterable, Optional, Set
+from typing import Dict, Iterable, Optional
 
 from ..client import Client
 from ..config import Config
@@ -46,8 +47,9 @@ class MultiPrinterRemovePrinterEvent(ClientEvent):
 class MultiPrinter(Instance[TClient, TConfig]):
     clients: Dict[str, Client[TConfig]]
 
-    # List of unique ids pending a response from add connection
-    pending_unique_set: Set[str]
+    # List of unique ids that are pending to be added.
+    # Stores a future that is resolved when the response is received.
+    pending_add_waiters: Dict[str, asyncio.Future]
 
     def __init__(self, config_manager: ConfigManager[TConfig], **kwargs) -> None:
         super().__init__(config_manager, **kwargs)
@@ -58,15 +60,25 @@ class MultiPrinter(Instance[TClient, TConfig]):
         self.set_url(str(SimplyPrintUrl.current().ws_url / "mp" / "0" / "0"))
 
         self.clients = dict()
-        self.pending_unique_set = set()
+        self.pending_add_waiters = dict()
 
     async def add_client(self, client: TClient) -> None:
+        # Will be removed by the response event.
+        # But we still raise the exception to trigger
+        # any retry logic that might exist.
         self.clients[client.config.unique_id] = client
 
-        if not self.connection.is_connected():
-            return
+        added_future = await self._send_add_printer(client)
 
-        await self._send_add_printer(client)
+        # Wait for the response to be received.
+        try:
+            success = await added_future
+
+            if not success:
+                raise MultiPrinterException(f"Failed to add printer {client.config.unique_id}")
+
+        except (asyncio.TimeoutError, asyncio.CancelledError):
+            raise MultiPrinterException(f"Failed to add printer {client.config.unique_id} due to timeout/cancellation.")
 
     async def deregister_client(self, client: TClient, remove_from_config=False, request_removal=True):
         await super().deregister_client(client, remove_from_config)
@@ -74,6 +86,7 @@ class MultiPrinter(Instance[TClient, TConfig]):
         if not request_removal:
             return
 
+        # We cannot remove a printer if we are not connected.
         if not self.connection.is_connected():
             return
 
@@ -117,7 +130,11 @@ class MultiPrinter(Instance[TClient, TConfig]):
         await super().on_poll_event(event)
 
     async def on_printer_added_response(self, event: MultiPrinterAddedEvent, client: TClient):
-        self.pending_unique_set.discard(client.config.unique_id)
+        fut = self.pending_add_waiters.get(client.config.unique_id)
+        del self.pending_add_waiters[client.config.unique_id]
+
+        if fut and not fut.done():
+            fut.set_result(event.status)
 
         if event.status:
             # For multi-printer we can mark a client as connected
@@ -165,6 +182,7 @@ class MultiPrinter(Instance[TClient, TConfig]):
                 self.config_manager.flush(client.config)
 
         # Attempt to reconnect the client.
+        # TODO is this correct in our new provider model?
         await self.wait(self.reconnect_timeout)
 
         try:
@@ -173,25 +191,45 @@ class MultiPrinter(Instance[TClient, TConfig]):
             pass
 
     async def on_connect(self, event: ConnectionConnectedEvent):
-        self.pending_unique_set.clear()
+        # Ensure we are not connecting and disconnecting at the same time.
+        async with self.disconnect_lock:
+            for client in list(self.clients.values()):
+                async with client:
+                    if event.reconnect:
+                        client.connected = False
 
-        for client in self.clients.values():
-            async with client:
-                if event.reconnect:
-                    client.connected = False
+                    elif client.connected:
+                        continue
 
-                if client.connected:
-                    continue
+                task = self.pending_add_waiters.get(client.config.unique_id)
 
-                await self._send_add_printer(client)
+                if not task:
+                    # We cannot block inside on_connect as connect() awaits on_connect,
+                    # and send add printer awaits connect.
+                    # which will make the waiters never be resolved.
+                    # Instead, we ensure that all of these tasks are run to completion in the event loop.
+                    _ = self.event_loop.create_task(self._send_add_printer(client))
 
-    async def _send_add_printer(self, client: TClient):
-        if client.config.unique_id in self.pending_unique_set:
-            raise MultiPrinterException(
-                f"Cannot add printer with unique id {client.config.unique_id} as it is already in use")
+    async def _send_add_printer(self, client: TClient) -> asyncio.Future:
+        async with client:
+            # Lock the pending client before waiting for connect, to ensure on_connect does not compete.
+            if client.config.unique_id in self.pending_add_waiters:
+                raise MultiPrinterException(
+                    f"Cannot add printer with unique id {client.config.unique_id} as it is already pending.")
 
-        self.pending_unique_set.add(client.config.unique_id)
+            fut = self.pending_add_waiters[client.config.unique_id] = self.event_loop.create_future()
+
+        # We do not add printers before we are connected.
+        # Therefore, we need to ignore the connect criteria.
+        # Alternatively we could directly invoke connection.connect
+        # but this seems more elegant.
+        if not self.connection.is_connected():
+            await self.connect(ignore_connect_criteria=True)
+
         await self.connection.send_event(client, MultiPrinterAddPrinterEvent(client.config, self.allow_setup))
+
+        # Add a timeout to the future.
+        return asyncio.shield(asyncio.wait_for(fut, timeout=5))
 
     async def _send_remove_printer(self, client: TClient):
         await self.connection.send_event(client, MultiPrinterRemovePrinterEvent(client.config))

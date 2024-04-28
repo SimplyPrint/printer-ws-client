@@ -30,38 +30,69 @@ class ClientProvider(ABC, Generic[TConfig], EventLoopProvider[asyncio.AbstractEv
     to indicate it should not be added.
     """
 
+    __ensure_lock: asyncio.Lock
+    __retry_task: Optional[asyncio.Task] = None
+
     app: 'ClientApp'
     factory: 'ClientFactory'
     config: TConfig
 
     def __init__(self, app: 'ClientApp', factory: 'ClientFactory', config: TConfig):
         super().__init__(provider=app.instance)
+        self.__ensure_lock = asyncio.Lock()
+
         self.app = app
         self.factory = factory
         self.config = config
 
+    async def _retry(self, timeout: float):
+        await asyncio.sleep(timeout)
+
+        try:
+            self.app.instance.logger.debug(f"Retrying ensure for {self.config.unique_id}")
+            await self.ensure()
+        except Exception as e:
+            self.app.instance.logger.error(f"Failed to retry ensure: {e}")
+
+    async def _ensure_retry(self, timeout=10.0):
+        if self.__retry_task is not None:
+            return None
+
+        self.__retry_task = asyncio.create_task(self._retry(timeout=timeout))
+
     async def ensure(self, remove=False):
-        client = self.get_client()
+        _remove = remove
 
-        # Deregister client if not supposed to be provided.
-        if client is None:
-            client = self.app.instance.get_client(self.config)
-            remove = True
+        async with self.__ensure_lock:
+            client = self.get_client()
 
-        has_client = self.app.instance.has_client(client)
+            # Deregister client if not supposed to be provided.
+            if client is None:
+                client = self.app.instance.get_client(self.config)
+                _remove = True
 
-        self.app.instance.logger.debug(f"Loading provider {self.config} {bool(client)=} {remove=} {has_client=}")
+            has_client = self.app.instance.has_client(client)
 
-        if has_client and remove:
-            await self.app.instance.deregister_client(client)
-            return
+            self.app.instance.logger.debug(
+                f"Loading provider {self.config} {bool(client)=} {remove=} {_remove=} {has_client=}")
 
-        if client is not None and not has_client and not remove:
-            # Add the client to the instance.
-            try:
-                await self.app.instance.register_client(client)
-            except InstanceException as e:
-                self.app.instance.logger.error(f"Failed to register client: {e}")
+            if _remove:
+                if has_client:
+                    await self.app.instance.deregister_client(client)
+
+                # Retry ensure whenever we remove a client automatically.
+                if not remove:
+                    await self._ensure_retry()
+
+                return
+
+            if client is not None and not has_client:
+                # Add the client to the instance.
+                try:
+                    await self.app.instance.register_client(client)
+                except InstanceException as e:
+                    self.app.instance.logger.error(f"Failed to register client: {e}")
+                    await self._ensure_retry()
 
     @abstractmethod
     def get_client(self) -> Optional['Client']:

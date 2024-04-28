@@ -67,16 +67,18 @@ class Connection(EventLoopProvider[asyncio.AbstractEventLoop]):
     def is_connected(self) -> bool:
         return self.socket is not None and not self.socket.closed
 
-    async def connect(self, url: Optional[str] = None, timeout: Optional[float] = None) -> None:
+    async def connect(self, url: Optional[str] = None, timeout: Optional[float] = None, allow_reconnects=False) -> None:
         async with self.connection_lock:
             self.use_running_loop()
 
-            reconnected = False
+            if self.is_connected() and not allow_reconnects:
+                return
 
-            if self.socket:
+            reconnected = self.is_connected()
+
+            if self.socket or self.session:
                 await self.close_internal()
                 self.socket = self.session = None
-                reconnected = True
 
             self.url = url or self.url
             self.timeout = timeout or self.timeout
@@ -116,8 +118,8 @@ class Connection(EventLoopProvider[asyncio.AbstractEventLoop]):
 
             self.socket = socket
 
+            _ = self.event_bus.emit_task(ConnectionConnectedEvent(reconnect=reconnected))
             self.logger.debug(f"Connected to {self.url} {reconnected=}")
-            await self.event_bus.emit(ConnectionConnectedEvent(reconnect=reconnected))
 
     async def close_internal(self):
         try:
