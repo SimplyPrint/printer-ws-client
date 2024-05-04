@@ -144,8 +144,9 @@ class Instance(AsyncStoppable, EventLoopProvider, Generic[TClient, TConfig], ABC
         if not self.__instance_lock.locked() or self.__instance_thread_id != threading.get_ident():
             raise InstanceException("Instance.run() can only run inside its context manager")
 
-        # Initial connect
-        await self.connect()
+        # Initial connect we cannot block until connected is
+        # received as we will never poll any events if this blocks.
+        await self.connect(block_until_connected=False)
 
         await asyncio.gather(
             self.poll_events(),
@@ -177,12 +178,12 @@ class Instance(AsyncStoppable, EventLoopProvider, Generic[TClient, TConfig], ABC
         while not self.is_stopped():
             if not self.connection.is_connected():
                 self.logger.debug("Not connected - not polling events")
-                await self.connection.event_bus.emit(ConnectionDisconnectEvent())
+                await self.on_disconnect(ConnectionDisconnectEvent())
 
                 # If we are not connected yet just wait the timeout anyhow
                 # to prevent a tight loop.
                 if not self.connection.is_connected():
-                    await self.wait(self.reconnect_timeout)
+                    await self.wait(1.0)
 
                 continue
 

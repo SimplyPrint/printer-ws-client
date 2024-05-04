@@ -99,11 +99,17 @@ class ClientApp(Generic[TClient, TConfig]):
         return self.client_providers.get(config)
 
     async def run(self):
-        async with self.instance:
-            # Register all clients
-            await asyncio.gather(*[self.load(config) for config in self.config_manager.get_all()],
+        async def _register_configs():
+            configs = self.config_manager.get_all()
+
+            await asyncio.gather(*[self.load(config) for config in configs],
                                  return_exceptions=True)
 
+        async with self.instance:
+            # Register all clients this has to be non-blocking
+            # so that instance run can start polling events as we wait
+            # to get the connected message before we can start sending events.
+            _ = self.instance.event_loop.create_task(_register_configs())
             await self.instance.run()
 
         self.logger.debug("Client instance has stopped")
