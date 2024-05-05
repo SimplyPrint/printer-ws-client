@@ -57,7 +57,9 @@ class ClientLifetime(AsyncStoppable, ABC):
 
     def average_heartbeat_duration(self) -> Optional[float]:
         durations = self.heartbeat_durations()
-        return sum(durations) / len(durations) if durations else None
+
+        # Only start counting when we have enough heartbeats
+        return sum(durations) / len(durations) if len(durations) > 5 else None
 
     async def consume(self):
         # If the parent context (LifetimeManager) does not want us to consume, we don't
@@ -105,13 +107,18 @@ class ClientLifetime(AsyncStoppable, ABC):
             )
 
         # We are healthy if the average heartbeat duration is less than the tick rate + timeout
-        if not average_heartbeat_duration < self.tick_rate.value + self.timeout.value:
+        # We allow the tick rate to progress up to the timeout.
+        if self.tick_rate.is_at_bound() and not average_heartbeat_duration < self.tick_rate.value + self.timeout.value:
             self.client.logger.warning(
                 f"Client is unhealthy: average heartbeat duration is {average_heartbeat_duration} " +
                 f"expected less than {self.tick_rate.value + self.timeout.value}"
             )
 
             return False
+
+        # Reset the tick rate if we have been healthy for a while.
+        if self.tick_rate.is_at_bound() and average_heartbeat_duration < self.tick_rate.default:
+            self.tick_rate.reset()
 
         return True
 
@@ -160,7 +167,12 @@ class ClientSyncLifetime(ClientLifetime, EventLoopProvider[asyncio.AbstractEvent
 
 
 class ClientAsyncLifetime(ClientLifetime, AsyncStoppable):
-    async_task: Optional[asyncio.Task] = None
+    _start_lock: asyncio.Lock
+    _async_task: Optional[asyncio.Task] = None
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._start_lock = asyncio.Lock()
 
     def stop_deferred(self):
         """
@@ -174,11 +186,13 @@ class ClientAsyncLifetime(ClientLifetime, AsyncStoppable):
         threading.Thread(target=asyncio.run, args=(self.client.stop(),), daemon=True).start()
 
     async def start(self):
-        if self.async_task and not self.async_task.done():
-            # Await the task to ensure it is stopped
-            await self.async_task
+        async with self._start_lock:
+            if self._async_task and not self._async_task.done():
+                # Await the task to ensure it is stopped
+                self.client.logger.debug("Cannot start lifetime while previous loop is still running. Waiting.")
+                await self._async_task
 
-        # Initialize client
-        await self.client.init()
+            # Initialize client
+            await self.client.init()
 
-        self.async_task = asyncio.create_task(self.loop())
+            self._async_task = asyncio.create_task(self.loop())

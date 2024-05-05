@@ -38,6 +38,10 @@ class BoundedVariable(Generic[TIntervalValue]):
     def value(self) -> TIntervalValue:
         return self._current_value
 
+    @property
+    def default(self) -> TIntervalValue:
+        return self._starting_value
+
     def increment(self) -> TIntervalValue:
         self._current_value = self.interval.increment_until_bound(self._current_value)
         return self._current_value
