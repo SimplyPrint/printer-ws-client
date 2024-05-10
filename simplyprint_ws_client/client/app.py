@@ -129,13 +129,14 @@ class ClientApp(Generic[TClient, TConfig]):
         self.instance_thread.start()
 
     def stop(self):
+        # Cleanup all providers before stopping the instance
+        # as the event loop is not available after stopping the instance.
+        for provider in list(self.client_providers.keys()):
+            self.unload(provider)
+
         self.instance.stop()
 
         # If the instance is running in a separate thread, wait for it to stop
         if self.instance_thread:
             self.instance_thread.join()
             self.instance_thread = None
-
-        # Cleanup all providers
-        for provider in list(self.client_providers.keys()):
-            del self.client_providers[provider]

@@ -170,6 +170,9 @@ class ProcessStoppable(Stoppable[multiprocessing.Event, multiprocessing.Conditio
         self._stop_event_property = self._stop_event_property or multiprocessing.Event()
 
     def wait(self, timeout: Optional[float] = None) -> bool:
+        if self.is_stopped():
+            return True
+
         with self._condition_property:
             self._condition_property.wait(timeout)
         return self.is_stopped()
