@@ -2,9 +2,9 @@ from enum import Enum
 from typing import NamedTuple, Type, Callable, Union
 from typing import Optional
 
-from .client import Client
 from .config import Config
 from .config import ConfigManagerType
+from .factory import TClientFactory
 from .instance import Instance, MultiPrinter, SinglePrinter
 from ..helpers.url_builder import SimplyPrintBackend
 
@@ -22,7 +22,7 @@ class ClientMode(Enum):
             raise ValueError("Invalid ClientMode")
 
 
-TConfigFactory = Union[Type[Client], Callable[[], Client]]
+TConfigFactory = Union[Type[Config], Callable[[], Config]]
 
 
 class ClientOptions(NamedTuple):
@@ -36,8 +36,8 @@ class ClientOptions(NamedTuple):
 
     config_manager_type: ConfigManagerType = ConfigManagerType.MEMORY
 
-    client_t: Optional[TConfigFactory] = None
-    config_t: Optional[Type[Config]] = None
+    client_t: Optional[TClientFactory] = None
+    config_t: Optional[TConfigFactory] = None
 
     allow_setup: bool = False
     cache_clients: bool = False  # Cache clients between restarts, important if state is re-source able.

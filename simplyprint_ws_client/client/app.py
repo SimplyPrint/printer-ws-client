@@ -114,9 +114,9 @@ class ClientApp(Generic[TClient, TConfig]):
 
         self.logger.debug("Client instance has stopped")
 
-    def run_blocking(self, enable_tracing=False):
-        with EventLoopRunner() as runner:
-            with traceability.enable_traceable(enable_tracing):
+    def run_blocking(self, debug=False):
+        with EventLoopRunner(debug=debug) as runner:
+            with traceability.enable_traceable(debug):
                 runner.run(self.run())
 
     def run_detached(self, *args, **kwargs):

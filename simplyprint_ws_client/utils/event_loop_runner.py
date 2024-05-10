@@ -9,6 +9,10 @@ except ImportError:
 
 class EventLoopRunner:
     """ Wrapper around uvloop/asyncio implementations for running the main event loop. """
+    debug = False
+
+    def __init__(self, debug=False):
+        self.debug = debug
 
     def __enter__(self):
         return self
@@ -16,9 +20,8 @@ class EventLoopRunner:
     def __exit__(self, exc_type, exc_val, exc_tb):
         pass
 
-    @staticmethod
-    def run(*args, **kwargs) -> None:
+    def run(self, *args, **kwargs) -> None:
         try:
-            return async_run(*args, **kwargs)
+            return async_run(*args, debug=self.debug, **kwargs)
         except asyncio.CancelledError:
             pass

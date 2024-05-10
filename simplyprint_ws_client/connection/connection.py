@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import traceback
 from asyncio import CancelledError
 from typing import Any, Dict, Optional, Union
 
@@ -13,6 +14,7 @@ from ..events import DemandEvent, ServerEvent, EventFactory
 from ..events.client_events import ClientEvent, ClientEventMode
 from ..events.event import Event
 from ..events.event_bus import EventBus
+from ..utils import traceability
 from ..utils.event_loop_provider import EventLoopProvider
 from ..utils.traceability import traceable
 
@@ -65,6 +67,27 @@ class Connection(EventLoopProvider[asyncio.AbstractEventLoop]):
         self.connection_lock = asyncio.Lock()
 
     def is_connected(self) -> bool:
+        valid_internal_state = self._ensure_internal_ssl_proto_state()
+
+        if not valid_internal_state:
+            self.logger.warning("Internal SSL protocol state is invalid.")
+
+            from asyncio.selector_events import _SelectorTransport
+            trace = traceability.from_func(_SelectorTransport._force_close)
+
+            if trace is not None:
+                self.logger.warning(f"Found {len(trace.get_call_record())} trace for _SelectorTransport._force_close")
+
+                for record in trace.get_call_record():
+                    self.logger.warning(
+                        f"""[{record.called_at}] Called _SelectorTransport._force_close with args {record.args} retval {record.retval}. Stack:
+                        {''.join(traceback.StackSummary.from_list(record.stack).format()) if record.stack else "No stack"}
+                        """)
+
+                trace.call_record.clear()
+
+            return False
+
         return self.socket is not None and not self.socket.closed
 
     async def connect(self, url: Optional[str] = None, timeout: Optional[float] = None, allow_reconnects=False) -> None:
@@ -121,6 +144,30 @@ class Connection(EventLoopProvider[asyncio.AbstractEventLoop]):
             _ = self.event_bus.emit_task(ConnectionConnectedEvent(reconnect=reconnected))
             self.logger.debug(f"Connected to {self.url} {reconnected=}")
 
+    def _ensure_internal_ssl_proto_state(self) -> bool:
+        try:
+            if not self.socket or not self.socket._writer:
+                return True
+
+            from asyncio.sslproto import _SSLProtocolTransport
+
+            transport = self.socket._writer.transport
+
+            if not isinstance(transport, _SSLProtocolTransport):
+                return True
+
+            from asyncio.selector_events import _SelectorTransport
+            if not isinstance(transport._ssl_protocol._transport, _SelectorTransport):
+                return True
+
+            inner_transport = transport._ssl_protocol._transport
+
+            return transport.is_closing() == inner_transport.is_closing()
+
+        except Exception as e:
+            self.logger.warning("An exception occurred while ensuring the internal SSL protocol state", exc_info=e)
+            return True
+
     async def close_internal(self):
         try:
             if self.socket:
@@ -143,7 +190,14 @@ class Connection(EventLoopProvider[asyncio.AbstractEventLoop]):
         await self.on_disconnect()
 
     async def on_disconnect(self):
-        """ When something goes wrong, reset the socket """
+        """
+                When
+                something
+                goes
+                wrong, reset
+                the
+                socket
+                """
 
         if self.is_connected():
             await self.close_internal()
