@@ -9,16 +9,6 @@ from simplyprint_ws_client.examples.virtual_client import VirtualClient, Virtual
 from simplyprint_ws_client.helpers.url_builder import SimplyPrintBackend
 
 
-def start_client(app: ClientApp):
-    app.run_detached()
-
-    try:
-        while True:
-            time.sleep(10)
-            ...
-    finally:
-        app.stop()
-
 
 if __name__ == "__main__":
     client_options = ClientOptions(
@@ -39,5 +29,4 @@ if __name__ == "__main__":
 
     app = ClientApp(client_options)
     cli = ClientCli(app)
-    cli.start_client = start_client
     cli(prog_name="python -m simplyprint_ws_client")

@@ -1,7 +1,6 @@
 import asyncio
 import json
 import logging
-import traceback
 from asyncio import CancelledError
 from typing import Any, Dict, Optional, Union
 
@@ -14,7 +13,6 @@ from ..events import DemandEvent, ServerEvent, EventFactory
 from ..events.client_events import ClientEvent, ClientEventMode
 from ..events.event import Event
 from ..events.event_bus import EventBus
-from ..utils import traceability
 from ..utils.event_loop_provider import EventLoopProvider
 from ..utils.traceability import traceable
 
@@ -70,22 +68,7 @@ class Connection(EventLoopProvider[asyncio.AbstractEventLoop]):
         valid_internal_state = self._ensure_internal_ssl_proto_state()
 
         if not valid_internal_state:
-            self.logger.warning("Internal SSL protocol state is invalid.")
-
-            from asyncio.selector_events import _SelectorTransport
-            trace = traceability.from_func(_SelectorTransport._force_close)
-
-            if trace is not None:
-                self.logger.warning(f"Found {len(trace.get_call_record())} trace for _SelectorTransport._force_close")
-
-                for record in trace.get_call_record():
-                    self.logger.warning(
-                        f"""[{record.called_at}] Called _SelectorTransport._force_close with args {record.args} retval {record.retval}. Stack:
-                        {''.join(traceback.StackSummary.from_list(record.stack).format()) if record.stack else "No stack"}
-                        """)
-
-                trace.call_record.clear()
-
+            self.logger.warning("Internal SSL protocol state is invalid. Assuming we are not connected.")
             return False
 
         return self.socket is not None and not self.socket.closed

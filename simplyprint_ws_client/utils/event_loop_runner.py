@@ -1,10 +1,23 @@
 import asyncio
+import contextlib
+import contextvars
 
 try:
     """ Prefer faster event loop implementation. """
     from uvloop import run as async_run
 except ImportError:
     from asyncio import run as async_run
+
+_asyncio_debug_enabled = contextvars.ContextVar("_debug_enabled", default=False)
+
+
+@contextlib.contextmanager
+def enable_asyncio_debug():
+    token = _asyncio_debug_enabled.set(True)
+    try:
+        yield
+    finally:
+        _asyncio_debug_enabled.reset(token)
 
 
 class EventLoopRunner:
@@ -22,6 +35,6 @@ class EventLoopRunner:
 
     def run(self, *args, **kwargs) -> None:
         try:
-            return async_run(*args, debug=self.debug, **kwargs)
+            return async_run(*args, debug=_asyncio_debug_enabled.get() or self.debug, **kwargs)
         except asyncio.CancelledError:
             pass
