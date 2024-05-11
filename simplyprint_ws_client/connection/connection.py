@@ -66,12 +66,7 @@ class Connection(EventLoopProvider[asyncio.AbstractEventLoop]):
 
     def is_connected(self) -> bool:
         valid_internal_state = self._ensure_internal_ssl_proto_state()
-
-        if not valid_internal_state:
-            self.logger.warning("Internal SSL protocol state is invalid. Assuming we are not connected.")
-            return False
-
-        return self.socket is not None and not self.socket.closed
+        return valid_internal_state and self.socket is not None and not self.socket.closed
 
     async def connect(self, url: Optional[str] = None, timeout: Optional[float] = None, allow_reconnects=False) -> None:
         async with self.connection_lock:
@@ -128,28 +123,35 @@ class Connection(EventLoopProvider[asyncio.AbstractEventLoop]):
             self.logger.debug(f"Connected to {self.url} {reconnected=}")
 
     def _ensure_internal_ssl_proto_state(self) -> bool:
+        valid = True
+
         try:
             if not self.socket or not self.socket._writer:
-                return True
-
-            from asyncio.sslproto import _SSLProtocolTransport
+                return valid
 
             transport = self.socket._writer.transport
-
-            if not isinstance(transport, _SSLProtocolTransport):
-                return True
-
-            from asyncio.selector_events import _SelectorTransport
-            if not isinstance(transport._ssl_protocol._transport, _SelectorTransport):
-                return True
-
             inner_transport = transport._ssl_protocol._transport
 
-            return transport.is_closing() == inner_transport.is_closing()
+            from asyncio.sslproto import _SSLProtocolTransport, _SSLProtocol
+            from asyncio.selector_events import _SelectorTransport
 
+            assert isinstance(transport, _SSLProtocolTransport)
+            assert isinstance(inner_transport, _SelectorTransport)
+
+            if inner_transport.is_closing() and not transport.is_closing():
+                self.logger.warning(
+                    "The internal SSL protocol state is invalid, manually marking top level SSL Transport as closed.")
+                valid = False
+                self.socket._closed = True
+                transport._force_close(None)
+
+
+        except (ImportError, AssertionError, AttributeError):
+            pass
         except Exception as e:
             self.logger.warning("An exception occurred while ensuring the internal SSL protocol state", exc_info=e)
-            return True
+        finally:
+            return valid
 
     async def close_internal(self):
         try:
