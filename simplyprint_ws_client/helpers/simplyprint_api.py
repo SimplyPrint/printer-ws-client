@@ -4,14 +4,14 @@ from typing import Optional
 import aiohttp
 
 from ..const import VERSION
-from ..helpers.url_builder import SimplyPrintUrl
+from ..helpers.url_builder import SimplyPrintURL
 
 
 class SimplyPrintApi:
     @staticmethod
     async def post_snapshot(snapshot_id: str, image_data: bytes):
 
-        endpoint = SimplyPrintUrl.current().api_url / "jobs" / "ReceiveSnapshot"
+        endpoint = SimplyPrintURL().api_url / "jobs" / "ReceiveSnapshot"
 
         data = {
             "id": snapshot_id,
@@ -36,7 +36,7 @@ class SimplyPrintApi:
         # Request /printers/ReceiveLogs with the token as post data
         # And each of the files as multipart/form-data
 
-        endpoint = SimplyPrintUrl.current().api_url / "printers" / "ReceiveLogs" % {"pid": printer_id}
+        endpoint = SimplyPrintURL().api_url / "printers" / "ReceiveLogs" % {"pid": printer_id}
 
         data = {
             "token": token,

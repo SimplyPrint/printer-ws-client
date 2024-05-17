@@ -12,84 +12,116 @@ class SimplyPrintWsVersion(Enum):
     VERSION_0_2 = "0.2"
 
 
+class Host(NamedTuple):
+    root: str
+    subdomain: Optional[str] = None
+    port: Optional[int] = None
+
+    def __str__(self):
+        host = ".".join(filter(None, [self.subdomain, self.root]))
+
+        if self.port:
+            host += f":{self.port}"
+
+        return host
+
+    def with_port(self, port: int) -> "Host":
+        return self._replace(port=port)
+
+    def with_subdomain(self, subdomain: str) -> "Host":
+        return self._replace(subdomain=subdomain)
+
+
+class SimplyPrintURLs(NamedTuple):
+    main_host: Host
+    api_host: Host
+    ws_host: Host
+    secure: bool = True
+
+    @property
+    def _http_scheme(self) -> str:
+        return "https" if self.secure else "http"
+
+    @property
+    def _ws_scheme(self) -> str:
+        return "wss" if self.secure else "ws"
+
+    @property
+    def main_url(self) -> URL:
+        return URL.build(scheme=self._http_scheme, host=str(self.main_host))
+
+    @property
+    def api_url(self) -> URL:
+        return URL.build(scheme=self._http_scheme, host=str(self.api_host))
+
+    @property
+    def ws_url(self) -> URL:
+        return URL.build(scheme=self._ws_scheme,
+                         host=str(self.ws_host)) / SimplyPrintWsVersion.VERSION_0_2.value
+
+
+_root = Host("simplyprint.io")
+
+PRODUCTION_URLS = SimplyPrintURLs(_root, _root.with_subdomain("api"),
+                                  _root.with_subdomain("ws"))
+
+TESTING_URLS = SimplyPrintURLs(_root.with_subdomain("test"), _root.with_subdomain("testapi"),
+                               _root.with_subdomain("testws3"))
+
+STAGING_URLS = SimplyPrintURLs(_root.with_subdomain("staging"), _root.with_subdomain("apistaging"),
+                               _root.with_subdomain("wsstaging"))
+
+_localhost = Host("localhost", port=8080)
+
+LOCALHOST_URLS = SimplyPrintURLs(_localhost, _localhost, _localhost.with_port(8081), secure=False)
+
+
 class SimplyPrintBackend(Enum):
     PRODUCTION = "production"
     TESTING = "test"
     STAGING = "staging"
+    LOCALHOST = "custom"
 
-    @property
-    def root_subdomain(self) -> Optional[str]:
+    def get_urls(self) -> SimplyPrintURLs:
         if self == SimplyPrintBackend.PRODUCTION:
-            return None
-
-        return self.value
-
-    @property
-    def api_subdomain(self) -> str:
-        if self == SimplyPrintBackend.PRODUCTION:
-            return "api"
-
-        return f"{self.value}api"
-
-    @property
-    def ws_subdomain(self) -> str:
-        if self == SimplyPrintBackend.PRODUCTION:
-            return "ws"
-
-        if self.value == "test":
-            return "testws3"
-
-        if self.value == "staging":
-            return "wsstaging"
-
-        raise ValueError(f"Unknown subdomain for {self.value}")
+            return PRODUCTION_URLS
+        elif self == SimplyPrintBackend.TESTING:
+            return TESTING_URLS
+        elif self == SimplyPrintBackend.STAGING:
+            return STAGING_URLS
+        elif self == SimplyPrintBackend.LOCALHOST:
+            return LOCALHOST_URLS
+        else:
+            raise ValueError(f"Invalid backend: {self}")
 
 
-class DomainBuilder(NamedTuple):
-    subdomain: str = None
-    domain: str = "simplyprint"
-    tld: str = "io"
-
-    def to_url(self) -> URL:
-        return URL.build(scheme="https", host=str(self))
-
-    def __str__(self) -> str:
-        return ".".join(filter(None, [self.subdomain, self.domain, self.tld]))
-
-
-class SimplyPrintUrl:
-    _current_url: "SimplyPrintUrl" = None
-
-    def __init__(self, version: SimplyPrintBackend) -> None:
-        self.version = version
+class SimplyPrintURL:
+    _active_backend: SimplyPrintBackend = SimplyPrintBackend.PRODUCTION
 
     @staticmethod
-    def current():
-        return SimplyPrintUrl._current_url
+    def set_backend(backend: SimplyPrintBackend):
+        SimplyPrintURL._active_backend = backend
 
     @staticmethod
-    def set_current(version: SimplyPrintBackend = SimplyPrintBackend.PRODUCTION):
-        SimplyPrintUrl._current_url = SimplyPrintUrl(version)
+    def urls() -> SimplyPrintURLs:
+        return SimplyPrintURL._active_backend.get_urls()
 
     @property
-    def root_url(self) -> URL:
-        return DomainBuilder(self.version.root_subdomain).to_url()
+    def main_url(self) -> URL:
+        return self.urls().main_url
 
     @property
     def api_url(self) -> URL:
-        return self.root_url / "api"
-
-    @property
-    def standalone_api_url(self) -> URL:
-        return DomainBuilder(self.version.api_subdomain).to_url()
+        return self.urls().api_url
 
     @property
     def ws_url(self) -> URL:
-        return URL.build(scheme="wss",
-                         host=str(DomainBuilder(self.version.ws_subdomain))) / SimplyPrintWsVersion.VERSION_0_2.value
+        return self.urls().ws_url
 
 
-value = environ.get("SIMPLYPRINT_VERSION",
+value = environ.get("SIMPLYPRINT_BACKEND",
                     (SimplyPrintBackend.TESTING if IS_TESTING else SimplyPrintBackend.PRODUCTION).value)
 
-SimplyPrintUrl.set_current(SimplyPrintBackend(value))
+_current_backend = SimplyPrintBackend(value)
+
+SimplyPrintURL.set_backend(SimplyPrintBackend(value))

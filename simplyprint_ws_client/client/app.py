@@ -2,6 +2,7 @@ import asyncio
 import functools
 import logging
 import threading
+from contextlib import suppress
 from typing import Optional, Generic, Dict
 
 from .config import Config, ConfigManager
@@ -12,7 +13,7 @@ from .options import ClientOptions
 from .provider import ClientProvider, BasicClientProvider, TClientProviderFactory
 from ..const import APP_DIRS
 from ..helpers.sentry import Sentry
-from ..helpers.url_builder import SimplyPrintUrl
+from ..helpers.url_builder import SimplyPrintURL
 from ..utils import traceability
 from ..utils.event_loop_runner import EventLoopRunner
 
@@ -36,7 +37,7 @@ class ClientApp(Generic[TClient, TConfig]):
 
         # Set correct simplyprint version
         if options.backend:
-            SimplyPrintUrl.set_current(options.backend)
+            SimplyPrintURL.set_backend(options.backend)
 
         config_manager_class = options.config_manager_type.get_class()
         instance_class = options.mode.get_class()
@@ -105,12 +106,13 @@ class ClientApp(Generic[TClient, TConfig]):
             await asyncio.gather(*[self.load(config) for config in configs],
                                  return_exceptions=True)
 
-        async with self.instance:
-            # Register all clients this has to be non-blocking
-            # so that instance run can start polling events as we wait
-            # to get the connected message before we can start sending events.
-            _ = self.instance.event_loop.create_task(_register_configs())
-            await self.instance.run()
+        with suppress(asyncio.CancelledError):
+            async with self.instance:
+                # Register all clients this has to be non-blocking
+                # so that instance run can start polling events as we wait
+                # to get the connected message before we can start sending events.
+                _ = self.instance.event_loop.create_task(_register_configs())
+                await self.instance.run()
 
         self.logger.debug("Client instance has stopped")
 

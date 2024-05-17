@@ -9,7 +9,7 @@ from ..instance.instance import Instance, TClient, TConfig, InstanceException
 from ...connection.connection import ConnectionConnectedEvent, ConnectionPollEvent
 from ...events.client_events import ClientEvent
 from ...events.server_events import MultiPrinterAddedEvent, MultiPrinterRemovedEvent
-from ...helpers.url_builder import SimplyPrintUrl
+from ...helpers.url_builder import SimplyPrintURL
 
 
 class MultiPrinterException(InstanceException):
@@ -57,7 +57,7 @@ class MultiPrinter(Instance[TClient, TConfig]):
         self.event_bus.on(MultiPrinterAddedEvent, self.on_printer_added_response, priority=10)
         self.event_bus.on(MultiPrinterRemovedEvent, self.on_printer_removed_response, priority=10)
 
-        self.set_url(str(SimplyPrintUrl.current().ws_url / "mp" / "0" / "0"))
+        self.set_url(str(SimplyPrintURL().ws_url / "mp" / "0" / "0"))
 
         self.clients = dict()
         self.pending_add_waiters = dict()

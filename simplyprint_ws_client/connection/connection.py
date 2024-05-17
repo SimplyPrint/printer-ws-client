@@ -2,18 +2,20 @@ import asyncio
 import json
 import logging
 from asyncio import CancelledError
+from contextlib import suppress
 from typing import Any, Dict, Optional, Union
 
-from aiohttp import (ClientConnectorError, ClientSession,
+from aiohttp import (ClientSession,
                      ClientWebSocketResponse, WSMsgType,
-                     WSServerHandshakeError, ClientOSError)
+                     ClientResponseError, ClientError)
 
 from ..client.client import Client
 from ..events import DemandEvent, ServerEvent, EventFactory
 from ..events.client_events import ClientEvent, ClientEventMode
 from ..events.event import Event
 from ..events.event_bus import EventBus
-from ..utils import issue_118950_patch  # noqa
+from ..utils.cancelable_lock import CancelableLock
+# from ..utils import issue_118950_patch  # noqa
 from ..utils.event_loop_provider import EventLoopProvider
 from ..utils.traceability import traceable
 
@@ -51,11 +53,13 @@ class Connection(EventLoopProvider[asyncio.AbstractEventLoop]):
 
     event_bus: ConnectionEventBus
 
-    socket: Optional[ClientWebSocketResponse] = None
+    ws: Optional[ClientWebSocketResponse] = None
     session: Optional[ClientSession] = None
 
     # Ensure only a single thread can connect at a time
-    connection_lock: asyncio.Lock
+    # And we can cancel any connection attempts to enforce
+    # the reconnection timeout.
+    connection_lock: CancelableLock
 
     url: Optional[str] = None
     timeout: float = 5.0
@@ -63,69 +67,73 @@ class Connection(EventLoopProvider[asyncio.AbstractEventLoop]):
     def __init__(self, event_loop_provider: Optional[EventLoopProvider] = None) -> None:
         super().__init__(provider=event_loop_provider)
         self.event_bus = ConnectionEventBus(event_loop_provider=self)
-        self.connection_lock = asyncio.Lock()
+        self.connection_lock = CancelableLock()
 
     def is_connected(self) -> bool:
-        return self.socket is not None and not self.socket.closed
+        return self.ws is not None and not self.ws.closed
 
     async def connect(self, url: Optional[str] = None, timeout: Optional[float] = None, allow_reconnects=False) -> None:
-        async with self.connection_lock:
-            self.use_running_loop()
+        with suppress(asyncio.CancelledError):
+            async with self.connection_lock:
+                self.use_running_loop()
 
-            if self.is_connected() and not allow_reconnects:
-                return
+                if self.is_connected() and not allow_reconnects:
+                    return
 
-            reconnected = self.is_connected()
+                reconnected = self.is_connected()
 
-            if self.socket or self.session:
-                await self.close_internal()
-                self.socket = self.session = None
+                if self.ws or self.session:
+                    await self.close_internal()
+                    self.ws = self.session = None
 
-            self.url = url or self.url
-            self.timeout = timeout or self.timeout
-            self.session = ClientSession()
+                self.url = url or self.url
+                self.timeout = timeout or self.timeout
+                self.session = ClientSession()
 
-            self.logger.debug(
-                f"{'Connecting' if not reconnected else 'Reconnecting'} to {url or self.url}")
+                self.logger.debug(
+                    f"{'Connecting' if not reconnected else 'Reconnecting'} to {url or self.url}")
 
-            if not self.url:
-                raise ValueError("No url specified")
+                if not self.url:
+                    raise ValueError("No url specified")
 
-            socket = None
+                ws = None
 
-            try:
-                socket = await self.session.ws_connect(
-                    self.url,
-                    timeout=timeout,
-                    autoclose=True,
-                    autoping=True,
-                    heartbeat=10,
-                    max_msg_size=0,
-                    compress=False,
-                )
+                try:
+                    ws = await self.session.ws_connect(
+                        self.url,
+                        timeout=timeout,
+                        autoclose=True,
+                        autoping=True,
+                        heartbeat=10,
+                        max_msg_size=0,
+                        compress=False,
+                    )
 
-            except WSServerHandshakeError as e:
-                self.logger.info(
-                    f"Failed to connect to {self.url} with status code {e.status}: {e.message}")
-            except (ClientConnectorError, ClientOSError) as e:
-                self.logger.error(f"Failed to connect to {self.url}", exc_info=e)
-            except Exception as e:
-                self.logger.exception(e)
+                except ClientResponseError as e:
+                    self.logger.info(f"Failed to connect to {self.url} with status code {repr(e)}")
+                except (ConnectionRefusedError, ClientError) as e:
+                    self.logger.warning(f"Failed to connect to {self.url} due to a network/client error {e}.")
+                except Exception as e:
+                    self.logger.error(f"Failed to connect to {self.url} due to an exception {e}.", exc_info=e)
 
-            # Handle disconnect in a new task.
-            if socket is None or socket.closed:
-                _ = self.event_bus.emit_task(ConnectionDisconnectEvent())
-                return
+                # Handle disconnect in a new task.
+                if ws is None or ws.closed:
+                    # Kick out any other connection attempts until this point
+                    # and retry the connection via the disconnect event.
+                    self.connection_lock.cancel()
+                    _ = self.event_bus.emit_task(ConnectionDisconnectEvent())
+                    return
 
-            self.socket = socket
+                self.ws = ws
 
-            _ = self.event_bus.emit_task(ConnectionConnectedEvent(reconnect=reconnected))
-            self.logger.debug(f"Connected to {self.url} {reconnected=}")
+                _ = self.event_bus.emit_task(ConnectionConnectedEvent(reconnect=reconnected))
+
+                self.logger.debug(f"Connected to {self.url} {reconnected=}")
 
     async def close_internal(self):
         try:
-            if self.socket:
-                await self.socket.close()
+            if self.ws:
+                await self.ws.close()
         except Exception as e:
             self.logger.error("An exception occurred while closing to handle a disconnect condition", exc_info=e)
 
@@ -174,7 +182,7 @@ class Connection(EventLoopProvider[asyncio.AbstractEventLoop]):
 
             message = event.as_dict()
 
-            await self.socket.send_json(message)
+            await self.ws.send_json(message)
 
             event.on_sent()
 
@@ -193,11 +201,11 @@ class Connection(EventLoopProvider[asyncio.AbstractEventLoop]):
             return
 
         try:
-            message = await self.socket.receive(timeout=timeout)
+            message = await self.ws.receive(timeout=timeout)
 
             if message.type in (WSMsgType.CLOSED, WSMsgType.CLOSING, WSMsgType.CLOSE):
                 self.logger.debug(
-                    f"Websocket closed by server with code: {self.socket.close_code} and reason: {message.extra}")
+                    f"Websocket closed by server with code: {self.ws.close_code} and reason: {message.extra}")
 
                 # An exception can be passed via the message.data
                 if message.data:
