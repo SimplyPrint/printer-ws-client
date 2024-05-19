@@ -21,7 +21,7 @@ class JsonConfigManager(ConfigManager):
 
         with self._file_lock:
             with open(self._json_file, "w") as file:
-                data = [config.as_dict() for config in self.configurations if not config.is_blank()]
+                data = [config.dict() for config in self.configurations if not config.is_empty()]
                 json.dump(data, file, indent=4)
 
     def load(self):
@@ -34,10 +34,11 @@ class JsonConfigManager(ConfigManager):
                 except json.JSONDecodeError:
                     logging.warning(
                         f"Failed to load {self._json_file} configuration file, it's invalid - resetting it!!!")
+
                     data = []
 
                 for config in data:
-                    self.persist(self.config_t(**config))
+                    self.persist(self.config_t.from_dict(config))
 
     def delete_storage(self):
         with self._file_lock:

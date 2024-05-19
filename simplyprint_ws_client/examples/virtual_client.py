@@ -2,13 +2,13 @@ import asyncio
 import math
 
 from simplyprint_ws_client.client.client import DefaultClient
-from simplyprint_ws_client.client.config import Config
+from simplyprint_ws_client.client.config import PrinterConfig
 from simplyprint_ws_client.client.state.printer import FileProgressState, PrinterStatus
 from simplyprint_ws_client.events import Events, Demands
 from simplyprint_ws_client.helpers.file_download import FileDownload
 
 
-class VirtualConfig(Config):
+class VirtualConfig(PrinterConfig):
     ...
 
 

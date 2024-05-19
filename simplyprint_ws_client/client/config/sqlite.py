@@ -5,8 +5,8 @@ from pathlib import Path
 from typing import Optional
 
 from simplyprint_ws_client.client.config.config import Config
-from .manager import ConfigManager
 from simplyprint_ws_client.helpers.file_backup import FileBackup
+from .manager import ConfigManager
 
 
 class SQLiteConfigManager(ConfigManager):
@@ -30,7 +30,7 @@ class SQLiteConfigManager(ConfigManager):
 
             for config in self.configurations:
                 # Do not flush blank configs
-                if config.is_blank():
+                if config.is_empty():
                     continue
 
                 self._flush_single(config)
@@ -44,14 +44,12 @@ class SQLiteConfigManager(ConfigManager):
 
         configs = self.db.execute(
             """
-            SELECT id, token, data FROM printers
+            SELECT pk, sk, data FROM printers
             """).fetchall()
 
         for config in configs:
             kwargs = json.loads(config[2])
-            kwargs["id"] = config[0]
-            kwargs["token"] = config[1]
-            self.persist(self.config_t(**kwargs))
+            self.persist(self.config_t.from_dict(kwargs))
 
     def delete_storage(self):
         if not self._database_file.exists():
@@ -66,18 +64,18 @@ class SQLiteConfigManager(ConfigManager):
     def _get_single(self, config: Config):
         return self.db.execute(
             """
-            SELECT id, token FROM printers WHERE id= ? AND token= ? LIMIT 1
-            """, (config.id, config.token)).fetchone()
+            SELECT pk, sk FROM printers WHERE pk= ? AND sk= ? LIMIT 1
+            """, (config.pk, config.sk)).fetchone()
 
     def _flush_single(self, config: Config):
-        # Check if unique token and id exists
+        # Check if unique sk and pk exists
         already_exists = self._get_single(config)
 
         if not already_exists:
             self.db.execute(
                 """
-                INSERT INTO printers (id, token, data) VALUES (?, ?, ?)
-                """, (config.id, config.token, json.dumps(config.as_dict())))
+                INSERT INTO printers (pk, sk, data) VALUES (?, ?, ?)
+                """, (config.pk, config.sk, config.json()))
 
             self.db.commit()
             self.logger.info(f"Inserted config {config}")
@@ -85,24 +83,24 @@ class SQLiteConfigManager(ConfigManager):
 
         self.db.execute(
             """
-            UPDATE printers SET data= ? WHERE id= ? AND token= ?
-            """, (json.dumps(config.as_dict()), config.id, config.token))
+            UPDATE printers SET data= ? WHERE pk= ? AND sk= ?
+            """, (config.json(), config.pk, config.sk))
 
     def _remove_detached(self):
         # Get all configs from the database
         configs = self.db.execute(
             """
-            SELECT id, token FROM printers
+            SELECT pk, sk FROM printers
             """).fetchall()
 
         # Loop over all configs
         for config in configs:
             # If the config is not in the manager
-            if not self.by_other(self.config_t(id=config[0], token=config[1])):
+            if not self.find(pk=config[0], sk=config[1]):
                 # Remove it from the database
                 self.db.execute(
                     """
-                    DELETE FROM printers WHERE id= ? AND token= ?
+                    DELETE FROM printers WHERE pk= ? AND sk= ?
                     """, (config[0], config[1]))
 
     @property
@@ -123,10 +121,10 @@ class SQLiteConfigManager(ConfigManager):
         self.db.execute(
             """
             CREATE TABLE IF NOT EXISTS printers (
-                id INTEGER, 
-                token TEXT, 
+                pk INTEGER, 
+                sk TEXT, 
                 data TEXT, 
-                PRIMARY KEY (id, token)
+                PRIMARY KEY (pk, sk)
             );
             """)
 

@@ -2,8 +2,8 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Generic, List, Optional, Set, Type, TypeVar
 
-from .config import Config
 from simplyprint_ws_client.const import APP_DIRS
+from .config import Config, PrinterConfig
 
 TConfig = TypeVar("TConfig", bound=Config)
 
@@ -14,7 +14,7 @@ class ConfigManager(ABC, Generic[TConfig]):
     configurations: Set[Config]
     base_directory: Path
 
-    def __init__(self, name: str = "printers", config_t: Type[Config] = Config,
+    def __init__(self, name: str = "printers", config_t: Type[TConfig] = PrinterConfig,
                  base_directory: Optional[str] = None) -> None:
         self.name = name
         self.config_t = config_t
@@ -29,23 +29,25 @@ class ConfigManager(ABC, Generic[TConfig]):
         # Read all configurations from storage initially.
         self.load()
 
-    def by_id(self, client_id: int) -> Config:
-        return self.by_other(self.config_t(id=client_id))
+    def by_id(self, client_id: int) -> TConfig:
+        return self.find(id=client_id)
 
-    def by_token(self, token: str) -> Config:
-        return self.by_other(self.config_t(token=token))
+    def by_token(self, token: str) -> TConfig:
+        return self.find(token=token)
 
-    def by_unique_id(self, unique_id: str) -> Config:
-        return self.by_other(self.config_t(unique_id=unique_id))
+    def by_unique_id(self, unique_id: str) -> TConfig:
+        return self.find(unique_id=unique_id)
 
-    def by_other(self, other: Config) -> Optional[Config]:
+    def find(self, other: Optional[TConfig] = None, **kwargs) -> Optional[TConfig]:
+        kwargs = self.config_t.update_dict_keys(kwargs)
+
         for config in self.configurations:
-            if config.partial_eq(other):
+            if config.partial_eq(config=other, **kwargs):
                 return config
 
         return None
 
-    def contains(self, other: Config) -> bool:
+    def contains(self, other: TConfig) -> bool:
         return other in self.configurations
 
     def persist(self, config: Config):
@@ -54,20 +56,20 @@ class ConfigManager(ABC, Generic[TConfig]):
 
         self.configurations.add(config)
 
-    def remove(self, config: Config):
+    def remove(self, config: TConfig):
         if not self.contains(config):
             return
 
         self.configurations.remove(config)
 
-    def get_all(self) -> List[Config]:
+    def get_all(self) -> List[TConfig]:
         return list(self.configurations)
 
     def clear(self):
         self.configurations.clear()
 
     @abstractmethod
-    def flush(self, config: Optional[Config] = None):
+    def flush(self, config: Optional[TConfig] = None):
         """
         Tell the manager to save all configs.
 

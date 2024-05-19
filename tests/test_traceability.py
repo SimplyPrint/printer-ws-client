@@ -1,7 +1,7 @@
 import unittest
 
 from simplyprint_ws_client.client import Client
-from simplyprint_ws_client.client.config import Config
+from simplyprint_ws_client.client.config import Config, PrinterConfig
 from simplyprint_ws_client.utils import traceability
 
 
@@ -18,7 +18,7 @@ class TestTraceability(unittest.IsolatedAsyncioTestCase):
                 pass
 
         with traceability.enable_traceable():
-            client = TestClient(config=Config.get_new())
+            client = TestClient(config=PrinterConfig.get_new())
 
             class_traces = traceability.from_class(client)
 

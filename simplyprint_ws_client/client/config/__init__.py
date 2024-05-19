@@ -1,7 +1,7 @@
 from enum import Enum
 from typing import Type
 
-from .config import Config
+from .config import PrinterConfig, Config
 from .json import JsonConfigManager
 from .manager import ConfigManager
 from .memory import MemoryConfigManager

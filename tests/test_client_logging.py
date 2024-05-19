@@ -1,15 +1,14 @@
-import uuid
-from io import BytesIO, TextIOWrapper
 import logging
 import unittest
+import uuid
+from io import BytesIO, TextIOWrapper
 from logging.handlers import BaseRotatingHandler
 
-from simplyprint_ws_client.client.config import Config
-
+from simplyprint_ws_client.client.config import PrinterConfig
 from simplyprint_ws_client.client.logging import ClientHandler
 from simplyprint_ws_client.client.logging import ClientName
 
-config = Config.get_blank()
+config = PrinterConfig.get_blank()
 config.unique_id = "test"
 client_name = ClientName(config)
 
