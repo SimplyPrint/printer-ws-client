@@ -17,6 +17,13 @@ class ConfigManager(ABC, Generic[TConfig]):
     def __init__(self, name: str = "printers", config_t: Type[TConfig] = PrinterConfig,
                  base_directory: Optional[str] = None) -> None:
         self.name = name
+
+        # Override the hashable method to make the config hashable
+        # Just a nice to have to we do not need classes that individually
+        # call this method when the top level class that needs the functionality
+        # can get it here.
+        config_t.make_hashable()
+
         self.config_t = config_t
         self.configurations = set()
 

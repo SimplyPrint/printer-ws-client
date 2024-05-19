@@ -16,7 +16,7 @@ class SinglePrinter(Instance[TClient, TConfig]):
 
         self.client = client
 
-    def get_client(self, _: TConfig) -> Union[TClient, None]:
+    def get_client(self, _: Optional[TConfig] = None, **kwargs) -> Union[TClient, None]:
         return self.client
 
     def get_clients(self) -> Iterable[TClient]:

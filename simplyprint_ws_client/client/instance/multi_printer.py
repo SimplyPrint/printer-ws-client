@@ -102,15 +102,18 @@ class MultiPrinter(Instance[TClient, TConfig]):
     def get_clients(self) -> Iterable[TClient]:
         return self.clients.values()
 
-    def get_client(self, config: TConfig) -> Optional[TClient]:
-        if config.is_blank():
+    def get_client(self, config: Optional[TConfig] = None, **kwargs) -> Optional[TClient]:
+        if config:
+            kwargs.update(config.dict())
+
+        if not kwargs:
             return None
 
-        if config.unique_id in self.clients:
-            return self.clients[config.unique_id]
+        if (unique_id := kwargs.get('unique_id')) in self.clients:
+            return self.clients[unique_id]
 
         for client in self.clients.values():
-            if not client.config.partial_eq(config):
+            if not client.config.partial_eq(config, **kwargs):
                 continue
 
             return client

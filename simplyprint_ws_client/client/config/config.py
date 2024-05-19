@@ -60,20 +60,12 @@ class Config(ABC):
     @property
     def pk(self) -> int:
         """Primary key for the config."""
-        return getattr(self, self.keys()[0])
-
-    @pk.setter
-    def pk(self, value):
-        setattr(self, self.keys()[0], value)
+        return int(getattr(self, self.keys()[0]))
 
     @property
     def sk(self) -> str:
         """Secondary key for the config."""
-        return getattr(self, self.keys()[1])
-
-    @sk.setter
-    def sk(self, value):
-        setattr(self, self.keys()[1], value)
+        return str(getattr(self, self.keys()[1]))
 
     @staticmethod
     @abstractmethod
@@ -116,9 +108,6 @@ class PrinterConfig(Config):
     @staticmethod
     def keys() -> tuple:
         return "id", "token"
-
-    def __post_init__(self):
-        self.make_hashable()
 
     def is_empty(self) -> bool:
         data = self.dict()

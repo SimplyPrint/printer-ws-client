@@ -252,11 +252,9 @@ class Instance(AsyncStoppable, EventLoopProvider, Generic[TClient, TConfig], ABC
         """
 
         if isinstance(event.for_client, str):
-            config = Config(unique_id=event.for_client)
+            client = self.get_client(unique_id=event.for_client)
         else:
-            config = Config(id=event.for_client)
-
-        client = self.get_client(config)
+            client = self.get_client(id=event.for_client)
 
         if not client and event.event == ConnectEvent:
             self.connection_is_ready.set()
@@ -395,9 +393,9 @@ class Instance(AsyncStoppable, EventLoopProvider, Generic[TClient, TConfig], ABC
         ...
 
     @abstractmethod
-    def get_client(self, config: TConfig) -> Optional[TClient]:
+    def get_client(self, config: Optional[TConfig] = None, **kwargs) -> Optional[TClient]:
         """
-        Returns a client instance for the given config, potentially partial config.
+        Returns a client instance for the given filter arguments, potentially partial args.
         """
         ...
 
