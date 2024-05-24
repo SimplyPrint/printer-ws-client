@@ -5,7 +5,7 @@ import threading
 from contextlib import suppress
 from typing import Optional, Generic, Dict
 
-from .config import Config, ConfigManager
+from .config import Config, ConfigManager, PrinterConfig
 from .factory import ClientFactory
 from .instance import Instance
 from .instance.instance import TClient, TConfig
@@ -25,7 +25,7 @@ class ClientApp(Generic[TClient, TConfig]):
     instance: Instance[TClient, TConfig]
     instance_thread: Optional[threading.Thread] = None
 
-    config_manager: ConfigManager
+    config_manager: ConfigManager[PrinterConfig]
     client_providers: Dict[Config, ClientProvider]
     provider_factory: TClientProviderFactory
 

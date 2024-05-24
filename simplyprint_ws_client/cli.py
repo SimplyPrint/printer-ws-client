@@ -5,7 +5,7 @@ from typing import Any, Dict, Optional, Union, get_args, get_origin, Callable
 import click
 
 from .client.app import ClientApp
-from .client.config import Config
+from .client.config import PrinterConfig
 
 
 class CommandBag:
@@ -52,7 +52,7 @@ class ClientCliConfigManager(CommandBag, click.Group):
 
         return ""
 
-    def prompt_and_update_config(self, config: Config):
+    def prompt_and_update_config(self, config: PrinterConfig):
         click.echo(f"Editing configuration {config}. Leave blank to keep current value")
         fields = list(sorted(config.__slots__))
 
@@ -75,7 +75,7 @@ class ClientCliConfigManager(CommandBag, click.Group):
 
             setattr(config, field, value)
 
-    def get_config_by_index(self, index: int) -> Optional[Config]:
+    def get_config_by_index(self, index: int) -> Optional[PrinterConfig]:
         configs = self.app.config_manager.get_all()
         if 0 <= index < len(configs):
             return configs[index]
@@ -93,7 +93,7 @@ class ClientCliConfigManager(CommandBag, click.Group):
             click.echo("Configuration not found.")
 
     def add_config(self):
-        config = self.app.config_manager.config_t()
+        config = self.app.config_manager.config_t.get_blank()
         self.prompt_and_update_config(config)
         self.app.config_manager.persist(config)
         self.app.config_manager.flush()

@@ -10,8 +10,8 @@ TConfig = TypeVar("TConfig", bound=Config)
 
 class ConfigManager(ABC, Generic[TConfig]):
     name: str
-    config_t: Type[Config]
-    configurations: Set[Config]
+    config_t: Type[TConfig]
+    configurations: Set[TConfig]
     base_directory: Path
 
     def __init__(self, name: str = "printers", config_t: Type[TConfig] = PrinterConfig,
