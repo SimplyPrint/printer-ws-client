@@ -103,6 +103,9 @@ class ClientProvider(ABC, Generic[TConfig], EventLoopProvider[asyncio.AbstractEv
                 except InstanceException as e:
                     self.app.instance.logger.error(f"Failed to register client: {e}")
                     await self._ensure_retry()
+                except Exception as e:
+                    self.app.instance.logger.error(f"An exception occurred while registering the client", exc_info=e)
+                    raise
 
     @abstractmethod
     def get_client(self) -> Optional['Client']:

@@ -123,8 +123,10 @@ class ClientLifetime(AsyncStoppable, ABC):
         return True
 
     async def loop(self):
+        self.client.logger.info(f"Starting client lifetime loop")
+
         while not self.is_stopped():
-            dt = time.time()
+            t = time.time()
 
             try:
                 await self.consume()
@@ -132,8 +134,10 @@ class ClientLifetime(AsyncStoppable, ABC):
                 self.client.logger.error("An error occurred while consuming the client", exc_info=e)
             finally:
                 self.heartbeat()
-                await self.wait(max(0.0, self.tick_rate.value - (time.time() - dt)))
+                dt = max(0.0, self.tick_rate.value - (time.time() - t))
+                await self.wait(dt)
 
+        self.client.logger.info(f"Client lifetime loop stopped")
         # Client implements custom stop logic
         self.stop_deferred()
 
