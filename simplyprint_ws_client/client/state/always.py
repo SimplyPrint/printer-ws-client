@@ -1,5 +1,6 @@
-from typing import Any
 from traitlets import HasTraits, TraitType
+from typing import Any
+
 
 class Always(TraitType):
     """ 

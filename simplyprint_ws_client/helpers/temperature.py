@@ -1,6 +1,5 @@
-from typing import Optional
-
 from traitlets import Float
+from typing import Optional
 
 from ..client.state import ClientState, to_event
 from ..events.client_events import TemperatureEvent

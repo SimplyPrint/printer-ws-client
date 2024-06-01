@@ -1,10 +1,9 @@
 import functools
 from collections import OrderedDict
+from traitlets import HasTraits, List as TraitletsList, Bunch, Undefined
 from typing import Any, Dict, Optional, List, Set, Generator, Callable, Tuple
 from typing import OrderedDict as OrderedDictType
 from typing import Type, TYPE_CHECKING
-
-from traitlets import HasTraits, List as TraitletsList, Bunch, Undefined
 
 if TYPE_CHECKING:
     from simplyprint_ws_client.events.client_events import ClientEvent

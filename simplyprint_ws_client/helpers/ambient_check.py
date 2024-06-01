@@ -1,6 +1,5 @@
-from typing import Callable, List, Optional, Tuple
-
 from traitlets import Float, Int
+from typing import Callable, List, Optional, Tuple
 
 from .temperature import Temperature
 from ..client.state import ClientState, to_event

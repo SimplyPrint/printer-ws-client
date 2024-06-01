@@ -5,6 +5,7 @@ from simplyprint_ws_client.helpers.file_manager import File, FileManager
 
 test_time = time.time()
 
+
 def test_files(): return [
     File("test1.gcode", 100, last_modified=test_time - 1000),
     File("test2.gcode", 200, last_modified=test_time - 2000),
@@ -20,7 +21,6 @@ class TestFileManager(unittest.TestCase):
                          max_size=250, least_remaining_space_percentage=0.1)
         files_to_remove = list(
             fm.get_files_to_remove(test_files(), 2000, 1500))
-        
 
         self.assertEqual(files_to_remove, [
             File("test2.gcode", 200, last_modified=test_time - 2000),
@@ -46,7 +46,7 @@ class TestFileManager(unittest.TestCase):
                          least_remaining_space_percentage=0)
         files_to_remove = list(
             fm.get_files_to_remove(test_files(), 2000, 1500))
-        
+
         self.assertEqual(files_to_remove, [
             File("test5.gcode", 500, last_modified=test_time - 5000),
             File("test4.gcode", 400, last_modified=test_time - 4000),

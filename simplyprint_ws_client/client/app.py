@@ -1,10 +1,10 @@
 import asyncio
 import functools
-import logging
 import threading
 from contextlib import suppress
 from typing import Optional, Generic, Dict
 
+import logging
 from .config import Config, ConfigManager, PrinterConfig
 from .factory import ClientFactory
 from .instance import Instance

@@ -1,12 +1,11 @@
 import functools
 import os
 import platform
+import psutil
 import re
 import socket
 import subprocess
 from typing import Optional
-
-import psutil
 
 from ._exception_as_value import _exception_as_value
 

@@ -1,13 +1,12 @@
 import asyncio
 import json
 import logging
-from asyncio import CancelledError
-from contextlib import suppress
-from typing import Any, Dict, Optional, Union
-
 from aiohttp import (ClientSession,
                      ClientWebSocketResponse, WSMsgType,
                      ClientResponseError, ClientError)
+from asyncio import CancelledError
+from contextlib import suppress
+from typing import Any, Dict, Optional, Union
 
 from ..client.client import Client
 from ..events import DemandEvent, ServerEvent, EventFactory

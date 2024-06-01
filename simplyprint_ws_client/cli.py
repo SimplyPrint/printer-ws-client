@@ -1,8 +1,7 @@
 # TODO: Change this.
 
-from typing import Any, Dict, Optional, Union, get_args, get_origin, Callable
-
 import click
+from typing import Any, Dict, Optional, Union, get_args, get_origin, Callable
 
 from .client.app import ClientApp
 from .client.config import PrinterConfig

@@ -1,7 +1,6 @@
 from enum import Enum
 from os import environ
 from typing import NamedTuple, Optional
-
 from yarl import URL
 
 from simplyprint_ws_client.const import IS_TESTING
