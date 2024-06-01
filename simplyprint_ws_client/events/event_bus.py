@@ -109,6 +109,9 @@ class EventBus(Generic[TEvent]):
         args = self.initialize_args(event, *args)
 
         for listener in self.listeners[event]:
+            if isinstance(event, Event) and event.is_stopped():
+                return
+
             ret = await listener(*args, **kwargs)
             args = self.update_args(event, args, ret)
 
@@ -125,6 +128,9 @@ class EventBus(Generic[TEvent]):
         for listener in self.listeners[event]:
             if listener.is_async:
                 continue
+
+            if isinstance(event, Event) and event.is_stopped():
+                return
 
             ret = listener.handler(*args, **kwargs)
             args = self.update_args(event, args, ret)
