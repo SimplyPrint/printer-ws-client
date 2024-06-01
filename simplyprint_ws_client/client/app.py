@@ -121,7 +121,7 @@ class ClientApp(Generic[TClient, TConfig]):
 
         contexts.append(functools.partial(traceability.enable_traceable, debug))
 
-        with EventLoopRunner(debug, contexts) as runner:
+        with EventLoopRunner(debug, contexts, self.options.event_loop_backend) as runner:
             runner.run(self.run())
 
     def run_detached(self, *args, **kwargs):

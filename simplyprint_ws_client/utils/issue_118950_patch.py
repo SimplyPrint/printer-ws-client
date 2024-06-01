@@ -1,8 +1,8 @@
 # Implements https://github.com/python/cpython/pull/118960
 # Without needing to modify the source code of the library.
+# UVLoop also experiences this issue, so we default to asyncio.
+# Issue: https://github.com/python/cpython/issues/118950
 
-import functools
-import logging
 from asyncio.sslproto import _SSLProtocolTransport, SSLProtocol
 
 

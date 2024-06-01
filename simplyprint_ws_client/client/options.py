@@ -7,6 +7,7 @@ from .config import ConfigManagerType
 from .factory import TClientFactory
 from .instance import Instance, MultiPrinter, SinglePrinter
 from ..helpers.url_builder import SimplyPrintBackend
+from ..utils.event_loop_runner import EventLoopBackend
 
 
 class ClientMode(Enum):
@@ -28,6 +29,9 @@ TConfigFactory = Union[Type[Config], Callable[[], Config]]
 class ClientOptions(NamedTuple):
     mode: ClientMode = ClientMode.SINGLE
     backend: Optional[SimplyPrintBackend] = None
+    # UVLoop is bugged, so we default to asyncio.
+    # See issue_118950_patch.py for mere.
+    event_loop_backend: EventLoopBackend = EventLoopBackend.ASYNCIO
     development: bool = False
 
     # Client name and version used for various purposes.
