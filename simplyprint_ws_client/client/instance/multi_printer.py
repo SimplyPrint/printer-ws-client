@@ -16,6 +16,10 @@ class MultiPrinterException(InstanceException):
     pass
 
 
+class MultiPrinterFailedToAddException(MultiPrinterException):
+    ...
+
+
 class MultiPrinterClientEvents(Enum):
     ADD_PRINTER = "add_connection"
     REMOVE_PRINTER = "remove_connection"
@@ -75,7 +79,7 @@ class MultiPrinter(Instance[TClient, TConfig]):
             success = await added_future
 
             if not success:
-                raise MultiPrinterException(f"Failed to add printer {client.config.unique_id}")
+                raise MultiPrinterFailedToAddException(f"Failed to add printer {client.config.unique_id}")
 
         except (asyncio.TimeoutError, asyncio.CancelledError):
             raise MultiPrinterException(f"Failed to add printer {client.config.unique_id} due to timeout/cancellation.")
@@ -231,8 +235,12 @@ class MultiPrinter(Instance[TClient, TConfig]):
 
         await self.connection.send_event(client, MultiPrinterAddPrinterEvent(client.config, self.allow_setup))
 
-        # Add a timeout to the future.
-        return asyncio.shield(asyncio.wait_for(fut, timeout=5))
+        # Add a timeout to the future waiting for the servers' response.
+        # This is the worst case precaution which should only deal with the edge case
+        # that is we drop the add_connection event on the server side, this way the
+        # client can retry again at a later time, usually when the server does not respond
+        # NO printers are added, so this is a very rare edge case.
+        return asyncio.shield(asyncio.wait_for(fut, timeout=60))
 
     async def _send_remove_printer(self, client: TClient):
         await self.connection.send_event(client, MultiPrinterRemovePrinterEvent(client.config))

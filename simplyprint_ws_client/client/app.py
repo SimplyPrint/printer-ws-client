@@ -1,10 +1,10 @@
 import asyncio
 import functools
+import logging
 import threading
 from contextlib import suppress
 from typing import Optional, Generic, Dict
 
-import logging
 from .config import Config, ConfigManager, PrinterConfig
 from .factory import ClientFactory
 from .instance import Instance
@@ -77,8 +77,8 @@ class ClientApp(Generic[TClient, TConfig]):
             self.client_providers[config] = provider
 
         task = provider.ensure()
-        asyncio.run_coroutine_threadsafe(task, self.instance.event_loop)
-        return task
+        fut = asyncio.run_coroutine_threadsafe(task, self.instance.event_loop)
+        return task, fut
 
     def unload(self, config: Config):
         provider = self.client_providers.get(config)
@@ -93,8 +93,8 @@ class ClientApp(Generic[TClient, TConfig]):
             await provider.delete()
 
         task = _unload()
-        asyncio.run_coroutine_threadsafe(task, self.instance.event_loop)
-        return task
+        fut = asyncio.run_coroutine_threadsafe(task, self.instance.event_loop)
+        return task, fut
 
     def get_provider(self, config: Config):
         return self.client_providers.get(config)

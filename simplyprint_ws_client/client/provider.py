@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Optional, Protocol, Generic, TypeVar
 
 from .instance.instance import InstanceException
+from .instance.multi_printer import MultiPrinterFailedToAddException
 from ..utils.event_loop_provider import EventLoopProvider
 
 if TYPE_CHECKING:
@@ -46,7 +47,7 @@ class ClientProvider(ABC, Generic[TConfig], EventLoopProvider[asyncio.AbstractEv
         self.config = config
 
     async def _retry(self, timeout: float):
-        await asyncio.sleep(timeout)
+        await self.app.instance.wait(timeout)
 
         try:
             self.app.instance.logger.debug(f"Retrying ensure for {self.config.unique_id}")
@@ -100,6 +101,12 @@ class ClientProvider(ABC, Generic[TConfig], EventLoopProvider[asyncio.AbstractEv
                 # Add the client to the instance.
                 try:
                     await self.app.instance.register_client(client)
+
+                except MultiPrinterFailedToAddException:
+                    # The configuration is not valid.
+                    self.app.instance.logger.error(
+                        f"Failed to add client {client.config.id} to instance due to response status false.")
+                    raise
                 except InstanceException as e:
                     self.app.instance.logger.error(f"Failed to register client: {e}")
                     await self._ensure_retry()
