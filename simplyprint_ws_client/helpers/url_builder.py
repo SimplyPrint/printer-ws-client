@@ -1,6 +1,7 @@
 from enum import Enum
 from os import environ
 from typing import NamedTuple, Optional
+
 from yarl import URL
 
 from simplyprint_ws_client.const import IS_TESTING
@@ -120,7 +121,5 @@ class SimplyPrintURL:
 
 value = environ.get("SIMPLYPRINT_BACKEND",
                     (SimplyPrintBackend.TESTING if IS_TESTING else SimplyPrintBackend.PRODUCTION).value)
-
-_current_backend = SimplyPrintBackend(value)
 
 SimplyPrintURL.set_backend(SimplyPrintBackend(value))

@@ -1,12 +1,13 @@
 import asyncio
 import json
 import logging
-from aiohttp import (ClientSession,
-                     ClientWebSocketResponse, WSMsgType,
-                     ClientResponseError, ClientError)
 from asyncio import CancelledError
 from contextlib import suppress
 from typing import Any, Dict, Optional, Union
+
+from aiohttp import (ClientSession,
+                     ClientWebSocketResponse, WSMsgType,
+                     ClientResponseError, ClientError)
 
 from ..client.client import Client
 from ..events import DemandEvent, ServerEvent, EventFactory
@@ -76,10 +77,11 @@ class Connection(EventLoopProvider[asyncio.AbstractEventLoop]):
             async with self.connection_lock:
                 self.use_running_loop()
 
-                if self.is_connected() and not allow_reconnects:
-                    return
-
                 reconnected = self.is_connected()
+
+                if reconnected and not allow_reconnects:
+                    self.logger.debug("Already connected, not reconnecting as reconnects are not allowed.")
+                    return
 
                 if self.ws or self.session:
                     await self.close_internal()

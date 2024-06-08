@@ -56,7 +56,7 @@ class VirtualClient(DefaultClient[VirtualConfig]):
     @Demands.FileEvent.on
     async def on_file(self, event: Demands.FileEvent):
         downloader = FileDownload(self)
-        _ = await downloader.download_as_bytes(event.url)
+        _ = await downloader.download_as_bytes(event.cdn_url)
         self.printer.file_progress.state = FileProgressState.READY
         await self.on_start_print(event)
 
