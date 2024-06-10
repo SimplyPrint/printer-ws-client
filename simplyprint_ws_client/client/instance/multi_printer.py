@@ -116,7 +116,7 @@ class MultiPrinter(Instance[TClient, TConfig]):
         if (unique_id := kwargs.get('unique_id')) in self.clients:
             return self.clients[unique_id]
 
-        for client in self.clients.values():
+        for client in list(self.clients.values()):
             if not client.config.partial_eq(config, **kwargs):
                 continue
 
