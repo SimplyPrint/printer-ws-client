@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Generic, List, Optional, Set, Type, TypeVar
+from typing import Generic, List, Optional, Type, TypeVar, Tuple, Dict
 
 from simplyprint_ws_client.const import APP_DIRS
 from .config import Config, PrinterConfig
@@ -11,7 +11,7 @@ TConfig = TypeVar("TConfig", bound=Config)
 class ConfigManager(ABC, Generic[TConfig]):
     name: str
     config_t: Type[TConfig]
-    configurations: Set[TConfig]
+    configurations: Dict[Tuple[int, str], TConfig]
     base_directory: Path
 
     def __init__(self, name: str = "printers", config_t: Type[TConfig] = PrinterConfig,
@@ -25,7 +25,7 @@ class ConfigManager(ABC, Generic[TConfig]):
         config_t.make_hashable()
 
         self.config_t = config_t
-        self.configurations = set()
+        self.configurations = dict()
 
         # Default to user config directory if not specified
         self.base_directory = Path(base_directory or APP_DIRS.user_config_dir)
@@ -48,29 +48,26 @@ class ConfigManager(ABC, Generic[TConfig]):
     def find(self, other: Optional[TConfig] = None, **kwargs) -> Optional[TConfig]:
         kwargs = self.config_t.update_dict_keys(kwargs)
 
-        for config in self.configurations:
+        for config in self.get_all():
             if config.partial_eq(config=other, **kwargs):
                 return config
 
         return None
 
     def contains(self, other: TConfig) -> bool:
-        return other in self.configurations
+        return other.key in self.configurations
 
     def persist(self, config: Config):
         if self.contains(config):
             return
 
-        self.configurations.add(config)
+        self.configurations[config.key] = config
 
     def remove(self, config: TConfig):
-        if not self.contains(config):
-            return
-
-        self.configurations.remove(config)
+        del self.configurations[config.key]
 
     def get_all(self) -> List[TConfig]:
-        return list(self.configurations)
+        return list(self.configurations.values())
 
     def clear(self):
         self.configurations.clear()

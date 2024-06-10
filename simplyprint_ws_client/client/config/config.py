@@ -2,7 +2,7 @@ import json
 import uuid
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, fields
-from typing import Optional
+from typing import Optional, Tuple
 
 try:
     from typing import Self
@@ -11,20 +11,20 @@ except ImportError:
 
 
 class Config(ABC):
-    """Config interface for persistence."""
+    """Config Entity interface for persistence."""
 
     def __repr__(self):
         return f"{self.__class__.__name__}({self.dict()})"
 
     def __eq__(self, other: object) -> bool:
-        """Each instance is unique."""
+        """Each instance is unique, but we still want generic comparisons."""
         if isinstance(other, self.__class__):
-            return id(self) == id(other)
+            return self.key == other.key
 
         return False
 
     def __hash__(self) -> int:
-        return hash(id(self))
+        return hash(self.key)
 
     @classmethod
     def make_hashable(cls):
@@ -66,6 +66,10 @@ class Config(ABC):
     def sk(self) -> str:
         """Secondary key for the config."""
         return str(getattr(self, self.keys()[1]))
+
+    @property
+    def key(self) -> Tuple[int, str]:
+        return self.pk, self.sk
 
     @staticmethod
     @abstractmethod

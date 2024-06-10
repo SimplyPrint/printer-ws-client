@@ -21,7 +21,7 @@ class JsonConfigManager(ConfigManager):
 
         with self._file_lock:
             with open(self._json_file, "w") as file:
-                data = [json.loads(config.json()) for config in self.configurations if not config.is_empty()]
+                data = [json.loads(config.json()) for config in self.get_all() if not config.is_empty()]
                 json.dump(data, file, indent=4)
 
     def load(self):
