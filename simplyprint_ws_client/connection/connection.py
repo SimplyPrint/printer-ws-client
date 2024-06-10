@@ -15,7 +15,7 @@ from ..events.client_events import ClientEvent, ClientEventMode
 from ..events.event import Event
 from ..events.event_bus import EventBus
 from ..utils.cancelable_lock import CancelableLock
-# from ..utils import issue_118950_patch  # noqa
+from ..utils import issue_118950_patch  # noqa
 from ..utils.event_loop_provider import EventLoopProvider
 from ..utils.traceability import traceable
 
