@@ -14,7 +14,7 @@ class Config(ABC):
     """Config Entity interface for persistence."""
 
     def __repr__(self):
-        return f"{self.__class__.__name__}({self.dict()})"
+        return f"{self.__class__.__name__}({self.as_dict()})"
 
     def __eq__(self, other: object) -> bool:
         """Each instance is unique, but we still want generic comparisons."""
@@ -46,10 +46,10 @@ class Config(ABC):
     def partial_eq(self, config: Optional['Config'] = None, **kwargs) -> bool:
         """Check if the other config is partially equal to this one."""
 
-        data = self.dict()
+        data = self.as_dict()
 
         if config is not None:
-            kwargs.update(config.dict())
+            kwargs.update(config.as_dict())
 
         for key, value in kwargs.items():
             if key not in data or data[key] != value:
@@ -82,11 +82,11 @@ class Config(ABC):
         raise NotImplemented()
 
     @abstractmethod
-    def dict(self) -> dict:
+    def as_dict(self) -> dict:
         raise NotImplemented()
 
-    def json(self) -> str:
-        return json.dumps(self.dict())
+    def as_json(self) -> str:
+        return json.dumps(self.as_dict())
 
     @classmethod
     @abstractmethod
@@ -114,12 +114,12 @@ class PrinterConfig(Config):
         return "id", "token"
 
     def is_empty(self) -> bool:
-        data = self.dict()
+        data = self.as_dict()
         data = {k: v for k, v in data.items() if v is not None}
 
         return self.is_default() and len(set(data.keys()) - {"id", "token"}) == 0
 
-    def dict(self) -> dict:
+    def as_dict(self) -> dict:
         data = {}
 
         for field in fields(self):

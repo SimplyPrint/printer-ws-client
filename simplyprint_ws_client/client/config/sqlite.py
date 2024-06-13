@@ -75,7 +75,7 @@ class SQLiteConfigManager(ConfigManager):
             self.db.execute(
                 """
                 INSERT INTO printers (pk, sk, data) VALUES (?, ?, ?)
-                """, (config.pk, config.sk, config.json()))
+                """, (config.pk, config.sk, config.as_json()))
 
             self.db.commit()
             self.logger.info(f"Inserted config {config}")
@@ -84,7 +84,7 @@ class SQLiteConfigManager(ConfigManager):
         self.db.execute(
             """
             UPDATE printers SET data= ? WHERE pk= ? AND sk= ?
-            """, (config.json(), config.pk, config.sk))
+            """, (config.as_json(), config.pk, config.sk))
 
     def _remove_detached(self):
         # Get all configs from the database

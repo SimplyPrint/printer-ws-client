@@ -8,15 +8,15 @@ class TestConfigManager(unittest.TestCase):
         config1 = PrinterConfig.get_blank()
         config2 = PrinterConfig.get_blank()
 
-        self.assertTrue(config1.partial_eq(**config1.dict()))
-        self.assertTrue(config2.partial_eq(**config2.dict()))
+        self.assertTrue(config1.partial_eq(**config1.as_dict()))
+        self.assertTrue(config2.partial_eq(**config2.as_dict()))
 
         self.assertTrue(config1.is_empty())
         self.assertTrue(config2.is_default())
 
-        self.assertDictEqual(config1.dict(), config2.dict())
+        self.assertDictEqual(config1.as_dict(), config2.as_dict())
 
-        self.assertDictEqual(config1.dict(), {
+        self.assertDictEqual(config1.as_dict(), {
             'id': 0,
             'token': "0",
             'name': None,
@@ -28,8 +28,8 @@ class TestConfigManager(unittest.TestCase):
 
         config1.id = 1
 
-        self.assertFalse(config1.partial_eq(**config2.dict()))
-        self.assertFalse(config2.partial_eq(**config1.dict()))
+        self.assertFalse(config1.partial_eq(**config2.as_dict()))
+        self.assertFalse(config2.partial_eq(**config1.as_dict()))
 
         self.assertFalse(config1.is_empty())
 

@@ -108,7 +108,7 @@ class MultiPrinter(Instance[TClient, TConfig]):
 
     def get_client(self, config: Optional[TConfig] = None, **kwargs) -> Optional[TClient]:
         if config:
-            kwargs.update(config.dict())
+            kwargs.update(config.as_dict())
 
         if not kwargs:
             return None
