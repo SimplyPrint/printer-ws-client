@@ -64,7 +64,7 @@ class ConfigManager(ABC, Generic[TConfig]):
         self.configurations[config.key] = config
 
     def remove(self, config: TConfig):
-        del self.configurations[config.key]
+        self.configurations.pop(config.key, None)
 
     def get_all(self) -> List[TConfig]:
         return list(self.configurations.values())
