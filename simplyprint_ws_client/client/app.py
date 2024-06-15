@@ -114,9 +114,18 @@ class ClientApp(Generic[TClient, TConfig]):
     async def run(self):
         async def _register_configs():
             configs = self.config_manager.get_all()
+            load_tasks = []
 
-            await asyncio.gather(*[self.load(config) for config in configs],
-                                 return_exceptions=True)
+            for config in configs:
+                res = self.load(config)
+
+                if not res:
+                    continue
+
+                task, _ = res
+                load_tasks.append(task)
+
+            await asyncio.gather(*load_tasks, return_exceptions=True)
 
         with suppress(asyncio.CancelledError):
             async with self.instance:
@@ -148,8 +157,8 @@ class ClientApp(Generic[TClient, TConfig]):
     def stop(self):
         # Cleanup all providers before stopping the instance
         # as the event loop is not available after stopping the instance.
-        for pk, sk in list(self.client_providers.keys()):
-            self.unload(PrinterConfig(id=pk, token=sk))
+        for config in list(self.client_providers.keys()):
+            self.unload(config)
 
         self.instance.stop()
 
