@@ -1,5 +1,6 @@
-from traitlets import Float
 from typing import Optional
+
+from traitlets import Float
 
 from ..client.state import ClientState, to_event
 from ..events.client_events import TemperatureEvent
@@ -7,7 +8,7 @@ from ..events.client_events import TemperatureEvent
 
 @to_event(TemperatureEvent, "actual", "target")
 class Temperature(ClientState):
-    actual: Optional[float] = Float()
+    actual: float = Float()
     target: Optional[float] = Float(allow_none=True)
 
     def __eq__(self, other) -> bool:
