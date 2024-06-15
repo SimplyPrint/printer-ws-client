@@ -3,9 +3,9 @@ import functools
 import logging
 import threading
 from contextlib import suppress
-from typing import Optional, Generic, Dict
+from typing import Optional, Generic, Dict, Tuple, Coroutine
 
-from .config import Config, ConfigManager, PrinterConfig
+from .config import ConfigManager, PrinterConfig
 from .factory import ClientFactory
 from .instance import Instance
 from .instance.instance import TClient, TConfig
@@ -26,7 +26,7 @@ class ClientApp(Generic[TClient, TConfig]):
     instance_thread: Optional[threading.Thread] = None
 
     config_manager: ConfigManager[PrinterConfig]
-    client_providers: Dict[Config, ClientProvider]
+    client_providers: Dict[TConfig, ClientProvider]
     provider_factory: TClientProviderFactory
 
     def __init__(self, options: ClientOptions, provider_factory: Optional[TClientProviderFactory] = None) -> None:
@@ -69,24 +69,36 @@ class ClientApp(Generic[TClient, TConfig]):
         if options.sentry_dsn:
             Sentry.initialize_sentry(self.options)
 
-    def load(self, config: Config):
+    def load(self, config: PrinterConfig) -> Optional[Tuple[Coroutine, asyncio.Future]]:
+        # Lock to ensure that we don't load the same config twice
+        if not self.config_manager.contains(config):
+            self.config_manager.persist(config)
+            self.config_manager.flush()
+
         if config in self.client_providers:
             provider = self.client_providers.get(config)
         else:
-            provider = self.provider_factory(config=config)
+            try:
+                provider = self.provider_factory(config=config)
+            except Exception as e:
+                self.logger.error(f"Failed to create provider for {config}", exc_info=e)
+                return
+
             self.client_providers[config] = provider
 
         task = provider.ensure()
         fut = asyncio.run_coroutine_threadsafe(task, self.instance.event_loop)
         return task, fut
 
-    def unload(self, config: Config):
+    def unload(self, config: PrinterConfig) -> Optional[Tuple[Coroutine, asyncio.Future]]:
         provider = self.client_providers.get(config)
 
         if not provider:
+            self.logger.warning(
+                f"Provider for {config} not found. {list(self.client_providers.keys())} are all loaded")
             return
 
-        del self.client_providers[config]
+        self.client_providers.pop(config)
 
         async def _unload():
             await provider.ensure(remove=True)
@@ -96,7 +108,7 @@ class ClientApp(Generic[TClient, TConfig]):
         fut = asyncio.run_coroutine_threadsafe(task, self.instance.event_loop)
         return task, fut
 
-    def get_provider(self, config: Config):
+    def get_provider(self, config: PrinterConfig):
         return self.client_providers.get(config)
 
     async def run(self):
@@ -136,8 +148,8 @@ class ClientApp(Generic[TClient, TConfig]):
     def stop(self):
         # Cleanup all providers before stopping the instance
         # as the event loop is not available after stopping the instance.
-        for provider in list(self.client_providers.keys()):
-            self.unload(provider)
+        for pk, sk in list(self.client_providers.keys()):
+            self.unload(PrinterConfig(id=pk, token=sk))
 
         self.instance.stop()
 

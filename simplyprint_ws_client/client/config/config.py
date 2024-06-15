@@ -9,6 +9,8 @@ try:
 except ImportError:
     from typing_extensions import Self
 
+TKey = Tuple[int, str]
+
 
 class Config(ABC):
     """Config Entity interface for persistence."""
@@ -17,14 +19,14 @@ class Config(ABC):
         return f"{self.__class__.__name__}({self.as_dict()})"
 
     def __eq__(self, other: object) -> bool:
-        """Each instance is unique, but we still want generic comparisons."""
+        """Each instance is unique."""
         if isinstance(other, self.__class__):
-            return self.key == other.key
+            return id(self) == id(other)
 
         return False
 
     def __hash__(self) -> int:
-        return hash(self.key)
+        return hash(id(self))
 
     @classmethod
     def make_hashable(cls):
@@ -68,7 +70,7 @@ class Config(ABC):
         return str(getattr(self, self.keys()[1]))
 
     @property
-    def key(self) -> Tuple[int, str]:
+    def key(self) -> TKey:
         return self.pk, self.sk
 
     @staticmethod

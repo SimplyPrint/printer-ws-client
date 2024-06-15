@@ -6,7 +6,7 @@ from typing import (Any, Callable, Generic, Iterable, List,
                     Optional, Tuple, TypeVar, Union, Coroutine)
 
 from ..client import Client, ClientConfigChangedEvent
-from ..config.config import Config
+from ..config.config import PrinterConfig
 from ..config.manager import ConfigManager
 from ..lifetime.lifetime_manager import LifetimeManager, LifetimeType
 from ...connection.connection import (Connection, ConnectionConnectedEvent,
@@ -21,7 +21,7 @@ from ...utils.event_loop_provider import EventLoopProvider
 from ...utils.stoppable import AsyncStoppable, Stoppable
 
 TClient = TypeVar("TClient", bound=Client)
-TConfig = TypeVar("TConfig", bound=Config)
+TConfig = TypeVar("TConfig", bound=PrinterConfig)
 
 
 class InstanceException(RuntimeError):

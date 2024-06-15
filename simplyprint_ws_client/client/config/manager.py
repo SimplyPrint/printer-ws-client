@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Generic, List, Optional, Type, TypeVar, Tuple, Dict
+from typing import Generic, List, Optional, Type, TypeVar, Set
 
 from simplyprint_ws_client.const import APP_DIRS
 from .config import Config, PrinterConfig
@@ -11,7 +11,7 @@ TConfig = TypeVar("TConfig", bound=Config)
 class ConfigManager(ABC, Generic[TConfig]):
     name: str
     config_t: Type[TConfig]
-    configurations: Dict[Tuple[int, str], TConfig]
+    configurations: Set[TConfig]
     base_directory: Path
 
     def __init__(self, name: str = "printers", config_t: Type[TConfig] = PrinterConfig,
@@ -25,7 +25,7 @@ class ConfigManager(ABC, Generic[TConfig]):
         config_t.make_hashable()
 
         self.config_t = config_t
-        self.configurations = dict()
+        self.configurations = set()
 
         # Default to user config directory if not specified
         self.base_directory = Path(base_directory or APP_DIRS.user_config_dir)
@@ -55,19 +55,19 @@ class ConfigManager(ABC, Generic[TConfig]):
         return None
 
     def contains(self, other: TConfig) -> bool:
-        return other.key in self.configurations
+        return other in self.configurations
 
     def persist(self, config: Config):
         if self.contains(config):
             return
 
-        self.configurations[config.key] = config
+        self.configurations.add(config)
 
     def remove(self, config: TConfig):
-        self.configurations.pop(config.key, None)
+        self.configurations.remove(config)
 
     def get_all(self) -> List[TConfig]:
-        return list(self.configurations.values())
+        return list(self.configurations)
 
     def clear(self):
         self.configurations.clear()
