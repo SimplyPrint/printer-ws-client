@@ -175,6 +175,9 @@ class Instance(AsyncStoppable, EventLoopProvider, Generic[TClient, TConfig], ABC
             locked_stop()
 
     async def poll_events(self) -> None:
+        loop = asyncio.get_running_loop()
+        wait_task = loop.create_task(self.wait())
+
         while not self.is_stopped():
             if not self.connection.is_connected():
                 self.logger.debug("Not connected - not polling events")
@@ -187,10 +190,8 @@ class Instance(AsyncStoppable, EventLoopProvider, Generic[TClient, TConfig], ABC
 
                 continue
 
-            loop = asyncio.get_running_loop()
-
             await asyncio.wait([
-                loop.create_task(self.wait()),
+                wait_task,
                 loop.create_task(self.connection.poll_event())
             ], return_when=asyncio.FIRST_COMPLETED)
 
