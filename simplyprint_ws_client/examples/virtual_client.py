@@ -18,12 +18,12 @@ def expt_smooth(target, actual, alpha, dt) -> float:
 
 
 class VirtualClient(DefaultClient[VirtualConfig]):
-    job_progress_alpha: int = 0.05
+    job_progress_alpha: float = 0.05
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        self.printer.firmware.name = "Prusa i3 MK1"
+        self.printer.firmware.name = "Virtual Printer Firmware"
         self.printer.firmware.version = "1.0.0"
         self.set_info("Virtual Printer", "0.0.1")
 
@@ -44,7 +44,7 @@ class VirtualClient(DefaultClient[VirtualConfig]):
                 if target > 0.0:
                     self.printer.tool_temperatures[0].target = target
                 else:
-                    self.printer.tool_temperatures[0].target = None
+                    self.printer.tool_temperatures[0].target = 0.0
 
             if gcode[:4] == "M140":
                 target = float(gcode[6:])
@@ -54,7 +54,7 @@ class VirtualClient(DefaultClient[VirtualConfig]):
                 if target > 0.0:
                     self.printer.bed_temperature.target = target
                 else:
-                    self.printer.bed_temperature.target = None
+                    self.printer.bed_temperature.target = 0.0
 
     @Demands.FileEvent.on
     async def on_file(self, event: Demands.FileEvent):
@@ -98,19 +98,19 @@ class VirtualClient(DefaultClient[VirtualConfig]):
         await asyncio.sleep(2)
         self.printer.status = PrinterStatus.OPERATIONAL
 
-        self.printer.bed_temperature.target = None
-        self.printer.tool_temperatures[0].target = None
+        self.printer.bed_temperature.target = 0.0
+        self.printer.tool_temperatures[0].target = 0.0
 
     async def init(self):
         self.printer.bed_temperature.actual = 20.0
-        self.printer.bed_temperature.target = None
+        self.printer.bed_temperature.target = 0.0
         self.printer.tool_temperatures[0].actual = 20.0
-        self.printer.tool_temperatures[0].target = None
+        self.printer.tool_temperatures[0].target = 0.0
         self.printer.status = PrinterStatus.OPERATIONAL
 
     async def tick(self):
         # Update temperatures, printer status and so on with smoothing function
-        if self.printer.bed_temperature.target is not None:
+        if self.printer.bed_temperature.target:
             target = self.printer.bed_temperature.target
 
             self.printer.bed_temperature.actual = expt_smooth(
@@ -123,7 +123,7 @@ class VirtualClient(DefaultClient[VirtualConfig]):
         else:
             self.printer.bed_temperature.actual = 20.0
 
-        if self.printer.tool_temperatures[0].target is not None:
+        if self.printer.tool_temperatures[0].target:
             target = self.printer.tool_temperatures[0].target
 
             self.printer.tool_temperatures[0].actual = expt_smooth(
@@ -136,9 +136,7 @@ class VirtualClient(DefaultClient[VirtualConfig]):
         else:
             self.printer.tool_temperatures[0].actual = 20.0
 
-        if not self.printer.is_heating():
-            self.printer.ambient_temperature.invoke_check(
-                self.printer.tool_temperatures)
+        self.printer.ambient_temperature.ambient = 20
 
         if self.printer.status == PrinterStatus.PRINTING and not self.printer.is_heating():
             self.printer.job_info.progress = expt_smooth(
@@ -155,8 +153,8 @@ class VirtualClient(DefaultClient[VirtualConfig]):
                 self.printer.job_info.progress = 100
                 self.printer.status = PrinterStatus.OPERATIONAL
 
-                self.printer.bed_temperature.target = None
-                self.printer.tool_temperatures[0].target = None
+                self.printer.bed_temperature.target = 0.0
+                self.printer.tool_temperatures[0].target = 0.0
 
     async def stop(self):
         pass
