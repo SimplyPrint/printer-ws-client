@@ -1,1 +1,1 @@
-import _polyfill
+from . import _polyfill
