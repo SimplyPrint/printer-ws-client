@@ -15,7 +15,6 @@ if __name__ == "__main__":
         config_t=VirtualConfig,
         allow_setup=True,
         config_manager_type=ConfigManagerType.JSON,
-        backend=SimplyPrintBackend.TESTING,
     )
 
     logging.basicConfig(
