@@ -1,5 +1,4 @@
 import logging
-import time
 
 from simplyprint_ws_client.cli import ClientCli
 from simplyprint_ws_client.client import ClientApp, ClientOptions, ClientMode
@@ -8,17 +7,15 @@ from simplyprint_ws_client.client.logging import ClientHandler
 from simplyprint_ws_client.examples.virtual_client import VirtualClient, VirtualConfig
 from simplyprint_ws_client.helpers.url_builder import SimplyPrintBackend
 
-
-
 if __name__ == "__main__":
     client_options = ClientOptions(
-        name="VirtualClient",
+        name="la_fair_printers",
         mode=ClientMode.MULTI_PRINTER,
         client_t=VirtualClient,
         config_t=VirtualConfig,
         allow_setup=True,
         config_manager_type=ConfigManagerType.JSON,
-        backend=SimplyPrintBackend.TESTING
+        backend=SimplyPrintBackend.TESTING,
     )
 
     logging.basicConfig(
@@ -29,4 +26,5 @@ if __name__ == "__main__":
 
     app = ClientApp(client_options)
     cli = ClientCli(app)
+    cli.start_client = lambda: app.run_blocking()
     cli(prog_name="python -m simplyprint_ws_client")

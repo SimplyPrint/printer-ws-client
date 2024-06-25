@@ -132,7 +132,9 @@ class ClientApp(Generic[TClient, TConfig]):
                 # Register all clients this has to be non-blocking
                 # so that instance run can start polling events as we wait
                 # to get the connected message before we can start sending events.
+                # SAFETY: This is potentially unsafe depending on the given provider implementation.
                 _ = self.instance.event_loop.create_task(_register_configs())
+
                 await self.instance.run()
 
         self.logger.debug("Client instance has stopped")

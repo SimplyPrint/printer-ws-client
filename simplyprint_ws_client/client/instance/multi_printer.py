@@ -215,6 +215,7 @@ class MultiPrinter(Instance[TClient, TConfig]):
                     # and send add printer awaits connect.
                     # which will make the waiters never be resolved.
                     # Instead, we ensure that all of these tasks are run to completion in the event loop.
+                    # SAFETY: This does not leak as it is bounded by an upper timeout limit.
                     _ = self.event_loop.create_task(self._send_add_printer(client))
 
     async def _send_add_printer(self, client: TClient) -> asyncio.Future:

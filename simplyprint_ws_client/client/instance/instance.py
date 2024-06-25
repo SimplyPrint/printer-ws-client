@@ -176,6 +176,8 @@ class Instance(AsyncStoppable, EventLoopProvider, Generic[TClient, TConfig], ABC
 
     async def poll_events(self) -> None:
         loop = asyncio.get_running_loop()
+
+        # SAFETY: This does leak as this task is bounded by the loop, so when the loop exists it is done.
         wait_task = loop.create_task(self.wait())
 
         while not self.is_stopped():
@@ -192,6 +194,7 @@ class Instance(AsyncStoppable, EventLoopProvider, Generic[TClient, TConfig], ABC
 
             await asyncio.wait([
                 wait_task,
+                # SAFETY: This event either completes first, or we leak a single instance.
                 loop.create_task(self.connection.poll_event())
             ], return_when=asyncio.FIRST_COMPLETED)
 
@@ -363,6 +366,7 @@ class Instance(AsyncStoppable, EventLoopProvider, Generic[TClient, TConfig], ABC
         if not isinstance(event, ServerEvent):
             raise InstanceException(f"Expected ServerEvent but got {event}")
 
+        # SAFETY: This is potentially dangerous, but is limited by incoming events.
         _ = self.event_loop.create_task(client.event_bus.emit(event))
 
     async def on_client_event(self, event: ClientEvent, client: Client[TConfig]):

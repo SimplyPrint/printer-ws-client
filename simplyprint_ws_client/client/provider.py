@@ -59,6 +59,7 @@ class ClientProvider(ABC, Generic[TConfig], EventLoopProvider[asyncio.AbstractEv
         if self.__retry_task is not None:
             return None
 
+        # SAFETY: This is potentially unsafe depending on the provider implementation.
         self.__retry_task = asyncio.create_task(self._retry(timeout=timeout))
 
     async def delete(self):

@@ -4,6 +4,8 @@ import threading
 from abc import ABC, abstractmethod
 from typing import Optional, Union, TypeVar, Generic
 
+from simplyprint_ws_client.utils.async_task_scope import AsyncTaskScope
+
 TStopEvent = TypeVar("TStopEvent", bound=Union[threading.Event, asyncio.Event, multiprocessing.Condition])
 TCondition = TypeVar("TCondition", bound=Union[threading.Condition, asyncio.Condition, multiprocessing.Condition])
 TAnyStoppable = Union["Stoppable", TStopEvent]
@@ -148,20 +150,23 @@ class AsyncStoppable(Stoppable[asyncio.Event, asyncio.Condition]):
         self._stop_event_property = self._stop_event_property or asyncio.Event()
 
     async def wait(self, timeout: Optional[float] = None) -> bool:
-        try:
-            if self._parent_stop_event_property is not None:
-                await asyncio.wait(
-                    map(asyncio.create_task, [
-                        self._stop_event_property.wait(),
-                        self._parent_stop_event_property.wait()
-                    ]),
-                    timeout=timeout,
-                    return_when=asyncio.FIRST_COMPLETED)
-                return self.is_stopped()
+        loop = asyncio.get_running_loop()
 
-            return await asyncio.wait_for(self._stop_event_property.wait(), timeout=timeout)
-        except asyncio.TimeoutError:
-            return self.is_stopped()
+        with AsyncTaskScope(loop) as task_scope:
+            try:
+                if self._parent_stop_event_property is not None:
+                    stop_task = task_scope.create_task(self._stop_event_property.wait())
+                    parent_stop_task = task_scope.create_task(self._parent_stop_event_property.wait())
+
+                    await asyncio.wait(
+                        [stop_task, parent_stop_task],
+                        timeout=timeout,
+                        return_when=asyncio.FIRST_COMPLETED)
+                    return self.is_stopped()
+
+                return await asyncio.wait_for(self._stop_event_property.wait(), timeout=timeout)
+            except asyncio.TimeoutError:
+                return self.is_stopped()
 
 
 class ProcessStoppable(Stoppable[multiprocessing.Event, multiprocessing.Condition]):

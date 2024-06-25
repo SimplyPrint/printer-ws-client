@@ -190,6 +190,8 @@ class ClientAsyncLifetime(ClientLifetime, AsyncStoppable):
         threading.Thread(target=asyncio.run, args=(self.client.stop(),), daemon=True).start()
 
     async def start(self):
+        loop = asyncio.get_running_loop()
+
         async with self._start_lock:
             if self._async_task and not self._async_task.done():
                 # Await the task to ensure it is stopped
@@ -199,4 +201,5 @@ class ClientAsyncLifetime(ClientLifetime, AsyncStoppable):
             # Initialize client
             await self.client.init()
 
-            self._async_task = asyncio.create_task(self.loop())
+            # SAFETY: This does not leak as it does not run forever.
+            self._async_task = loop.create_task(self.loop())
