@@ -1,5 +1,6 @@
 import asyncio
 import contextlib
+from typing import Set
 
 from simplyprint_ws_client.utils.event_loop_provider import EventLoopProvider
 
@@ -8,7 +9,7 @@ class AsyncTaskScope(EventLoopProvider):
     """Automatically cleanup tasks when exiting a context, to prevent leaks."""
 
     loop: asyncio.AbstractEventLoop
-    tasks: set[asyncio.Task]
+    tasks: Set[asyncio.Task]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
