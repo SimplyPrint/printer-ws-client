@@ -1,20 +1,29 @@
 import asyncio
 import contextlib
 
+from simplyprint_ws_client.utils.event_loop_provider import EventLoopProvider
 
-class AsyncTaskScope:
+
+class AsyncTaskScope(EventLoopProvider):
     """Automatically cleanup tasks when exiting a context, to prevent leaks."""
 
     loop: asyncio.AbstractEventLoop
     tasks: set[asyncio.Task]
 
-    def __init__(self, loop: asyncio.AbstractEventLoop):
-        self.loop = loop
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        if not self.event_loop_is_running():
+            try:
+                self.use_running_loop()
+            except RuntimeError:
+                raise RuntimeError("AsyncTaskScope must be used inside an async context.")
+
         self.tasks = set()
 
     def create_task(self, *args, **kwargs):
         # SAFETY: By design this is safe as long as the API agreements of this class is upheld.
-        task = self.loop.create_task(*args, **kwargs)
+        task = self.event_loop.create_task(*args, **kwargs)
         self.tasks.add(task)
         return task
 

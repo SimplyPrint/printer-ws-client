@@ -150,16 +150,15 @@ class AsyncStoppable(Stoppable[asyncio.Event, asyncio.Condition]):
         self._stop_event_property = self._stop_event_property or asyncio.Event()
 
     async def wait(self, timeout: Optional[float] = None) -> bool:
-        loop = asyncio.get_running_loop()
-
-        with AsyncTaskScope(loop) as task_scope:
+        with AsyncTaskScope() as task_scope:
             try:
                 if self._parent_stop_event_property is not None:
-                    stop_task = task_scope.create_task(self._stop_event_property.wait())
-                    parent_stop_task = task_scope.create_task(self._parent_stop_event_property.wait())
-
                     await asyncio.wait(
-                        [stop_task, parent_stop_task],
+                        map(task_scope.create_task,
+                            [
+                                self._stop_event_property.wait(),
+                                self._parent_stop_event_property.wait()
+                            ]),
                         timeout=timeout,
                         return_when=asyncio.FIRST_COMPLETED)
                     return self.is_stopped()

@@ -9,7 +9,7 @@ from simplyprint_ws_client.helpers.url_builder import SimplyPrintBackend
 
 if __name__ == "__main__":
     client_options = ClientOptions(
-        name="la_fair_printers",
+        name="VirtualClient",
         mode=ClientMode.MULTI_PRINTER,
         client_t=VirtualClient,
         config_t=VirtualConfig,

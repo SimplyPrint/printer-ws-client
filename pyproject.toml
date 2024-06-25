@@ -26,6 +26,8 @@ platformdirs = "^4.1.0"
 
 # Install typing-extensions for python < 3.11
 typing-extensions = { version = "*", python = "<3.11" }
+# Install async_timeout for python < 3.11
+async-timeout = { version = "*", python = "<3.11" }
 
 [tool.poetry.dev-dependencies]
 unittest = "*"
