@@ -200,7 +200,7 @@ class DefaultClient(Client[TConfig], ABC):
     @Events.NewTokenEvent.before
     async def before_new_token(self, event: Events.NewTokenEvent):
         self.config.token = event.token
-        await self.event_bus.emit(ClientConfigChangedEvent())
+        await self.event_bus.emit(ClientConfigChangedEvent)
 
     @Events.ConnectEvent.before
     async def before_connect(self, event: Events.ConnectEvent):
@@ -221,7 +221,7 @@ class DefaultClient(Client[TConfig], ABC):
         if self.config.in_setup:
             self.printer.current_display_message = "In setup with Code: " + event.short_id
 
-        await self.event_bus.emit(ClientConfigChangedEvent())
+        await self.event_bus.emit(ClientConfigChangedEvent)
 
     @Events.SetupCompleteEvent.before
     async def before_setup_complete(self, event: Events.SetupCompleteEvent):
@@ -232,7 +232,7 @@ class DefaultClient(Client[TConfig], ABC):
         self.config.id = event.printer_id
         self.config.in_setup = False
         self.printer.current_display_message = "Setup complete"
-        await self.event_bus.emit(ClientConfigChangedEvent())
+        await self.event_bus.emit(ClientConfigChangedEvent)
 
     @Events.IntervalChangeEvent.before
     async def before_interval_change(self, event: Events.IntervalChangeEvent):

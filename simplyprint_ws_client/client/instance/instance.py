@@ -1,4 +1,5 @@
 import asyncio
+import functools
 import logging
 import threading
 from abc import ABC, abstractmethod
@@ -299,11 +300,8 @@ class Instance(AsyncStoppable, EventLoopProvider, Generic[TClient, TConfig], ABC
 
         client.event_bus.on(ClientEvent, on_client_event, generic=True)
 
-        def on_client_config_changed(_: ClientConfigChangedEvent):
-            self.on_client_config_changed(client)
-
         # Listen to custom events for internal use.
-        client.event_bus.on(ClientConfigChangedEvent, on_client_config_changed)
+        client.event_bus.on(ClientConfigChangedEvent, functools.partial(self.on_client_config_changed, client))
 
         try:
             await self.add_client(client)
