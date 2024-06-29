@@ -2,7 +2,7 @@ import asyncio
 import heapq
 from enum import Enum
 from typing import (Callable, Generator, List,
-                    Union, Tuple)
+                    Union, Tuple, NamedTuple)
 
 
 class ListenerUniqueness(Enum):
@@ -13,9 +13,30 @@ class ListenerUniqueness(Enum):
     NONE = 0
     PRIORITY = 1
     EXCLUSIVE = 2
+    EXCLUSIVE_WITH_ERROR = 3
+
+
+class ListenerLifetime(NamedTuple):
+    """Implement listener lifetime options as a tagged-union
+    to support value based lifetimes such as max-calls in the future.
+    """
+    ...
+
+
+class ListenerLifetimeOnce(ListenerLifetime):
+    """An event listener that is removed after being called once."""
+    ...
+
+
+class ListenerLifetimeForever(ListenerLifetime):
+    """A normal event listener that is never removed."""
+    ...
 
 
 class EventBusListener:
+    __slots__ = ('lifetime', 'priority', 'handler', 'is_async')
+
+    lifetime: ListenerLifetime
     priority: int
     handler: Callable
     is_async: bool
@@ -26,7 +47,8 @@ class EventBusListener:
 
         return await self.handler(*args, **kwargs)
 
-    def __init__(self, priority: int, handler: Callable) -> None:
+    def __init__(self, lifetime: ListenerLifetime, priority: int, handler: Callable) -> None:
+        self.lifetime = lifetime
         self.priority = priority
         self.handler = handler
         self.is_async = asyncio.iscoroutinefunction(handler)
@@ -45,13 +67,18 @@ class EventBusListener:
 
 
 class EventBusListeners:
+    __slots__ = ('listeners',)
+
     listeners: List[Tuple[int, EventBusListener]]
 
     def __init__(self) -> None:
         self.listeners = []
 
-    def add(self, listener: Callable, priority: int, unique: ListenerUniqueness) -> None:
+    def add(self, listener: Callable, lifetime: ListenerLifetime, priority: int, unique: ListenerUniqueness) -> None:
         # Handle replacement strategy.
+        if unique == ListenerUniqueness.EXCLUSIVE_WITH_ERROR and len(self.listeners) > 0:
+            raise ValueError("Exclusive listener already registered, raising an error.")
+
         if unique == ListenerUniqueness.EXCLUSIVE:
             self.listeners = []
         elif unique == ListenerUniqueness.PRIORITY:
@@ -62,12 +89,12 @@ class EventBusListeners:
             raise ValueError("Listener already registered")
 
         heapq.heappush(self.listeners, (priority,
-                                        EventBusListener(priority, listener)))
+                                        EventBusListener(lifetime, priority, listener)))
 
     def remove(self, listener: Callable) -> None:
         for i, (_, reg_listener) in reversed(list(enumerate(self.listeners))):
             if reg_listener == listener:
-                del self.listeners[i]
+                self.listeners.pop(i)
                 break
 
     def contains(self, listener: Callable) -> bool:
@@ -79,7 +106,11 @@ class EventBusListeners:
 
     def __iter__(self) -> Generator[EventBusListener, None, None]:
         """Iterate over listeners in priority order."""
-        for _, listener in heapq.nlargest(len(self.listeners), self.listeners):
+        for _, listener in heapq.nlargest(len(self.listeners), list(self.listeners)):
+            # Only allow once shot listener to be consumed once.
+            if isinstance(listener.lifetime, ListenerLifetimeOnce):
+                self.remove(listener)
+
             yield listener
 
     def __len__(self) -> int:

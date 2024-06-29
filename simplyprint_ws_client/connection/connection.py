@@ -14,8 +14,8 @@ from ..events import DemandEvent, ServerEvent, EventFactory
 from ..events.client_events import ClientEvent, ClientEventMode
 from ..events.event import Event
 from ..events.event_bus import EventBus
-from ..utils.cancelable_lock import CancelableLock
 from ..utils import issue_118950_patch  # noqa
+from ..utils.cancelable_lock import CancelableLock
 from ..utils.event_loop_provider import EventLoopProvider
 from ..utils.traceability import traceable
 
@@ -178,7 +178,8 @@ class Connection(EventLoopProvider[asyncio.AbstractEventLoop]):
             mode = event.get_client_mode(client)
 
             if mode != ClientEventMode.DISPATCH:
-                self.logger.debug(f"Did not send event {event} because of mode {mode.name}")
+                # This log is too verbose.
+                # self.logger.debug(f"Did not send event {event.get_name()} because of mode {mode.name}")
                 return
 
             message = event.as_dict()

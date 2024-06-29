@@ -1,9 +1,9 @@
 import asyncio
+import logging
 import time
 from abc import ABC, abstractmethod
 from typing import Generic, Optional, TypeVar
 
-import logging
 from .config import Config
 from ..client.logging import *
 from ..client.state.printer import PrinterState

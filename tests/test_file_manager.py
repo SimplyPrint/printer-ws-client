@@ -3,7 +3,7 @@ import unittest
 
 from simplyprint_ws_client.helpers.file_manager import File, FileManager
 
-test_time = time.time()
+test_time = int(time.time())
 
 
 def test_files(): return [

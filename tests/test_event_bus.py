@@ -3,7 +3,7 @@ import unittest
 from simplyprint_ws_client.events.client_events import ClientEvent
 from simplyprint_ws_client.events.event import Event
 from simplyprint_ws_client.events.event_bus import EventBus, EventBusListeners
-from simplyprint_ws_client.events.event_listeners import ListenerUniqueness
+from simplyprint_ws_client.events.event_listeners import ListenerUniqueness, ListenerLifetimeForever
 from simplyprint_ws_client.events.server_events import ServerEvent, ConnectEvent
 
 
@@ -98,8 +98,8 @@ class TestEventBus(unittest.IsolatedAsyncioTestCase):
         def func2():
             pass
 
-        event_listeners.add(func1, priority=0, unique=ListenerUniqueness.NONE)
-        event_listeners.add(func2, priority=0, unique=ListenerUniqueness.NONE)
+        event_listeners.add(func1, lifetime=ListenerLifetimeForever(**{}), priority=0, unique=ListenerUniqueness.NONE)
+        event_listeners.add(func2, lifetime=ListenerLifetimeForever(**{}), priority=0, unique=ListenerUniqueness.NONE)
 
         self.assertEqual(len(event_listeners), 2)
 

@@ -1,40 +1,48 @@
 import asyncio
 import functools
-import threading
+from abc import ABC, abstractmethod
 from asyncio import AbstractEventLoop
-from typing import (Callable, Dict, Generator, Generic, Hashable, Optional, TypeVar, Union, get_args, Type, Any, Tuple)
+from typing import (Callable, Dict, Generator, Generic, Hashable, Optional, TypeVar, Union, get_args, Type, Any, Tuple,
+                    Iterable, Iterator)
 
 from .event import Event
-from .event_listeners import EventBusListeners, ListenerUniqueness
+from .event_listeners import EventBusListeners, ListenerUniqueness, ListenerLifetimeForever, ListenerLifetime, \
+    EventBusListener
 from ..utils.event_loop_provider import EventLoopProvider
 
 TEvent = TypeVar('TEvent', bound=object)
 
 
-class EventBus(Generic[TEvent]):
-    listeners: Dict[Hashable, EventBusListeners]
+class _EmitGenerator:
+    """Stateful generator that updates arguments according to input and output."""
+    __slots__ = ('event_klass', 'listeners', 'event', 'args')
+
     event_klass: Type[TEvent]
-    event_loop_provider: EventLoopProvider[AbstractEventLoop]
+    listeners: Iterator[EventBusListener]
 
-    def __init__(self, event_loop_provider: Optional[EventLoopProvider[AbstractEventLoop]] = None) -> None:
-        self.event_loop_provider = event_loop_provider or EventLoopProvider.default()
-        self.listeners = {}
+    event: Union[Hashable, TEvent]
+    args: Tuple
 
-        # Extract the generic type from the class otherwise
-        # fallback to the default Event class
-        try:
-            self.event_klass = get_args(self.__class__.__orig_bases__[0])[0]
-        except (AttributeError, KeyError, IndexError):
-            self.event_klass = Event
+    def __init__(self, event_klass: Type[TEvent], listeners: Iterable[EventBusListener], event: Union[Hashable, TEvent],
+                 *args):
+        self.event_klass = event_klass
+        self.listeners = iter(listeners)
+        self.event = event
+        self.args = self._initialize_args(self.event, *args)
 
-        if not isinstance(self.event_klass, type):
-            self.event_klass = Event
+    def update(self, returned_args: Union[Tuple[Any, ...], Any, None]):
+        self.args = self._update_args(returned_args)
 
-    def update_args(
+    def _initialize_args(self, event: Union[Hashable, TEvent], *args) -> Tuple[Any, ...]:
+        """ If the event is an instance of the event class, pass it as the first argument."""
+        if isinstance(event, self.event_klass):
+            return event, *args
+
+        return args
+
+    def _update_args(
             self,
-            event: Union[Hashable, TEvent],
-            args: Tuple[Any, ...],
-            returned_args: Union[Tuple[Any, ...], Any] = None
+            returned_args: Union[Tuple[Any, ...], Any, None] = None
     ) -> Tuple[Any, ...]:
         """
         This function transforms the arguments returned by an event listener
@@ -67,96 +75,106 @@ class EventBus(Generic[TEvent]):
         Then returned_args will replace the entire argument list.
         """
         if returned_args is None:
-            return args
+            return self.args
 
         # If the event is an instance of the event class
         # it is always the first element of args.
-        event_is_first = isinstance(event, self.event_klass) and len(args) > 0 and args[0] == event
+        event_is_first = isinstance(self.event, self.event_klass) and len(self.args) > 0 and self.args[0] == self.event
 
         if not isinstance(returned_args, tuple):
             # The listener may return the modified event parameter in
             # the case the emitted event was of an event class type.
             # this will replace the event parameter with the modified one.
             if event_is_first:
-                return (returned_args, *args[1:]) if isinstance(returned_args, self.event_klass) else (
-                    event, returned_args)
+                return (returned_args, *self.args[1:]) if isinstance(returned_args, self.event_klass) else (
+                    self.event, returned_args)
 
             # Otherwise replace the entire argument list with the returned data.
             return (returned_args,)
 
         # If we return an empty tuple, we want to replace the entire argument list.
         if len(returned_args) == 0:
-            return (event,) if event_is_first else ()
+            return (self.event,) if event_is_first else ()
 
         # Now we have to handle the case where the listener returns a tuple.
         if event_is_first:
-            return returned_args if isinstance(returned_args[0], self.event_klass) else (event, *returned_args)
+            return returned_args if isinstance(returned_args[0], self.event_klass) else (self.event, *returned_args)
 
         # As a fallback we just return the returned arguments.
         return returned_args
 
-    def initialize_args(self, event: Union[Hashable, TEvent], *args) -> Tuple[Any, ...]:
-        """ If the event is an instance of the event class, pass it as the first argument."""
-        if isinstance(event, self.event_klass):
-            return event, *args
+    def __next__(self) -> EventBusListener:
+        if isinstance(self.event, Event) and self.event.is_stopped():
+            raise StopIteration()
 
-        return args
+        return next(self.listeners)
 
-    async def emit(self, event: Union[Hashable, TEvent], *args, **kwargs):
+    def __iter__(self):
+        return self
+
+
+class Emitable(ABC):
+    @abstractmethod
+    def emit(self, event: Union[Hashable, TEvent], *args, **kwargs) -> None:
+        ...
+
+    @abstractmethod
+    def emit_sync(self, event: Union[Hashable, TEvent], *args, **kwargs) -> None:
+        ...
+
+
+class EventBus(Generic[TEvent], Emitable):
+    __slots__ = ('listeners', 'event_klass', 'event_loop_provider')
+
+    listeners: Dict[Hashable, EventBusListeners]
+    event_klass: Type[TEvent]
+    event_loop_provider: EventLoopProvider[AbstractEventLoop]
+
+    def __init__(self, event_loop_provider: Optional[EventLoopProvider[AbstractEventLoop]] = None) -> None:
+        self.event_loop_provider = event_loop_provider or EventLoopProvider.default()
+        self.listeners = {}
+
+        # Extract the generic type from the class otherwise
+        # fallback to the default Event class
+        try:
+            self.event_klass = get_args(self.__class__.__orig_bases__[0])[0]
+        except (AttributeError, KeyError, IndexError):
+            self.event_klass = Event
+
+        if not isinstance(self.event_klass, type):
+            self.event_klass = Event
+
+    #
+    # START OF REFACTOR.
+    #
+    # TODO: Refactor emit.
+
+    async def emit(self, event: Union[Hashable, TEvent], *args, **kwargs) -> None:
         if event not in self.listeners:
             return
 
-        args = self.initialize_args(event, *args)
+        generator = _EmitGenerator(self.event_klass, self.listeners[event], event, *args)
 
-        for listener in self.listeners[event]:
-            if isinstance(event, Event) and event.is_stopped():
-                return
+        for listener in generator:
+            ret = await listener(*generator.args, **kwargs)
+            generator.update(ret)
 
-            ret = await listener(*args, **kwargs)
-            args = self.update_args(event, args, ret)
-
-    def emit_sync(self, event: Union[Hashable, TEvent], *args, **kwargs):
-        """
-        Skip all async listeners and only emit to synchronous listeners.
-        """
-
+    def emit_sync(self, event: Union[Hashable, TEvent], *args, **kwargs) -> None:
         if event not in self.listeners:
             return
 
-        args = self.initialize_args(event, *args)
+        # Only invoke non-async functions.
+        generator = _EmitGenerator(self.event_klass, filter(lambda lst: not lst.is_async, self.listeners[event]), event,
+                                   *args)
 
-        for listener in self.listeners[event]:
-            if listener.is_async:
-                continue
-
-            if isinstance(event, Event) and event.is_stopped():
-                return
-
-            ret = listener.handler(*args, **kwargs)
-            args = self.update_args(event, args, ret)
-
-    def emit_sync_thread(self, event: Union[Hashable, TEvent], *args, **kwargs) -> threading.Thread:
-        """Spawns a daemon thread to emit the event synchronously."""
-
-        t = threading.Thread(target=self.emit_sync, args=(event, *args), kwargs=kwargs, daemon=True)
-        t.start()
-
-        return t
+        for listener in generator:
+            ret = listener.handler(*generator.args, **kwargs)
+            generator.update(ret)
 
     def emit_task(self, event: Union[Hashable, TEvent], *args, **kwargs) -> asyncio.Future:
         """Allows for synchronous emitting of events. Useful cross-thread communication."""
         return asyncio.run_coroutine_threadsafe(
             self.emit(event, *args, **kwargs), self.event_loop_provider.event_loop)
-
-    def emit_task_thread(self, event: Union[Hashable, TEvent], *args, **kwargs) -> threading.Thread:
-        """Spawns a daemon thread with an event loop to emit the event asynchronously.
-        Note this runs the async code in another event loop that its resources might be attached to.
-        """
-
-        t = threading.Thread(target=asyncio.run, args=(self.emit(event, *args, **kwargs),), daemon=True)
-        t.start()
-
-        return t
 
     def emit_wrap(self, event: Union[Hashable, TEvent], sync_only=False, blocking=False) -> Callable:
         """
@@ -170,21 +188,32 @@ class EventBus(Generic[TEvent]):
         """
 
         if sync_only:
-            emit_func = self.emit_sync if blocking else self.emit_sync_thread
+            if not blocking:
+                raise NotImplementedError("Synchronous emitting is not supported without blocking, use EventBusWorker.")
+
+            emit_func = self.emit_sync
         else:
             emit_func = self.emit if blocking else self.emit_task
 
+        assert emit_func is not None
+
         return functools.partial(emit_func, event)
 
-    def on(self, event_type: Hashable, listener: Optional[Callable] = None, priority: int = 0, generic: bool = False,
-           unique: ListenerUniqueness = ListenerUniqueness.NONE):
+    def on(self, event_type: Hashable, listener: Optional[Callable] = None, generic: bool = False,
+           lifetime: ListenerLifetime = ListenerLifetimeForever(**{}),
+           priority=0,
+           unique: ListenerUniqueness = ListenerUniqueness.NONE) -> Callable:
+
         if listener is None:
-            return lambda lst: self._register_listeners(event_type, lst, priority, generic, unique)
+            return lambda lst: self._register_listeners(event_type, lst, generic=generic, lifetime=lifetime,
+                                                        priority=priority, unique=unique)
 
-        return self._register_listeners(event_type, listener, priority, generic, unique)
+        return self._register_listeners(event_type, listener, generic=generic, lifetime=lifetime, priority=priority,
+                                        unique=unique)
 
-    def _register_listeners(self, event_type: Union[Hashable, TEvent], listener: Callable, priority=0,
-                            generic: bool = False,
+    def _register_listeners(self, event_type: Union[Hashable, TEvent], listener: Callable, generic: bool = False,
+                            lifetime: ListenerLifetime = ListenerLifetimeForever(**{}),
+                            priority=0,
                             unique: ListenerUniqueness = ListenerUniqueness.NONE) -> Callable:
         """
         Registers all listeners for a generic type given the type is an event type,
@@ -192,22 +221,24 @@ class EventBus(Generic[TEvent]):
         """
 
         if not generic or not issubclass(event_type, self.event_klass):
-            self._register_listener(event_type, listener, priority, unique)
+            self._register_listener(event_type, listener, lifetime=lifetime, priority=priority, unique=unique)
             return listener
 
         for klass in self._iterate_subclasses(event_type):
-            self._register_listener(klass, listener, priority, unique)
+            self._register_listener(klass, listener, lifetime=lifetime, priority=priority, unique=unique)
 
         return listener
 
-    def _register_listener(self, event_type: Hashable, listener: Callable, priority=0,
+    def _register_listener(self, event_type: Hashable, listener: Callable,
+                           lifetime: ListenerLifetime = ListenerLifetimeForever(**{}),
+                           priority=0,
                            unique: ListenerUniqueness = ListenerUniqueness.NONE) -> None:
         """Registers a single listener for a given event type."""
 
         if event_type not in self.listeners:
             self.listeners[event_type] = EventBusListeners()
 
-        self.listeners[event_type].add(listener, priority=priority, unique=unique)
+        self.listeners[event_type].add(listener, lifetime=lifetime, priority=priority, unique=unique)
 
     def _register_from_class(self, klass: type):
         """Register all listeners from a class (statically)."""

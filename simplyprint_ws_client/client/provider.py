@@ -46,34 +46,45 @@ class ClientProvider(ABC, Generic[TConfig], EventLoopProvider[asyncio.AbstractEv
         self.factory = factory
         self.config = config
 
-    async def _retry(self, timeout: float):
+    async def _retry(self, timeout: float, attempts: int | None = 3):
         await self.app.instance.wait(timeout)
 
         try:
             self.app.instance.logger.debug(f"Retrying ensure for {self.config.unique_id}")
             await self.ensure()
         except Exception as e:
-            self.app.instance.logger.error(f"Failed to retry ensure: {e}")
+            self.app.instance.logger.error(f"Failed to retry ensure: {e} {attempts=}")
 
-    async def _ensure_retry(self, timeout=10.0):
+            if attempts is None or attempts > 0:
+                await self._retry(timeout=timeout, attempts=attempts - 1 if attempts is not None else None)
+                return
+
+        self.__retry_task = None
+
+    async def _ensure_retry_task(self, timeout=10.0):
+        """The retry task will loop for N attempts until it is successful, after the first failed attempt to add
+        itself."""
         if self.__retry_task is not None:
             return None
 
         # SAFETY: This is potentially unsafe depending on the provider implementation.
         self.__retry_task = asyncio.create_task(self._retry(timeout=timeout))
 
-    async def delete(self):
-        """Called when the provider is deleted."""
+    async def _cancel_retry_task(self):
+        """Used when we want to explicitly cancel the retry task."""
         if self.__retry_task is not None:
             self.__retry_task.cancel()
             self.__retry_task = None
+
+    async def delete(self):
+        """Called when the provider is deleted."""
+        await self._cancel_retry_task()
 
     async def ensure(self, remove=False):
         _remove = remove
 
         async with self.__ensure_lock:
             client = self.get_client()
-
             # Deregister client if not supposed to be provided.
             if client is None:
                 client = self.app.instance.get_client(self.config)
@@ -84,18 +95,16 @@ class ClientProvider(ABC, Generic[TConfig], EventLoopProvider[asyncio.AbstractEv
             self.app.instance.logger.debug(
                 f"Loading provider {self.config} {bool(client)=} {remove=} {_remove=} {has_client=}")
 
-            if _remove:
-                if has_client:
-                    await self.app.instance.deregister_client(client)
+            # If we trigger ensure with explicit remove we need to cancel the retry task.
+            # We are never currently running inside the retry task as the retry task is never
+            # called with explicit remove.
+            if remove:
+                await self._cancel_retry_task()
 
-                # Retry ensure whenever we remove a client automatically.
-                if not remove:
-                    await self._ensure_retry()
-                elif self.__retry_task is not None:
-                    # Disable retry if we manually remove the client.
-                    self.__retry_task.cancel()
-                    self.__retry_task = None
-
+            # Automatically remove client if it is not supposed to be provided.
+            # It is up to the implementation to trigger ensure again.
+            if _remove and has_client:
+                await self.app.instance.deregister_client(client)
                 return
 
             if client is not None and not has_client:
@@ -110,7 +119,7 @@ class ClientProvider(ABC, Generic[TConfig], EventLoopProvider[asyncio.AbstractEv
                     raise
                 except InstanceException as e:
                     self.app.instance.logger.error(f"Failed to register client: {e}")
-                    await self._ensure_retry()
+                    await self._ensure_retry_task()
                 except Exception as e:
                     self.app.instance.logger.error(f"An exception occurred while registering the client", exc_info=e)
                     raise

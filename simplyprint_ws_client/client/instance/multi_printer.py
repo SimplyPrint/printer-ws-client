@@ -6,7 +6,7 @@ from ..client import Client
 from ..config import Config
 from ..config import ConfigManager
 from ..instance.instance import Instance, TClient, TConfig, InstanceException
-from ...connection.connection import ConnectionConnectedEvent, ConnectionPollEvent
+from ...connection.connection import ConnectionConnectedEvent, ConnectionPollEvent, ConnectionDisconnectEvent
 from ...events.client_events import ClientEvent
 from ...events.server_events import MultiPrinterAddedEvent, MultiPrinterRemovedEvent
 from ...helpers.url_builder import SimplyPrintURL
@@ -30,11 +30,11 @@ class MultiPrinterAddPrinterEvent(ClientEvent):
 
     def __init__(self, config: Config, allow_setup: bool = False) -> None:
         super().__init__({
-            "pid": config.id if not config.in_setup else 0,
-            "token": config.token,
-            "unique_id": config.unique_id,
+            "pid":         config.id if not config.in_setup else 0,
+            "token":       config.token,
+            "unique_id":   config.unique_id,
             "allow_setup": allow_setup or False,
-            "client_ip": config.public_ip
+            "client_ip":   config.public_ip
         })
 
 
@@ -43,7 +43,7 @@ class MultiPrinterRemovePrinterEvent(ClientEvent):
 
     def __init__(self, config: Config) -> None:
         super().__init__({
-            "pid": config.id,
+            "pid":       config.id,
             "unique_id": config.unique_id,
         })
 
@@ -217,6 +217,16 @@ class MultiPrinter(Instance[TClient, TConfig]):
                     # Instead, we ensure that all of these tasks are run to completion in the event loop.
                     # SAFETY: This does not leak as it is bounded by an upper timeout limit.
                     _ = self.event_loop.create_task(self._send_add_printer(client))
+
+    async def on_disconnect(self, _: ConnectionDisconnectEvent):
+        async with self.disconnect_lock:
+            # Remove pending add waiters when we disconnect.
+            for pending in list(self.pending_add_waiters.keys()):
+                task = self.pending_add_waiters.pop(pending, None)
+                task.cancel()
+
+        # Then proceed with reconnection logic.
+        await super().on_disconnect(_)
 
     async def _send_add_printer(self, client: TClient) -> asyncio.Future:
         async with client:

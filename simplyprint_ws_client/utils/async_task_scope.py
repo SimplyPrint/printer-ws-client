@@ -50,3 +50,6 @@ class AsyncTaskScope(EventLoopProvider):
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.cancel_all()
         return False
+
+    def __del__(self):
+        self.cancel_all()
