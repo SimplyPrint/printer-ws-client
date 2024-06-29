@@ -46,7 +46,7 @@ class ClientProvider(ABC, Generic[TConfig], EventLoopProvider[asyncio.AbstractEv
         self.factory = factory
         self.config = config
 
-    async def _retry(self, timeout: float, attempts: int | None = 3):
+    async def _retry(self, timeout: float, attempts: Optional[int] = 3):
         await self.app.instance.wait(timeout)
 
         try:
