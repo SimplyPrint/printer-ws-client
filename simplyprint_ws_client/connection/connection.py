@@ -77,9 +77,9 @@ class Connection(EventLoopProvider[asyncio.AbstractEventLoop]):
             async with self.connection_lock:
                 self.use_running_loop()
 
-                reconnected = self.is_connected()
+                reconnection = self.is_connected()
 
-                if reconnected and not allow_reconnects:
+                if reconnection and not allow_reconnects:
                     self.logger.debug("Already connected, not reconnecting as reconnects are not allowed.")
                     return
 
@@ -91,11 +91,11 @@ class Connection(EventLoopProvider[asyncio.AbstractEventLoop]):
                 self.timeout = timeout or self.timeout
                 self.session = ClientSession()
 
-                self.logger.debug(
-                    f"{'Connecting' if not reconnected else 'Reconnecting'} to {url or self.url}")
-
                 if not self.url:
                     raise ValueError("No url specified")
+
+                self.logger.debug(
+                    f"{'Connecting' if not reconnection else 'Reconnecting'} to {self.url}")
 
                 ws = None
 
@@ -122,14 +122,16 @@ class Connection(EventLoopProvider[asyncio.AbstractEventLoop]):
                     # Kick out any other connection attempts until this point
                     # and retry the connection via the disconnect event.
                     self.connection_lock.cancel()
+
+                    self.logger.debug(f"Emitting disconnect event in another task.")
                     _ = self.event_bus.emit_task(ConnectionDisconnectEvent())
                     return
 
                 self.ws = ws
 
-                _ = self.event_bus.emit_task(ConnectionConnectedEvent(reconnect=reconnected))
+                _ = self.event_bus.emit_task(ConnectionConnectedEvent(reconnect=reconnection))
 
-                self.logger.debug(f"Connected to {self.url} {reconnected=}")
+                self.logger.debug(f"Connected to {self.url} {reconnection=}")
 
     async def close_internal(self):
         try:
@@ -147,31 +149,28 @@ class Connection(EventLoopProvider[asyncio.AbstractEventLoop]):
 
     async def close(self) -> None:
         await self.close_internal()
+        await self.on_disconnect(f"Closed connection to {self.url}")
 
-        self.logger.debug(f"Closed connection to {self.url}")
+    async def on_disconnect(self, reason: Optional[str] = None, reconnect=True) -> None:
+        """When something goes wrong, reset the socket"""
 
-        await self.on_disconnect()
-
-    async def on_disconnect(self):
-        """
-                When
-                something
-                goes
-                wrong, reset
-                the
-                socket
-                """
+        closed = self.ws.closed if self.ws else False
+        close_code = self.ws.close_code if self.ws else None
 
         if self.is_connected():
             await self.close_internal()
 
-        await self.event_bus.emit(ConnectionDisconnectEvent())
+        if not reason:
+            reason = "Unknown"
+
+        self.logger.info(f"Disconnected from {self.url} due to: '{reason}' {closed=} {close_code=} {reconnect=}")
+
+        if reconnect:
+            await self.event_bus.emit(ConnectionDisconnectEvent())
 
     async def send_event(self, client: Client, event: ClientEvent) -> None:
         if not self.is_connected():
-            self.logger.debug(
-                f"Did not send event {event} because not connected")
-            await self.on_disconnect()
+            await self.on_disconnect(f"Did not send event {event} because not connected")
             return
 
         try:
@@ -192,14 +191,13 @@ class Connection(EventLoopProvider[asyncio.AbstractEventLoop]):
                 str(message)) > 1000 else f"Sent event {event} with data {message}")
 
         except ConnectionResetError as e:
-            self.logger.error(f"Failed to send event {event}", exc_info=e)
-            await self.on_disconnect()
+            await self.on_disconnect(f"Failed to send event {event}")
+            self.logger.exception(e)
 
     @traceable
     async def poll_event(self, timeout=None) -> None:
         if not self.is_connected():
-            self.logger.debug(f"Did not poll event because not connected")
-            await self.on_disconnect()
+            await self.on_disconnect(f"Did not poll event because not connected")
             return
 
         try:
@@ -210,15 +208,14 @@ class Connection(EventLoopProvider[asyncio.AbstractEventLoop]):
                     f"Websocket closed by server with code: {self.ws.close_code} and reason: {message.extra}")
 
                 # An exception can be passed via the message.data
-                if message.data:
+                if isinstance(message.data, Exception):
                     self.logger.exception(message.data)
 
-                await self.on_disconnect()
+                await self.on_disconnect("Websocket closed by server.")
                 return
 
             if message.type == WSMsgType.ERROR:
-                self.logger.error(f"Websocket error: {message.data}")
-                await self.on_disconnect()
+                await self.on_disconnect(f"Websocket error: {message.data}")
                 return
 
             if message.type == WSMsgType.BINARY:
@@ -247,8 +244,7 @@ class Connection(EventLoopProvider[asyncio.AbstractEventLoop]):
             await self.event_bus.emit(ConnectionPollEvent(event, for_client))
 
         except (CancelledError, TimeoutError, ConnectionResetError):
-            self.logger.debug(f"Websocket closed by server due to timeout.")
-            await self.on_disconnect()
+            await self.on_disconnect(f"Websocket closed by server due to timeout.")
 
         except Exception as e:
             self.logger.exception(f"Exception occurred when polling event", exc_info=e)

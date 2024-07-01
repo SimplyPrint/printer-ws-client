@@ -93,7 +93,7 @@ class ClientProvider(ABC, Generic[TConfig], EventLoopProvider[asyncio.AbstractEv
             has_client = self.app.instance.has_client(client)
 
             self.app.instance.logger.debug(
-                f"Loading provider {self.config} {bool(client)=} {remove=} {_remove=} {has_client=}")
+                f"Loading provider {self.config.unique_id} {bool(client)=} {remove=} {_remove=} {has_client=}")
 
             # If we trigger ensure with explicit remove we need to cancel the retry task.
             # We are never currently running inside the retry task as the retry task is never

@@ -69,6 +69,7 @@ class Instance(AsyncStoppable, EventLoopProvider, Generic[TClient, TConfig], ABC
 
     # Allow logic to wait until ws-connection responds with ready message.
     connection_is_ready: Optional[asyncio.Event] = None
+
     # Ensure we only allow one disconnect event to be processed at a time
     disconnect_lock: asyncio.Lock
 
