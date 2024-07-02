@@ -15,7 +15,7 @@ class Temperature(ClientState):
         if not isinstance(other, Temperature):
             return False
 
-        return self.actual == other.actual and self.target == other.target
+        return round(self.actual) == round(other.actual) and round(self.target) == round(other.target)
 
     def is_heating(self) -> bool:
         if self.target is None:

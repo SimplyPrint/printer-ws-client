@@ -231,6 +231,9 @@ class ToolEvent(ClientEvent):
 
     @classmethod
     def build(cls, state: "PrinterState") -> Generator[Tuple, None, None]:
+        if not state.has_changed("active_tool"):
+            return
+
         yield "new", state.active_tool, state.partial_clear("active_tool")
 
 
