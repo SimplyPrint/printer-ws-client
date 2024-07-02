@@ -1,8 +1,8 @@
 from abc import abstractmethod
 from typing import Dict, Type, Any, Optional
 
-from .event import Event
-from ..helpers.intervals import Intervals
+from ...events.event import Event
+from ...helpers.intervals import Intervals
 
 
 class ServerEventError(ValueError):
@@ -14,8 +14,8 @@ class ServerEvent(Event):
     data: Dict[str, Any] = {}
 
     # Generic event data
-    def __init__(self, event_type: str, data: Dict[str, Any] = {}):
-        self.data = data
+    def __init__(self, event_type: str, data: Optional[Dict[str, Any]] = None):
+        self.data = data or {}
 
         if self.event_type != event_type:
             raise ServerEventError(f"Event type {event_type} does not match event name {self.event_type}")
@@ -123,7 +123,7 @@ class PrinterSettingsEvent(ServerEvent):
         self.event_type = self.data.get("name", "")
 
         # Import here to avoid circular imports
-        from simplyprint_ws_client.client.state import PrinterSettings, PrinterDisplaySettings
+        from ...client.state import PrinterSettings, PrinterDisplaySettings
 
         self.printer_settings = PrinterSettings(has_psu=self.data.get("has_psu", False),
                                                 has_filament_sensor=self.data.get("has_filament_sensor", False))

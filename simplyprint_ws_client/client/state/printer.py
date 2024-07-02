@@ -8,13 +8,18 @@ from traitlets import List as TraitletsList
 from traitlets import Unicode, observe
 from traitlets import Union as TraitletsUnion
 
-from simplyprint_ws_client.events.client_events import CpuInfoEvent, FileProgressEvent, MachineDataEvent, FirmwareEvent, \
-    FirmwareWarningEvent, FilamentSensorEvent, PowerControllerEvent, JobInfoEvent, LatencyEvent, WebcamStatusEvent, \
-    WebcamEvent, MaterialDataEvent, StateChangeEvent, ConnectionEvent, ToolEvent
-from simplyprint_ws_client.helpers.ambient_check import AmbientTemperatureState
-from simplyprint_ws_client.helpers.temperature import Temperature
 from .always import Always
 from .state import State, ClientState, to_event
+from ...client.protocol.client_events import (
+    CpuInfoEvent, FileProgressEvent, MachineDataEvent,
+    FirmwareEvent,
+    FirmwareWarningEvent, FilamentSensorEvent,
+    PowerControllerEvent, JobInfoEvent, LatencyEvent,
+    WebcamStatusEvent,
+    WebcamEvent, MaterialDataEvent, StateChangeEvent,
+    ConnectionEvent, ToolEvent)
+from ...helpers.ambient_check import AmbientTemperatureState
+from ...helpers.temperature import Temperature
 
 
 class PrinterCpuFlag(Enum):

@@ -1,12 +1,12 @@
 from enum import Enum
 from typing import Any, Dict, Generator, Optional, Tuple, TYPE_CHECKING, Union, Callable, List
 
-from ..events.event import Event
-from ..helpers.intervals import IntervalTypes, IntervalTypeRef, IntervalException
+from ...events.event import Event
+from ...helpers.intervals import IntervalTypes, IntervalTypeRef, IntervalException
 
 if TYPE_CHECKING:
-    from ..client import Client
-    from simplyprint_ws_client.client.state import PrinterState
+    from ...client import Client
+    from ...client.state import PrinterState
 
 
 class PrinterEvent(Enum):

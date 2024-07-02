@@ -2,7 +2,7 @@ import asyncio
 import contextlib
 from typing import Set
 
-from simplyprint_ws_client.utils.event_loop_provider import EventLoopProvider
+from .event_loop_provider import EventLoopProvider
 
 
 class AsyncTaskScope(EventLoopProvider):

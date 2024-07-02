@@ -3,12 +3,12 @@ from enum import Enum
 from typing import Dict, Iterable, Optional
 
 from ..client import Client
-from ..config import Config
 from ..config import ConfigManager
+from ..config import PrinterConfig
 from ..instance.instance import Instance, TClient, TConfig, InstanceException
+from ..protocol.client_events import ClientEvent
+from ..protocol.server_events import MultiPrinterAddedEvent, MultiPrinterRemovedEvent
 from ...connection.connection import ConnectionConnectedEvent, ConnectionPollEvent, ConnectionDisconnectEvent
-from ...events.client_events import ClientEvent
-from ...events.server_events import MultiPrinterAddedEvent, MultiPrinterRemovedEvent
 from ...helpers.url_builder import SimplyPrintURL
 
 
@@ -28,7 +28,7 @@ class MultiPrinterClientEvents(Enum):
 class MultiPrinterAddPrinterEvent(ClientEvent):
     event_type = MultiPrinterClientEvents.ADD_PRINTER
 
-    def __init__(self, config: Config, allow_setup: bool = False) -> None:
+    def __init__(self, config: PrinterConfig, allow_setup: bool = False) -> None:
         super().__init__({
             "pid":         config.id if not config.in_setup else 0,
             "token":       config.token,
@@ -41,7 +41,7 @@ class MultiPrinterAddPrinterEvent(ClientEvent):
 class MultiPrinterRemovePrinterEvent(ClientEvent):
     event_type = MultiPrinterClientEvents.REMOVE_PRINTER
 
-    def __init__(self, config: Config) -> None:
+    def __init__(self, config: PrinterConfig) -> None:
         super().__init__({
             "pid":       config.id,
             "unique_id": config.unique_id,

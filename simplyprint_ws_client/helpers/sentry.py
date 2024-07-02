@@ -1,16 +1,17 @@
 import logging
-import sentry_sdk
 import traceback
+from typing import TYPE_CHECKING, List
+
+import sentry_sdk
 from sentry_sdk.integrations import Integration
 from sentry_sdk.integrations.asyncio import AsyncioIntegration
 from sentry_sdk.integrations.logging import LoggingIntegration
 from sentry_sdk.integrations.threading import ThreadingIntegration
-from typing import TYPE_CHECKING, List
 
 from ..const import VERSION
 
 if TYPE_CHECKING:
-    from simplyprint_ws_client.client.app import ClientOptions
+    from ..client.app import ClientOptions
 
 # This cannot be 0.
 DEFAULT_SAMPLE_RATE = 0.1

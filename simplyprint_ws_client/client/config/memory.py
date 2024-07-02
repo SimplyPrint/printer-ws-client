@@ -1,7 +1,7 @@
 from typing import Optional
 
-from simplyprint_ws_client.client.config.config import Config
 from .manager import ConfigManager
+from ...client.config.config import Config
 
 
 class MemoryConfigManager(ConfigManager):

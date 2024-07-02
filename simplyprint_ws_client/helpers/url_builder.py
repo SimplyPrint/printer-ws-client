@@ -4,7 +4,7 @@ from typing import NamedTuple, Optional
 
 from yarl import URL
 
-from simplyprint_ws_client.const import IS_TESTING
+from ..const import IS_TESTING
 
 
 class SimplyPrintWsVersion(Enum):

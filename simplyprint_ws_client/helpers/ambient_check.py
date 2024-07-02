@@ -1,9 +1,10 @@
-from traitlets import Float, Int
 from typing import Callable, List, Optional, Tuple
 
+from traitlets import Float, Int
+
 from .temperature import Temperature
+from ..client.protocol.client_events import AmbientTemperatureEvent
 from ..client.state import ClientState, to_event
-from ..events.client_events import AmbientTemperatureEvent
 
 
 class AmbientCheck:

@@ -5,10 +5,10 @@ from abc import ABC, abstractmethod
 from typing import Generic, Optional, TypeVar
 
 from .config import Config
+from .protocol import Demands, Events
+from .protocol.client_events import ClientEvent, PingEvent, StateChangeEvent, MachineDataEvent
 from ..client.logging import *
 from ..client.state.printer import PrinterState
-from ..events import Demands, Events
-from ..events.client_events import ClientEvent, PingEvent, StateChangeEvent, MachineDataEvent
 from ..events.event import Event
 from ..events.event_bus import EventBus
 from ..helpers.intervals import IntervalTypes, Intervals

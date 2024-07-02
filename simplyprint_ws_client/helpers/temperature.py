@@ -2,8 +2,8 @@ from typing import Optional
 
 from traitlets import Float
 
+from ..client.protocol.client_events import TemperatureEvent
 from ..client.state import ClientState, to_event
-from ..events.client_events import TemperatureEvent
 
 
 @to_event(TemperatureEvent, "actual", "target")

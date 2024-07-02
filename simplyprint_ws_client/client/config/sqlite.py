@@ -4,9 +4,9 @@ import sqlite3
 from pathlib import Path
 from typing import Optional
 
-from simplyprint_ws_client.client.config.config import Config
-from simplyprint_ws_client.helpers.file_backup import FileBackup
 from .manager import ConfigManager
+from ...client.config.config import Config
+from ...helpers.file_backup import FileBackup
 
 
 class SQLiteConfigManager(ConfigManager):

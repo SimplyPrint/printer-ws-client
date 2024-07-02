@@ -75,7 +75,7 @@ class LifetimeManager(AsyncStoppable):
                     await self.restart_lifetime(client)
                     continue
 
-                if self.instance.connection.is_connected() and not client._connected:
+                if self.instance.connection.is_connected() and not client.connected:
                     connected_trace = traceability.from_class(client).get("connected", None)
 
                     client.logger.warning(

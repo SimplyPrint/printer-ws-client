@@ -4,7 +4,7 @@ import threading
 from abc import ABC, abstractmethod
 from typing import Optional, Union, TypeVar, Generic
 
-from simplyprint_ws_client.utils.async_task_scope import AsyncTaskScope
+from .async_task_scope import AsyncTaskScope
 
 TStopEvent = TypeVar("TStopEvent", bound=Union[threading.Event, asyncio.Event, multiprocessing.Condition])
 TCondition = TypeVar("TCondition", bound=Union[threading.Condition, asyncio.Condition, multiprocessing.Condition])

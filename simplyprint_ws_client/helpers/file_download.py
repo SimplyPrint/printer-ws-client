@@ -1,10 +1,11 @@
-import aiohttp
 import asyncio
 from pathlib import Path
 from typing import Callable, Optional, AsyncIterable
 
-from simplyprint_ws_client.client.state import PrinterFileProgressState, FileProgressState
+import aiohttp
+
 from ..client.client import Client
+from ..client.state import PrinterFileProgressState, FileProgressState
 
 
 class FileDownload:

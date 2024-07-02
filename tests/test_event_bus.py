@@ -1,10 +1,10 @@
 import unittest
 
-from simplyprint_ws_client.events.client_events import ClientEvent
+from simplyprint_ws_client.client.protocol.client_events import ClientEvent
+from simplyprint_ws_client.client.protocol.server_events import ServerEvent, ConnectEvent
 from simplyprint_ws_client.events.event import Event
 from simplyprint_ws_client.events.event_bus import EventBus, EventBusListeners
 from simplyprint_ws_client.events.event_listeners import ListenerUniqueness, ListenerLifetimeForever
-from simplyprint_ws_client.events.server_events import ServerEvent, ConnectEvent
 
 
 class CustomEvent(Event):

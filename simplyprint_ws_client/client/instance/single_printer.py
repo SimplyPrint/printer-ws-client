@@ -2,8 +2,8 @@ from typing import Iterable, Optional, Union
 
 from ..client import Client
 from ..instance.instance import Instance, TClient, TConfig
+from ..protocol.client_events import ClientEvent
 from ...connection.connection import ConnectionConnectedEvent
-from ...events.client_events import ClientEvent
 from ...helpers.url_builder import SimplyPrintURL
 
 

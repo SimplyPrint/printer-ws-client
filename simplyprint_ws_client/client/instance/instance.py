@@ -4,20 +4,19 @@ import logging
 import threading
 from abc import ABC, abstractmethod
 from typing import (Any, Callable, Generic, Iterable, List,
-                    Optional, Tuple, TypeVar, Union, Coroutine)
+                    Optional, Tuple, TypeVar, Union, Awaitable)
 
 from ..client import Client, ClientConfigChangedEvent
 from ..config.config import PrinterConfig
 from ..config.manager import ConfigManager
 from ..lifetime.lifetime_manager import LifetimeManager, LifetimeType
+from ..protocol import ClientEvent, DemandEvent
+from ..protocol.server_events import ServerEvent, ConnectEvent
 from ...connection.connection import (Connection, ConnectionConnectedEvent,
                                       ConnectionDisconnectEvent,
                                       ConnectionPollEvent,
                                       )
-from ...events.client_events import (ClientEvent)
-from ...events.demand_events import DemandEvent
 from ...events.event_bus import Event, EventBus
-from ...events.server_events import ServerEvent, ConnectEvent
 from ...utils.event_loop_provider import EventLoopProvider
 from ...utils.stoppable import AsyncStoppable, Stoppable
 
@@ -334,8 +333,8 @@ class Instance(AsyncStoppable, EventLoopProvider, Generic[TClient, TConfig], ABC
         self.lifetime_manager.remove(client)
 
     @staticmethod
-    async def consume_backlog(backlog: List[Tuple[Any, Any]],
-                              consumer: Callable[[Any, Any], Coroutine[Any, Any, None]]):
+    async def consume_backlog(backlog: List[Tuple],
+                              consumer: Callable[..., Awaitable[Any]]):
         """
         Consumes any events that were received before the client was registered
         this will push elements still not consumed to the end of the list,
@@ -354,7 +353,7 @@ class Instance(AsyncStoppable, EventLoopProvider, Generic[TClient, TConfig], ABC
 
     async def on_server_event(self, event: Union[ServerEvent, DemandEvent], client: TClient):
         """
-        Called when a client event is received.
+        Called when a server event is received.
 
         Do not wait for client handlers to run as they will block the event loop.
         """
@@ -370,14 +369,14 @@ class Instance(AsyncStoppable, EventLoopProvider, Generic[TClient, TConfig], ABC
 
     async def on_client_event(self, event: ClientEvent, client: Client[TConfig]):
         """
-        Called when a client event is received.
+        Called when a client event is dispatched out.
         """
 
         if not isinstance(event, ClientEvent):
             raise InstanceException(f"Expected ClientEvent but got {event}")
 
         # If the client is in setup only a certain subset of events is allowed
-        if client.config.in_setup and not event.event_type.is_allowed_in_setup():
+        if client.config.is_pending() and not event.event_type.is_allowed_in_setup():
             return
 
         await self.connection.send_event(client, event)

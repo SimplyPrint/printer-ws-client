@@ -1,6 +1,6 @@
 from typing import Type, Union
 
-from simplyprint_ws_client.events.event_listeners import ListenerUniqueness
+from .event_listeners import ListenerUniqueness
 
 
 class EventTraits:
