@@ -104,7 +104,7 @@ class ClientProvider(ABC, Generic[TConfig], EventLoopProvider[asyncio.AbstractEv
             # Automatically remove client if it is not supposed to be provided.
             # It is up to the implementation to trigger ensure again.
             if _remove and has_client:
-                await self.app.instance.deregister_client(client)
+                await self.app.instance.deregister_client(client, remove_from_config=remove)
                 return
 
             if client is not None and not has_client:

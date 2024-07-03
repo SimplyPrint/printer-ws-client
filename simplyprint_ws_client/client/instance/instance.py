@@ -78,7 +78,10 @@ class Instance(AsyncStoppable, EventLoopProvider, Generic[TClient, TConfig], ABC
     def __init__(self, config_manager: ConfigManager[TConfig], allow_setup=False,
                  reconnect_timeout=5.0) -> None:
 
-        super().__init__()
+        AsyncStoppable.__init__(self)
+        EventLoopProvider.__init__(self)
+        ABC.__init__(self)
+        Generic.__init__(self)
 
         self.config_manager = config_manager
         self.lifetime_manager = LifetimeManager(self, parent_stoppable=self)
@@ -154,7 +157,7 @@ class Instance(AsyncStoppable, EventLoopProvider, Generic[TClient, TConfig], ABC
 
             self.logger.info("Stopped instance")
 
-        if self.event_loop_is_running():
+        if self.event_loop_is_not_closed():
             asyncio.run_coroutine_threadsafe(_wait_until_stopped(), self.event_loop)
             self.event_loop.call_soon_threadsafe(self._threadsafe_set_stop)
         else:
@@ -175,8 +178,12 @@ class Instance(AsyncStoppable, EventLoopProvider, Generic[TClient, TConfig], ABC
         # assuming everything works as expected.
         await asyncio.gather(
             self.poll_events(),
-            self.lifetime_manager.loop()
+            self.lifetime_manager.loop(),
+            self.test()
         )
+
+    async def test(self) -> None:
+        ...
 
     async def poll_events(self) -> None:
         loop = asyncio.get_running_loop()
@@ -266,6 +273,7 @@ class Instance(AsyncStoppable, EventLoopProvider, Generic[TClient, TConfig], ABC
         else:
             client = self.get_client(id=event.for_client)
 
+        # TODO: This only functions under the context of the MultiPrinter instance.
         if not client and event.event == ConnectEvent:
             self.connection_is_ready.set()
 

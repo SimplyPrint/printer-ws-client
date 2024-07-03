@@ -14,7 +14,7 @@ class AsyncTaskScope(EventLoopProvider):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        if not self.event_loop_is_running():
+        if not self.event_loop_is_not_closed():
             try:
                 self.use_running_loop()
             except RuntimeError:

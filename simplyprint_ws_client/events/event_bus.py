@@ -1,13 +1,17 @@
 import asyncio
 import functools
 from asyncio import AbstractEventLoop
+from itertools import chain
 from typing import (Callable, Dict, Generator, Hashable, Optional, Union, get_args, Type, Any, Tuple,
-                    Iterable, Iterator, Generic)
+                    Iterable, Iterator, Generic, List, TYPE_CHECKING)
 
 from .emitter import Emitter, TEvent
 from .event import Event
 from .event_bus_listeners import EventBusListeners, EventBusListener, EventBusListenerOptions
 from ..utils.event_loop_provider import EventLoopProvider
+
+if TYPE_CHECKING:
+    from .event_bus_middleware import EventBusMiddleware
 
 
 class _EmitGenerator(Generic[TEvent]):
@@ -109,6 +113,7 @@ class _EmitGenerator(Generic[TEvent]):
             raise StopIteration()
 
         event_listener = next(self.listeners)
+
         args = self.args
         kwargs = self.kwargs
 
@@ -126,12 +131,18 @@ class _EmitGenerator(Generic[TEvent]):
 class EventBus(Emitter[TEvent]):
     __slots__ = ('listeners', 'event_klass', 'event_loop_provider')
 
+    # Middlewares are global event listeners.
+    middleware: List['EventBusMiddleware']
+
+    # Event specific listeners.
     listeners: Dict[Hashable, EventBusListeners]
+
     event_klass: Type[TEvent]
     event_loop_provider: EventLoopProvider[AbstractEventLoop]
 
     def __init__(self, event_loop_provider: Optional[EventLoopProvider[AbstractEventLoop]] = None) -> None:
         self.event_loop_provider = event_loop_provider or EventLoopProvider.default()
+        self.middleware = []
         self.listeners = {}
 
         # Extract the generic type from the class otherwise
@@ -145,22 +156,25 @@ class EventBus(Emitter[TEvent]):
             self.event_klass = Event
 
     async def emit(self, event: Union[Hashable, TEvent], *args, **kwargs) -> None:
-        if event not in self.listeners:
+        if event not in self.listeners and len(self.middleware) == 0:
             return
 
-        generator = _EmitGenerator(self, self.listeners[event], event, args, kwargs)
+        generator = _EmitGenerator(self, chain(self.middleware, self.listeners.get(event, [])), event, args, kwargs)
 
         for listener, nargs, nkwargs in generator:
             ret = await listener(*nargs, **nkwargs)
             generator.update(ret)
 
     def emit_sync(self, event: Union[Hashable, TEvent], *args, **kwargs) -> None:
-        if event not in self.listeners:
+        if event not in self.listeners and len(self.middleware) == 0:
             return
 
         # Only invoke non-async functions.
-        generator = _EmitGenerator(self, filter(lambda lst: not lst.is_async, self.listeners[event]), event,
-                                   args, kwargs)
+        generator = _EmitGenerator(
+            self,
+            chain(self.middleware, filter(lambda lst: not lst.is_async, self.listeners.get(event, []))),
+            event,
+            args, kwargs)
 
         for listener, nargs, nkwargs in generator:
             ret = listener.handler(*nargs, **nkwargs)

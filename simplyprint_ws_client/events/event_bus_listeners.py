@@ -2,10 +2,10 @@ import asyncio
 import heapq
 import inspect
 from enum import Enum
-from typing import (Callable, Generator, List,
-                    Union, Tuple, NamedTuple, Optional, get_args, TypedDict, Hashable)
+from typing import (Callable, List,
+                    Union, Tuple, NamedTuple, Optional, get_args, TypedDict, Iterable, Iterator)
 
-from .emitter import Emitter, TEvent
+from .emitter import Emitter
 
 
 class ListenerUniqueness(Enum):
@@ -95,7 +95,7 @@ class EventBusListener:
         return hash(self.handler)
 
 
-class EventBusListeners:
+class EventBusListeners(Iterable[EventBusListener]):
     __slots__ = ('listeners',)
 
     listeners: List[Tuple[int, EventBusListener]]
@@ -137,7 +137,7 @@ class EventBusListeners:
 
         return False
 
-    def __iter__(self) -> Generator[EventBusListener, None, None]:
+    def __iter__(self) -> Iterator[EventBusListener]:
         """Iterate over listeners in priority order."""
         for _, listener in heapq.nlargest(len(self.listeners), list(self.listeners)):
             # Only allow once shot listener to be consumed once.
