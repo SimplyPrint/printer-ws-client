@@ -1,4 +1,9 @@
-from typing import List, Hashable, Self, cast, Any
+from typing import List, Hashable, cast, Any
+
+try:
+    from typing import Self
+except ImportError:
+    from typing_extensions import Self
 
 
 class _Attribute(str):
