@@ -8,6 +8,7 @@ from typing import Any, Dict, Optional, Union
 from aiohttp import (ClientSession,
                      ClientWebSocketResponse, WSMsgType,
                      ClientResponseError, ClientError)
+from yarl import URL
 
 from ..client.client import Client
 from ..client.protocol import DemandEvent, ServerEvent, EventFactory
@@ -44,8 +45,7 @@ class ConnectionDisconnectEvent(Event):
     ...
 
 
-class ConnectionEventBus(EventBus[Event]):
-    ...
+ConnectionEventBus = EventBus[Event]
 
 
 class Connection(EventLoopProvider[asyncio.AbstractEventLoop]):
@@ -61,7 +61,7 @@ class Connection(EventLoopProvider[asyncio.AbstractEventLoop]):
     # the reconnection timeout.
     connection_lock: CancelableLock
 
-    url: Optional[str] = None
+    url: Union[URL, str, None] = None
     timeout: float = 5.0
 
     def __init__(self, event_loop_provider: Optional[EventLoopProvider] = None) -> None:
@@ -72,7 +72,8 @@ class Connection(EventLoopProvider[asyncio.AbstractEventLoop]):
     def is_connected(self) -> bool:
         return self.ws is not None and not self.ws.closed
 
-    async def connect(self, url: Optional[str] = None, timeout: Optional[float] = None, allow_reconnects=False) -> None:
+    async def connect(self, url: Union[URL, str, None] = None, timeout: Optional[float] = None,
+                      allow_reconnects=False) -> None:
         with suppress(asyncio.CancelledError):
             async with self.connection_lock:
                 self.use_running_loop()
@@ -92,7 +93,7 @@ class Connection(EventLoopProvider[asyncio.AbstractEventLoop]):
                 self.session = ClientSession()
 
                 if not self.url:
-                    raise ValueError("No url specified")
+                    raise ValueError("No URL specified")
 
                 self.logger.debug(
                     f"{'Connecting' if not reconnection else 'Reconnecting'} to {self.url}")
@@ -101,7 +102,7 @@ class Connection(EventLoopProvider[asyncio.AbstractEventLoop]):
 
                 try:
                     ws = await self.session.ws_connect(
-                        self.url,
+                        str(self.url),
                         timeout=timeout,
                         autoclose=True,
                         autoping=True,

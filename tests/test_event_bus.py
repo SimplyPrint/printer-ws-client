@@ -1,10 +1,13 @@
+import asyncio
 import unittest
+from typing import Optional
 
 from simplyprint_ws_client.client.protocol.client_events import ClientEvent
 from simplyprint_ws_client.client.protocol.server_events import ServerEvent, ConnectEvent
 from simplyprint_ws_client.events.event import Event
 from simplyprint_ws_client.events.event_bus import EventBus, EventBusListeners
-from simplyprint_ws_client.events.event_listeners import ListenerUniqueness, ListenerLifetimeForever
+from simplyprint_ws_client.events.event_bus_listeners import ListenerUniqueness, ListenerLifetimeForever, \
+    ListenerLifetimeOnce
 
 
 class CustomEvent(Event):
@@ -43,11 +46,13 @@ class TestEventBus(unittest.IsolatedAsyncioTestCase):
         self.default_event_bus.on(ClientEvent, self.on_client_event, generic=True)
         self.default_event_bus.on(ServerEvent, self.on_server_event, generic=True)
 
-    async def on_client_event(self, event: ClientEvent):
+    @staticmethod
+    async def on_client_event(event: ClientEvent):
         if not isinstance(event, ClientEvent):
             raise Exception("Event is not a ClientEvent")
 
-    async def on_server_event(self, event: ServerEvent):
+    @staticmethod
+    async def on_server_event(event: ServerEvent):
         if not isinstance(event, ServerEvent):
             raise Exception("Event is not a ServerEvent")
 
@@ -88,6 +93,71 @@ class TestEventBus(unittest.IsolatedAsyncioTestCase):
         await self.default_event_bus.emit(ClientEvent())
         await self.default_event_bus.emit(ConnectEvent("connected"))
         await self.default_event_bus.emit(CustomEvent())
+
+    async def test_chained_event_bus(self):
+        called_func1 = 0
+        called_func2 = 0
+
+        def func1(dispatcher: Optional[EventBus] = None):
+            nonlocal called_func1
+            called_func1 += 1
+
+            dispatcher.emit_sync("func2")
+
+        def func2():
+            nonlocal called_func2
+            called_func2 += 1
+
+        event_bus = EventBus()
+        event_bus.on("func1", func1)
+        event_bus.on("func2", func2)
+
+        await event_bus.emit("func1")
+
+        self.assertEqual(called_func1, 1)
+        self.assertEqual(called_func2, 1)
+
+    async def test_one_shot_listener(self):
+        event_bus = EventBus()
+        called = 0
+
+        def func1():
+            nonlocal called
+            called += 1
+
+        event_bus.on("test", func1, lifetime=ListenerLifetimeOnce(**{}))
+
+        await event_bus.emit("test")
+
+        self.assertEqual(called, 1)
+
+        await event_bus.emit("test")
+
+        self.assertEqual(called, 1)
+
+        self.assertEqual(len(event_bus.listeners["test"]), 0)
+
+    async def test_one_shot_listener_ret(self):
+        event_bus = EventBus()
+        loop = event_bus.event_loop_provider.event_loop
+
+        async def expensive_task():
+            await asyncio.sleep(0.0)
+            return 1337
+
+        async def func1(f: asyncio.Future):
+            task = loop.create_task(expensive_task())
+            task.add_done_callback(lambda _: f.set_result(task.result()))
+
+        event_bus.on("test", func1, lifetime=ListenerLifetimeOnce(**{}))
+
+        fut = loop.create_future()
+
+        await event_bus.emit("test", fut)
+
+        result = await fut
+
+        self.assertEqual(result, 1337)
 
     def test_event_listener_adding(self):
         event_listeners = EventBusListeners()

@@ -1,6 +1,6 @@
 import asyncio
 from enum import Enum
-from typing import Dict, Iterable, Optional
+from typing import Dict, Iterable, Optional, Tuple, Type
 
 from ..client import Client
 from ..config import ConfigManager
@@ -51,20 +51,28 @@ class MultiPrinterRemovePrinterEvent(ClientEvent):
 class MultiPrinter(Instance[TClient, TConfig]):
     clients: Dict[str, Client[TConfig]]
 
-    # List of unique ids that are pending to be added.
-    # Stores a future that is resolved when the response is received.
-    pending_add_waiters: Dict[str, asyncio.Future]
+    """
+    Dictionary of event type that a client is waiting to receive.
+    So event will contain the response, in a certain time frame.
+    When a connection is reset all of these are cancelled.
+    
+        ("add_connection", "unique_id") => fut
+        event = await fut
+
+    """
+    pending_waiters: Dict[Tuple[Type, str], asyncio.Future]
 
     def __init__(self, config_manager: ConfigManager[TConfig], **kwargs) -> None:
         super().__init__(config_manager, **kwargs)
 
         self.event_bus.on(MultiPrinterAddedEvent, self.on_printer_added_response, priority=10)
         self.event_bus.on(MultiPrinterRemovedEvent, self.on_printer_removed_response, priority=10)
-
-        self.set_url(str(SimplyPrintURL().ws_url / "mp" / "0" / "0"))
-
         self.clients = dict()
         self.pending_add_waiters = dict()
+
+    @property
+    def url(self):
+        return SimplyPrintURL().ws_url / "mp" / "0" / "0"
 
     async def add_client(self, client: TClient) -> None:
         # Will be removed by the response event.

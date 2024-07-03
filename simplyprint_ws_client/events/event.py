@@ -1,6 +1,6 @@
 from typing import Type, Union
 
-from .event_listeners import ListenerUniqueness
+from .event_bus_listeners import ListenerUniqueness, ListenerLifetime, ListenerLifetimeForever, EventBusListenersOptions
 
 
 class EventTraits:
@@ -45,14 +45,17 @@ class Event(EventTraits, metaclass=EventType):
         self.__stopped = True
 
     @classmethod
-    def on(cls, generic=False, priority: int = 0, unique: ListenerUniqueness = ListenerUniqueness.NONE):
+    def on(cls, generic=False, lifetime: ListenerLifetime = ListenerLifetimeForever(**{}), priority: int = 0,
+           unique: ListenerUniqueness = ListenerUniqueness.NONE):
         """Use as decorator to mark functions as event handlers"""
 
         def decorator(func):
-            func._event_class = cls
-            func._event_generic = generic
-            func._event_priority = priority
-            func._event_unique = unique
+            if not hasattr(func, '_Event__opts'):
+                func._Event__opts = {}
+
+            func._Event__opts[cls] = EventBusListenersOptions(generic=generic, lifetime=lifetime, priority=priority,
+                                                              unique=unique)
+
             return func
 
         return decorator

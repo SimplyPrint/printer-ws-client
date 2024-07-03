@@ -1,8 +1,11 @@
 import asyncio
 import heapq
+import inspect
 from enum import Enum
 from typing import (Callable, Generator, List,
-                    Union, Tuple, NamedTuple)
+                    Union, Tuple, NamedTuple, Optional, get_args, TypedDict, Hashable)
+
+from .emitter import Emitter, TEvent
 
 
 class ListenerUniqueness(Enum):
@@ -33,13 +36,24 @@ class ListenerLifetimeForever(ListenerLifetime):
     ...
 
 
+class EventBusListenerOptions(TypedDict):
+    lifetime: ListenerLifetime
+    priority: int
+    unique: ListenerUniqueness
+
+
+class EventBusListenersOptions(EventBusListenerOptions, TypedDict):
+    generic: bool
+
+
 class EventBusListener:
-    __slots__ = ('lifetime', 'priority', 'handler', 'is_async')
+    __slots__ = ('lifetime', 'priority', 'handler', 'is_async', 'forward_emitter')
 
     lifetime: ListenerLifetime
     priority: int
     handler: Callable
     is_async: bool
+    forward_emitter: Optional[str]
 
     async def __call__(self, *args, **kwargs):
         if not self.is_async:
@@ -52,6 +66,21 @@ class EventBusListener:
         self.priority = priority
         self.handler = handler
         self.is_async = asyncio.iscoroutinefunction(handler)
+        self.forward_emitter = None
+
+        # If function takes a named argument with the type Emitter, store that kwarg name.
+        signature = inspect.signature(handler)
+
+        for parameter in signature.parameters.values():
+            annotation = parameter.annotation
+
+            # Check if the annotation is a type or a type hint. And whether it is a subclass of Emitter.
+            if not any(
+                    issubclass(cls, Emitter) for cls in get_args(annotation) + (annotation,) if isinstance(cls, type)):
+                continue
+
+            self.forward_emitter = parameter.name
+            break
 
     def __lt__(self, other: 'EventBusListener') -> bool:
         return self.priority < other.priority
@@ -74,7 +103,11 @@ class EventBusListeners:
     def __init__(self) -> None:
         self.listeners = []
 
-    def add(self, listener: Callable, lifetime: ListenerLifetime, priority: int, unique: ListenerUniqueness) -> None:
+    def add(self, listener: Callable, **kwargs: EventBusListenerOptions) -> None:
+        unique = kwargs.get('unique', ListenerUniqueness.NONE)
+        priority = kwargs.get('priority', 0)
+        lifetime = kwargs.get('lifetime', ListenerLifetimeForever(**{}))
+
         # Handle replacement strategy.
         if unique == ListenerUniqueness.EXCLUSIVE_WITH_ERROR and len(self.listeners) > 0:
             raise ValueError("Exclusive listener already registered, raising an error.")

@@ -21,13 +21,9 @@ class ClientConfigurationException(Exception):
     ...
 
 
-class ClientEventBus(EventBus[Event]):
-    """ 
-    Eventbus for events from SimplyPrint to the client. (ServerEvents / DemandEvents)
-
-    Also for the client to send events to SimplyPrint. (ClientEvents)
-    """
-    ...
+# Eventbus for events from SimplyPrint to the client. (ServerEvents / DemandEvents)
+# Also for the client to send events to SimplyPrint. (ClientEvents)
+ClientEventBus = EventBus[Event]
 
 
 class ClientConfigChangedEvent(Event):
@@ -98,7 +94,7 @@ class Client(ABC, EventLoopProvider[asyncio.AbstractEventLoop], Generic[TConfig]
         return self._connected
 
     @connected.setter
-    @traceable(with_args=True, with_stack=True, record_count=20)
+    @traceable(with_args=True, with_stack=True, record_count=5)
     def connected(self, value: bool):
         self._connected = value
 
@@ -204,8 +200,6 @@ class DefaultClient(Client[TConfig], ABC):
 
     @Events.ConnectEvent.before
     async def before_connect(self, event: Events.ConnectEvent):
-        self.logger.debug("Client received connected event")
-
         async with self:
             self.connected = True
             self.config.name = event.printer_name

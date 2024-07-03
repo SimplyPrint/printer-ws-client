@@ -12,6 +12,9 @@ except ImportError:
 TKey = Tuple[int, str]
 
 
+# TODO: Replace with a proper ORM-component
+# And centralize the config management file with tables, versioning, singleton instances (settings)
+# and more.
 class Config(ABC):
     """Config Entity interface for persistence."""
 

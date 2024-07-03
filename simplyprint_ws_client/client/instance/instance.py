@@ -6,6 +6,8 @@ from abc import ABC, abstractmethod
 from typing import (Any, Callable, Generic, Iterable, List,
                     Optional, Tuple, TypeVar, Union, Awaitable)
 
+from yarl import URL
+
 from ..client import Client, ClientConfigChangedEvent
 from ..config.config import PrinterConfig
 from ..config.manager import ConfigManager
@@ -42,13 +44,10 @@ class Instance(AsyncStoppable, EventLoopProvider, Generic[TClient, TConfig], ABC
     3. Broker events to the appropriate clients.
     4. Broker events from clients to the websocket server.
     5. Progress client "tick" when applicable.
-
-
     """
 
     logger = logging.getLogger("instance")
 
-    url: Optional[str] = None
     connection: Connection
 
     config_manager: ConfigManager[TConfig]
@@ -67,12 +66,12 @@ class Instance(AsyncStoppable, EventLoopProvider, Generic[TClient, TConfig], ABC
     __instance_thread_id: Optional[int] = None
 
     # Allow logic to wait until ws-connection responds with ready message.
-    connection_is_ready: Optional[asyncio.Event] = None
+    connection_is_ready: asyncio.Event
 
     # Ensure we only allow one disconnect event to be processed at a time
     disconnect_lock: asyncio.Lock
 
-    # Queues to synchronize events between threads / coroutines
+    # Keep track of events sent too early to be processed so we can process them later.
     server_event_backlog: List[Tuple[ConnectionPollEvent]]
     client_event_backlog: List[Tuple[TClient, ClientEvent]]
 
@@ -97,12 +96,13 @@ class Instance(AsyncStoppable, EventLoopProvider, Generic[TClient, TConfig], ABC
 
         self.event_bus.on(ServerEvent, self.on_server_event, generic=True)
 
-        self.reset_connection()
+        self._init_connection()
 
-    def set_url(self, url: str) -> None:
-        self.url = url
+    @property
+    def url(self) -> Optional[URL]:
+        raise NotImplementedError("Instance.url must be implemented")
 
-    def reset_connection(self):
+    def _init_connection(self):
         self.connection = Connection(event_loop_provider=self)
 
         self.connection.event_bus.on(ConnectionConnectedEvent, self.on_connect)
@@ -114,6 +114,11 @@ class Instance(AsyncStoppable, EventLoopProvider, Generic[TClient, TConfig], ABC
 
         self.connection_is_ready = asyncio.Event()
         self.disconnect_lock = asyncio.Lock()
+
+    def _threadsafe_set_stop(self):
+        # Asyncio event is not threadsafe.
+        with self.__instance_stop_lock:
+            Stoppable.stop(self)
 
     async def __aenter__(self):
         if self.__instance_thread_id is not None and self.__instance_thread_id != threading.get_ident():
@@ -132,13 +137,29 @@ class Instance(AsyncStoppable, EventLoopProvider, Generic[TClient, TConfig], ABC
         self.reset_event_loop()
 
         # Set the stop event
-        with self.__instance_stop_lock:
-            Stoppable.stop(self)
+        self._threadsafe_set_stop()
 
-        self.reset_connection()
+        self._init_connection()
         # Initialize a new connection
         self.__instance_thread_id = None
         self.__instance_lock.release()
+
+    def stop(self) -> None:
+        async def _wait_until_stopped():
+            self.logger.info("Stopping instance")
+
+            # Await all tasks to log when they are done.
+            await asyncio.gather(*[t for t in asyncio.all_tasks() if t is not asyncio.current_task()],
+                                 return_exceptions=True)
+
+            self.logger.info("Stopped instance")
+
+        if self.event_loop_is_running():
+            asyncio.run_coroutine_threadsafe(_wait_until_stopped(), self.event_loop)
+            self.event_loop.call_soon_threadsafe(self._threadsafe_set_stop)
+        else:
+            self.logger.warning("Event loop not running - stopping instance synchronously.")
+            self._threadsafe_set_stop()
 
     async def run(self) -> None:
         """ Only call this method once per thread."""
@@ -149,31 +170,13 @@ class Instance(AsyncStoppable, EventLoopProvider, Generic[TClient, TConfig], ABC
         # received as we will never poll any events if this blocks.
         await self.connect(block_until_connected=False)
 
+        # The poll_events loop is the primary component of the instance
+        # The lifetime manager loop simply takes care of cleanup as an essential service
+        # assuming everything works as expected.
         await asyncio.gather(
             self.poll_events(),
             self.lifetime_manager.loop()
         )
-
-    def stop(self) -> None:
-        async def async_stop():
-            self.logger.info("Stopping instance")
-
-            tasks = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
-            await asyncio.gather(*tasks, return_exceptions=True)
-
-            self.logger.info("Stopped instance")
-
-        # Asyncio event is not threadsafe.
-        def locked_stop():
-            with self.__instance_stop_lock:
-                Stoppable.stop(self)
-
-        if self.event_loop_is_running():
-            asyncio.run_coroutine_threadsafe(async_stop(), self.event_loop)
-            self.event_loop.call_soon_threadsafe(locked_stop)
-        else:
-            self.logger.warning("Event loop not running - stopping instance synchronously.")
-            locked_stop()
 
     async def poll_events(self) -> None:
         loop = asyncio.get_running_loop()
@@ -183,7 +186,9 @@ class Instance(AsyncStoppable, EventLoopProvider, Generic[TClient, TConfig], ABC
 
         while not self.is_stopped():
             if not self.connection.is_connected():
+                # TODO: log this with exponential backoff to prevent log spam.
                 self.logger.debug("Not connected - not polling events")
+
                 await self.event_bus.emit(ConnectionDisconnectEvent())
 
                 # If we are not connected yet just wait the timeout anyhow

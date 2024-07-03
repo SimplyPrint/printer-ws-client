@@ -1,9 +1,10 @@
 import asyncio
 from abc import ABC
 from queue import Queue
-from typing import Generic, Union, Hashable, NamedTuple, Optional, Dict, Tuple, Any
+from typing import Union, Hashable, NamedTuple, Optional, Dict, Tuple, Any
 
-from .event_bus import EventBus, Emitable, TEvent
+from .emitter import TEvent, Emitter
+from .event_bus import EventBus
 from ..utils.stoppable import StoppableThread, AsyncStoppable, StoppableInterface
 
 
@@ -17,7 +18,7 @@ class _EventQueueItem(NamedTuple):
 _TEventQueueValue = Optional[_EventQueueItem]
 
 
-class EventBusWorker(Generic[TEvent], StoppableInterface, Emitable, ABC):
+class EventBusWorker(Emitter[TEvent], StoppableInterface, ABC):
     event_bus: EventBus[TEvent]
     event_queue: Union[Queue[_TEventQueueValue], asyncio.Queue[_TEventQueueValue]]
 

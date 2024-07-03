@@ -16,9 +16,6 @@ class BoundedInterval(Generic[TIntervalValue]):
         self.step = step
         self.default = default
 
-    def increment_until_bound(self, value: TIntervalValue) -> TIntervalValue:
-        return min(value + self.step, self.max)
-
     def create_variable(self, value: Optional[TIntervalValue] = None) -> "BoundedVariable":
         return BoundedVariable(value or self.default, self)
 
@@ -42,8 +39,14 @@ class BoundedVariable(Generic[TIntervalValue]):
     def default(self) -> TIntervalValue:
         return self._starting_value
 
-    def increment(self) -> TIntervalValue:
-        self._current_value = self.interval.increment_until_bound(self._current_value)
+    def increment(self, step: Optional[TIntervalValue] = None) -> TIntervalValue:
+        step = step or self.interval.step
+        self._current_value = min(self._current_value + step, self.interval.max)
+        return self._current_value
+
+    def exponential_increment(self, factor: Optional[TIntervalValue] = None) -> TIntervalValue:
+        factor = factor or self.interval.step
+        self._current_value = min(self._current_value * factor, self.interval.max)
         return self._current_value
 
     def is_at_bound(self) -> bool:

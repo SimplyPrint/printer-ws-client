@@ -10,10 +10,14 @@ from ...helpers.url_builder import SimplyPrintURL
 class SinglePrinter(Instance[TClient, TConfig]):
     client: Optional[Client[TConfig]] = None
 
-    async def add_client(self, client: TClient) -> None:
-        self.set_url(
-            str(SimplyPrintURL().ws_url / "p" / str(client.config.id) / str(client.config.token)))
+    @property
+    def url(self):
+        if self.client is None:
+            return None
 
+        return SimplyPrintURL().ws_url / "p" / str(self.client.config.id) / str(self.client.config.token)
+
+    async def add_client(self, client: TClient) -> None:
         self.client = client
 
     def get_client(self, _: Optional[TConfig] = None, **kwargs) -> Union[TClient, None]:
