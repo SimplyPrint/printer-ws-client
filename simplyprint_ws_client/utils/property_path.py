@@ -1,4 +1,4 @@
-from typing import List, Hashable, cast, Any
+from typing import List, Hashable, cast, Any, Union
 
 try:
     from typing import Self
@@ -20,8 +20,8 @@ class AnyIdx:
     __slots__ = []
 
 
-Indexable = Hashable | int | slice
-Shard = _Attribute | Indexable
+Indexable = Union[Hashable, int, slice]
+Shard = Union[_Attribute, Indexable]
 
 
 class PropertyPath(object):
