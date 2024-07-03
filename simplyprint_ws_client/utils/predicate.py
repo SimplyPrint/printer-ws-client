@@ -152,7 +152,7 @@ class Pipe(Generic[_TValue], Predicate, ABC):
     value: _TValue
     output: Predicate = None
 
-    def __or__(self, other: Predicate | Callable) -> Self:
+    def __or__(self, other: Union[Predicate, Callable]) -> Self:
         # We transform all to reduce, some pipes implement custom calls
         # others just provide a callable function.
 
