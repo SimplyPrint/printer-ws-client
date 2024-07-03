@@ -20,7 +20,7 @@ _TEventQueueValue = Optional[_EventQueueItem]
 
 class EventBusWorker(Emitter[TEvent], StoppableInterface, ABC):
     event_bus: EventBus[TEvent]
-    event_queue: Union[Queue[_TEventQueueValue], asyncio.Queue[_TEventQueueValue]]
+    event_queue: Union[Queue[_TEventQueueValue], asyncio.Queue]
 
     def __init__(self, event_bus: EventBus[TEvent]) -> None:
         self.event_bus = event_bus

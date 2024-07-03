@@ -46,7 +46,7 @@ class EventBusPredicateResponseMiddleware(EventBusMiddleware, EventLoopProvider)
             self.predicate_bucket.remove_resource_id(resource_id)
 
     async def create_response_queue(
-            self, *predicates: Predicate, maxsize=0) -> Tuple[asyncio.Queue[Tuple[Tuple, Dict]], Callable]:
+            self, *predicates: Predicate, maxsize=0) -> Tuple[asyncio.Queue, Callable]:
 
         queue = asyncio.Queue(maxsize=maxsize)
 
