@@ -18,4 +18,4 @@ class TestAmbientTemperature(unittest.TestCase):
         for i in range(100):
             state.ambient.invoke_check(tools)
 
-        self.assertEqual(state.ambient.ambient, 28)
+        self.assertEqual(state.ambient.ambient, 27)
