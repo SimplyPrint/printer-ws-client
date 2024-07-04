@@ -24,8 +24,7 @@ class TestTraceability(unittest.IsolatedAsyncioTestCase):
 
             self.assertTrue(len(class_traces) == 0)
 
-            async with client:
-                client.connected = True
+            client.connected = True
 
             class_traces = traceability.from_class(client)
             self.assertTrue("connected" in class_traces)

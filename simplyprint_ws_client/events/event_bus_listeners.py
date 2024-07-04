@@ -94,6 +94,9 @@ class EventBusListener:
     def __hash__(self) -> int:
         return hash(self.handler)
 
+    def __repr__(self):
+        return f"EventListener(handler={self.handler.__name__}, priority={self.priority})"
+
 
 class EventBusListeners(Iterable[EventBusListener]):
     __slots__ = ('listeners',)

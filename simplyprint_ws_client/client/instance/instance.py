@@ -19,6 +19,7 @@ from ...connection.connection import (Connection, ConnectionConnectedEvent,
                                       ConnectionPollEvent,
                                       )
 from ...events.event_bus import Event, EventBus
+from ...events.event_bus_middleware import EventBusPredicateResponseMiddleware
 from ...utils.event_loop_provider import EventLoopProvider
 from ...utils.stoppable import AsyncStoppable, Stoppable
 
@@ -57,6 +58,7 @@ class Instance(AsyncStoppable, EventLoopProvider, Generic[TClient, TConfig], ABC
     reconnect_timeout: float = 5.0
 
     event_bus: EventBus[Event]
+    event_bus_response: EventBusPredicateResponseMiddleware
 
     # Ensure the instance can only be started once.
     __instance_lock: threading.Lock
@@ -71,7 +73,7 @@ class Instance(AsyncStoppable, EventLoopProvider, Generic[TClient, TConfig], ABC
     # Ensure we only allow one disconnect event to be processed at a time
     disconnect_lock: asyncio.Lock
 
-    # Keep track of events sent too early to be processed so we can process them later.
+    # Keep track of events sent too early to be processed, so we can process them later.
     server_event_backlog: List[Tuple[ConnectionPollEvent]]
     client_event_backlog: List[Tuple[TClient, ClientEvent]]
 
@@ -90,6 +92,8 @@ class Instance(AsyncStoppable, EventLoopProvider, Generic[TClient, TConfig], ABC
         self.__instance_stop_lock = threading.Lock()
 
         self.event_bus = EventBus()
+        self.event_bus_response = EventBusPredicateResponseMiddleware(provider=self)
+        self.event_bus.middleware.append(self.event_bus_response)
 
         self.server_event_backlog = []
         self.client_event_backlog = []
@@ -178,12 +182,8 @@ class Instance(AsyncStoppable, EventLoopProvider, Generic[TClient, TConfig], ABC
         # assuming everything works as expected.
         await asyncio.gather(
             self.poll_events(),
-            self.lifetime_manager.loop(),
-            self.test()
+            self.lifetime_manager.loop()
         )
-
-    async def test(self) -> None:
-        ...
 
     async def poll_events(self) -> None:
         loop = asyncio.get_running_loop()
@@ -223,12 +223,11 @@ class Instance(AsyncStoppable, EventLoopProvider, Generic[TClient, TConfig], ABC
             self.logger.info("No clients to connect - not connecting")
             return
 
-        if self.connection.is_connected():
+        if not self.connection.is_connected():
+            await self.connection.connect(url=self.url, allow_reconnects=False)
+        else:
             self.logger.info(
                 "Already connected - not connecting, call connection connect manually to force a reconnect")
-            return
-
-        await self.connection.connect(url=self.url, allow_reconnects=False)
 
         if block_until_connected:
             # Wait until the first connect event is received
@@ -249,8 +248,7 @@ class Instance(AsyncStoppable, EventLoopProvider, Generic[TClient, TConfig], ABC
 
             # Mark all printers as disconnected
             for client in self.get_clients():
-                async with client:
-                    client.connected = False
+                client.connected = False
 
             self.logger.info(
                 f"Disconnected from server - reconnecting in {self.reconnect_timeout} seconds")
@@ -280,8 +278,7 @@ class Instance(AsyncStoppable, EventLoopProvider, Generic[TClient, TConfig], ABC
         if not client or self.is_stopped():
             if event.allow_backlog:
                 self.server_event_backlog.append((event,))
-
-            return
+                return
 
         await self.event_bus.emit(event.event, client)
 
@@ -376,6 +373,9 @@ class Instance(AsyncStoppable, EventLoopProvider, Generic[TClient, TConfig], ABC
 
         if not isinstance(event, ServerEvent):
             raise InstanceException(f"Expected ServerEvent but got {event}")
+
+        if client is None:
+            return
 
         # SAFETY: This is potentially dangerous, but is limited by incoming events.
         _ = self.event_loop.create_task(client.event_bus.emit(event))

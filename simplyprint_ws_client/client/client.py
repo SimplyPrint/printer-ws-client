@@ -4,7 +4,7 @@ import time
 from abc import ABC, abstractmethod
 from typing import Generic, Optional, TypeVar
 
-from .config import Config
+from .config import PrinterConfig
 from .protocol import Demands, Events
 from .protocol.client_events import ClientEvent, PingEvent, StateChangeEvent, MachineDataEvent
 from ..client.logging import *
@@ -30,7 +30,7 @@ class ClientConfigChangedEvent(Event):
     ...
 
 
-TConfig = TypeVar("TConfig", bound=Config)
+TConfig = TypeVar("TConfig", bound=PrinterConfig)
 
 
 class Client(ABC, EventLoopProvider[asyncio.AbstractEventLoop], Generic[TConfig]):
@@ -73,7 +73,7 @@ class Client(ABC, EventLoopProvider[asyncio.AbstractEventLoop], Generic[TConfig]
             try:
                 attr = getattr(self, name)
                 event_cls = getattr(attr, "_event")
-                self.event_bus.on(event_cls, attr, getattr(attr, "_pre"))
+                self.event_bus.on(event_type=event_cls, listener=attr, priority=getattr(attr, "_pre"))
             except (AttributeError, RuntimeError):
                 pass
 
@@ -196,15 +196,17 @@ class DefaultClient(Client[TConfig], ABC):
     @Events.NewTokenEvent.before
     async def before_new_token(self, event: Events.NewTokenEvent):
         self.config.token = event.token
+        self.config.short_id = event.short_id
+        self.config.in_setup = bool(event.short_id)
+
         await self.event_bus.emit(ClientConfigChangedEvent)
 
     @Events.ConnectEvent.before
     async def before_connect(self, event: Events.ConnectEvent):
-        async with self:
-            self.connected = True
-            self.config.name = event.printer_name
-            self.config.in_setup = event.in_setup
-            self.config.short_id = event.short_id
+        self.connected = True
+        self.config.name = event.printer_name
+        self.config.in_setup = event.in_setup
+        self.config.short_id = event.short_id
 
         self.logger.info(f"Connected to server {event}")
 

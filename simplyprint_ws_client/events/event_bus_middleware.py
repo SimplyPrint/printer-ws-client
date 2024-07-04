@@ -1,4 +1,5 @@
 import asyncio
+import functools
 from abc import ABC, abstractmethod
 from typing import Callable, Tuple, Dict
 
@@ -32,34 +33,47 @@ class EventBusPredicateResponseMiddleware(EventBusMiddleware, EventLoopProvider)
 
         self.predicate_bucket = EventBusPredicateBucket()
 
-    async def wait_for_response(self, *predicates: Predicate, timeout: float = None) -> Tuple[Tuple, Dict]:
-        future = self.event_loop.create_future()
+    def create_response(self, *predicates: Predicate) -> asyncio.Future:
+        loop = self.event_loop
+        future = loop.create_future()
+
+        resource_id = None
 
         def on_response(*args, **kwargs):
-            self.event_loop.call_soon(future.set_result, (args, kwargs))
+            nonlocal resource_id
+
+            if future.done():
+                return
+
+            loop.call_soon(future.set_result, (args, kwargs))
 
         resource_id = self.predicate_bucket.add(on_response, *predicates)
+        future.add_done_callback(lambda _: self.predicate_bucket.remove_resource_id(resource_id))
 
-        try:
-            return await asyncio.wait_for(future, timeout=timeout)
-        finally:
-            self.predicate_bucket.remove_resource_id(resource_id)
+        return future
 
-    async def create_response_queue(
-            self, *predicates: Predicate, maxsize=0) -> Tuple[asyncio.Queue, Callable]:
+    async def wait_for_response(self, *predicates: Predicate, timeout: float = None) -> Tuple[Tuple, Dict]:
+        future = self.create_response(*predicates)
+        return await asyncio.wait_for(future, timeout=timeout)
+
+    async def create_response_queue(self, *predicates: Predicate, maxsize=0) -> Tuple[asyncio.Queue, Callable]:
+        loop = self.event_loop
 
         queue = asyncio.Queue(maxsize=maxsize)
 
         def on_response(*args, **kwargs):
-            self.event_loop.call_soon(queue.put_nowait, (args, kwargs))
+            loop.call_soon(queue.put_nowait, (args, kwargs))
 
         resource_id = self.predicate_bucket.add(on_response, *predicates)
 
-        def cleanup():
-            self.predicate_bucket.remove_resource_id(resource_id)
-
-        return queue, cleanup
+        return queue, functools.partial(self.predicate_bucket.remove_resource_id, resource_id)
 
     def handle(self, *args, **kwargs):
         for resource_id in self.predicate_bucket.evaluate(*args, **kwargs):
-            self.predicate_bucket.resources[resource_id](*args, **kwargs)
+            callback = self.predicate_bucket.resources.get(resource_id)
+
+            # TODO: Log when a resource id in the tree exists without an attached resource.
+            if not callback:
+                continue
+
+            callback(*args, **kwargs)

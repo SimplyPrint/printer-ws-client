@@ -44,6 +44,7 @@ class EventBusPredicateBucket(Generic[_TResource]):
 
     resources: Dict[int, _TResource]
     predicates: PredicateTreeNode
+    current_resource_id: int = 0
 
     def __init__(self):
         # Root predicate node, we skip this and access the children directly.
@@ -51,7 +52,7 @@ class EventBusPredicateBucket(Generic[_TResource]):
         self.resources = {}
 
     def add(self, resource: _TResource, *predicates) -> int:
-        next_resource_id = max(list(self.resources.keys()) + [-1]) + 1
+        self.current_resource_id = next_resource_id = self.current_resource_id + 1
         self.resources[next_resource_id] = resource
         self.predicates.push(next_resource_id, *predicates)
         return next_resource_id
@@ -62,8 +63,13 @@ class EventBusPredicateBucket(Generic[_TResource]):
                 self.remove_resource_id(resource_id)
 
     def remove_resource_id(self, resource_id: int, entry: PredicateTreeNode = None):
-
-        self.resources.pop(resource_id, None)
+        # Only perform early exit if the resource does not exist at the initial call.
+        # For nested calls the resource has already been removed.
+        if resource_id not in self.resources and entry is None:
+            return
+        else:
+            # We actually do not know if it exists, so we pass a default anyhow.
+            self.resources.pop(resource_id, None)
 
         if entry is None:
             entry = self.predicates
