@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Type, Union, Generic, TypeVar, Callable, Any
+from typing import Union, Generic, TypeVar, Callable, Any
 
 from .property_path import PropertyPath, PropertyPathBuilder, as_path, Indexable
 
@@ -120,6 +120,17 @@ class Binary(Predicate, ABC):
     def __repr__(self):
         return f'{self.__class__.__name__}({repr(self.left)}, {repr(self.right)})'
 
+    @classmethod
+    def chain(cls, *predicates: Predicate) -> Predicate:
+        """Create a chain of predicates from left to right."""
+        if not predicates:
+            predicate = Constant(True)
+        else:
+            predicate = predicates[0]
+            for pred in predicates[1:]:
+                predicate = cls(predicate, pred)
+        return predicate
+
 
 @dataclass
 class And(Binary):
@@ -131,17 +142,6 @@ class And(Binary):
 class Or(Binary):
     def __call__(self, *args, **kwargs) -> bool:
         return self.left(*args, **kwargs) or self.right(*args, **kwargs)
-
-
-def chain(op: Type[Binary], *predicates: Predicate) -> Predicate:
-    """Create a chain of predicates from left to right."""
-    if not predicates:
-        predicate = Constant(True)
-    else:
-        predicate = predicates[0]
-        for pred in predicates[1:]:
-            predicate = op(predicate, pred)
-    return predicate
 
 
 _TValue = TypeVar('_TValue')

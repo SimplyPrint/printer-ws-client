@@ -1,7 +1,7 @@
 import unittest
 
 from simplyprint_ws_client.events import Event
-from simplyprint_ws_client.utils.predicate import Constant, Reduce, Eq, Extract, Sel, And, EmptyPipe, chain
+from simplyprint_ws_client.utils.predicate import Constant, Reduce, Eq, Extract, Sel, And, EmptyPipe
 from simplyprint_ws_client.utils.property_path import p
 
 
@@ -36,7 +36,7 @@ class TestPredicate(unittest.TestCase):
         event_a = CustomEvent('a')
         event_b = CustomEvent('b')
 
-        event_is_a = Sel(0) | chain(And, Extract(p.name) | Eq('a'), Extract(p.id) | Eq(1337))
+        event_is_a = Sel(0) | And.chain(Extract(p.name) | Eq('a'), Extract(p.id) | Eq(1337))
 
         self.assertTrue(event_is_a(event_a))
         self.assertFalse(event_is_a(event_b))

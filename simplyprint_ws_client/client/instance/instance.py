@@ -224,7 +224,8 @@ class Instance(AsyncStoppable, EventLoopProvider, Generic[TClient, TConfig], ABC
             return
 
         if not self.connection.is_connected():
-            await self.connection.connect(url=self.url, allow_reconnects=False)
+            await self.connection.connect(url=self.url, ignore_connection_criteria=ignore_connect_criteria,
+                                          allow_reconnects=False)
         else:
             self.logger.info(
                 "Already connected - not connecting, call connection connect manually to force a reconnect")
@@ -233,7 +234,7 @@ class Instance(AsyncStoppable, EventLoopProvider, Generic[TClient, TConfig], ABC
             # Wait until the first connect event is received
             await self.connection_is_ready.wait()
 
-    async def on_disconnect(self, _: ConnectionDisconnectEvent):
+    async def on_disconnect(self, event: ConnectionDisconnectEvent):
         async with self.disconnect_lock:
             if self.is_stopped() or self.connection.is_connected():
                 self.logger.debug("Still connected somehow so we are not reconnecting")
@@ -242,7 +243,7 @@ class Instance(AsyncStoppable, EventLoopProvider, Generic[TClient, TConfig], ABC
             # Reset the waiter
             self.connection_is_ready.clear()
 
-            if not self.should_connect():
+            if not event.ignore_connection_criteria and not self.should_connect():
                 self.logger.debug("No clients to reconnect so we stay disconnected.")
                 return
 
@@ -259,7 +260,7 @@ class Instance(AsyncStoppable, EventLoopProvider, Generic[TClient, TConfig], ABC
             # which runs in another coroutine, so on_disconnect should not block
             # the disconnect lock, so that another task can take over, other tasks
             # will block on connect until another task has made the connection.
-            await self.connect(block_until_connected=False)
+            await self.connect(ignore_connect_criteria=event.ignore_connection_criteria, block_until_connected=False)
 
     async def on_poll_event(self, event: ConnectionPollEvent):
         """

@@ -42,7 +42,10 @@ class ConnectionConnectedEvent(Event):
 
 
 class ConnectionDisconnectEvent(Event):
-    ...
+    ignore_connection_criteria: bool = False
+
+    def __init__(self, ignore_connection_criteria: bool = False) -> None:
+        self.ignore_connection_criteria = ignore_connection_criteria
 
 
 ConnectionEventBus = EventBus[Event]
@@ -63,6 +66,7 @@ class Connection(EventLoopProvider[asyncio.AbstractEventLoop]):
 
     url: Union[URL, str, None] = None
     timeout: float = 5.0
+    debug: bool = True
 
     def __init__(self, event_loop_provider: Optional[EventLoopProvider] = None) -> None:
         super().__init__(provider=event_loop_provider)
@@ -73,7 +77,7 @@ class Connection(EventLoopProvider[asyncio.AbstractEventLoop]):
         return self.ws is not None and not self.ws.closed
 
     async def connect(self, url: Union[URL, str, None] = None, timeout: Optional[float] = None,
-                      allow_reconnects=False) -> None:
+                      allow_reconnects=False, ignore_connection_criteria=False) -> None:
         with suppress(asyncio.CancelledError):
             async with self.connection_lock:
                 self.use_running_loop()
@@ -81,7 +85,7 @@ class Connection(EventLoopProvider[asyncio.AbstractEventLoop]):
                 reconnection = self.is_connected()
 
                 if reconnection and not allow_reconnects:
-                    self.logger.debug("Already connected, not reconnecting as reconnects are not allowed.")
+                    self.logger.warning("Already connected, not reconnecting as reconnects are not allowed.")
                     return
 
                 if self.ws or self.session:
@@ -95,7 +99,7 @@ class Connection(EventLoopProvider[asyncio.AbstractEventLoop]):
                 if not self.url:
                     raise ValueError("No URL specified")
 
-                self.logger.debug(
+                self.logger.info(
                     f"{'Connecting' if not reconnection else 'Reconnecting'} to {self.url}")
 
                 ws = None
@@ -125,7 +129,8 @@ class Connection(EventLoopProvider[asyncio.AbstractEventLoop]):
                     self.connection_lock.cancel()
 
                     self.logger.debug(f"Emitting disconnect event in another task.")
-                    _ = self.event_bus.emit_task(ConnectionDisconnectEvent())
+                    _ = self.event_bus.emit_task(
+                        ConnectionDisconnectEvent(ignore_connection_criteria=ignore_connection_criteria))
                     return
 
                 self.ws = ws
@@ -188,8 +193,9 @@ class Connection(EventLoopProvider[asyncio.AbstractEventLoop]):
 
             event.on_sent()
 
-            self.logger.debug(f"Sent event {event.get_name()}" if len(
-                str(message)) > 1000 else f"Sent event {event} with data {message}")
+            if self.debug:
+                self.logger.debug(f"Sent event {event.get_name()}" if len(
+                    str(message)) > 1000 else f"Sent event {event} with data {message}")
 
         except ConnectionResetError as e:
             await self.on_disconnect(f"Failed to send event {event}")
@@ -239,8 +245,9 @@ class Connection(EventLoopProvider[asyncio.AbstractEventLoop]):
                 self.logger.error(f"Unknown event type {e.args[0]}")
                 return
 
-            self.logger.debug(
-                f"Received event {event.get_name()} with data {message.data} for client {for_client}")
+            if self.debug:
+                self.logger.debug(
+                    f"Received event {event.get_name()} with data {message.data} for client {for_client}")
 
             await self.event_bus.emit(ConnectionPollEvent(event, for_client))
 

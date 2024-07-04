@@ -154,13 +154,13 @@ class MultiPrinter(Instance[TClient, TConfig]):
                 # SAFETY: This does not leak as it is bounded by an upper timeout limit.
                 _ = self.event_loop.create_task(self._request_add_printer(client))
 
-    async def on_disconnect(self, _: ConnectionDisconnectEvent):
+    async def on_disconnect(self, event: ConnectionDisconnectEvent):
         async with self.disconnect_lock:
             # Remove pending add waiters when we disconnect.
             self._reset_connection_waiters()
 
         # Then proceed with reconnection logic.
-        await super().on_disconnect(_)
+        await super().on_disconnect(event)
 
     async def on_printer_removed_response(self, event: MultiPrinterRemovedEvent, client: TClient):
         # Do not propagate event further.

@@ -105,7 +105,7 @@ class ClientProvider(ABC, Generic[TConfig], EventLoopProvider[asyncio.AbstractEv
             # It is up to the implementation to trigger ensure again.
             if _remove and has_client:
                 try:
-                    await self.app.instance.deregister_client(client, remove_from_config=remove)
+                    await self.app.instance.deregister_client(client)
                 except InstanceException as e:
                     self.app.instance.logger.error(f"Failed to deregister client: {e}")
 
