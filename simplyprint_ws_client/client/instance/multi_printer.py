@@ -94,7 +94,10 @@ class MultiPrinter(Instance[TClient, TConfig]):
         if not self.connection.is_connected():
             return
 
-        await self._request_remove_printer(client)
+        try:
+            await self._request_remove_printer(client)
+        except (asyncio.TimeoutError, asyncio.CancelledError):
+            raise MultiPrinterException(f"Failed to remove printer {client.config.unique_id} due to timeout.")
 
     async def remove_client(self, client: TClient) -> None:
         if not self.has_client(client):
