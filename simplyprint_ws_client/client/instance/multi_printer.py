@@ -230,7 +230,7 @@ class MultiPrinter(Instance[TClient, TConfig]):
                 # that is we drop the add_connection event on the server side, this way the
                 # client can retry again at a later time, usually when the server does not respond
                 # NO printers are added, so this is a very rare edge case.
-                args, _ = await asyncio.wait_for(fut, timeout=10)
+                args, _ = await asyncio.wait_for(fut, timeout=60)
 
                 assert isinstance(args[0], MultiPrinterAddedEvent)
 
@@ -282,7 +282,7 @@ class MultiPrinter(Instance[TClient, TConfig]):
             try:
                 self._pending_connection_waiters.add(fut)
                 await self.connection.send_event(client, MultiPrinterRemovePrinterEvent(client.config))
-                args, _ = await asyncio.wait_for(fut, timeout=10)
+                args, _ = await asyncio.wait_for(fut, timeout=60)
                 assert isinstance(args[0], MultiPrinterRemovedEvent)
                 event = args[0]
                 await self.on_printer_removed_response(event, client)
