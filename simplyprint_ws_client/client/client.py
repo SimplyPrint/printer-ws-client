@@ -5,15 +5,15 @@ from abc import ABC, abstractmethod
 from typing import Generic, Optional, TypeVar
 
 from .config import PrinterConfig
+from .logging import *
 from .protocol import Demands, Events
 from .protocol.client_events import ClientEvent, PingEvent, StateChangeEvent, MachineDataEvent
-from ..client.logging import *
-from ..client.state.printer import PrinterState
+from .state.printer import PrinterState
 from ..events.event import Event
 from ..events.event_bus import EventBus
 from ..helpers.intervals import IntervalTypes, Intervals
 from ..utils.event_loop_provider import EventLoopProvider
-from ..utils.physical_machine import PhysicalMachine
+from simplyprint_ws_client.helpers.physical_machine import PhysicalMachine
 from ..utils.traceability import traceable
 
 

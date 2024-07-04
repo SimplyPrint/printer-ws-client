@@ -6,7 +6,7 @@ from typing import Union, Hashable, NamedTuple, Optional, Dict, Tuple, Any
 
 from .emitter import TEvent, Emitter
 from .event_bus import EventBus
-from ..utils.physical_machine import PhysicalMachine
+from simplyprint_ws_client.helpers.physical_machine import PhysicalMachine
 from ..utils.stoppable import StoppableThread, AsyncStoppable, StoppableInterface
 
 

@@ -1,7 +1,7 @@
 import functools
 
 
-def _exception_as_value(*args, return_none=False, **kwargs):
+def exception_as_value(*args, return_none=False, **kwargs):
     """ Internal decorator to return an exception as a value
 
     Only used to minimize runtime overhead.

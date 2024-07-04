@@ -2,8 +2,8 @@ from typing import Optional
 
 from traitlets import Float
 
-from ..client.protocol.client_events import TemperatureEvent
-from ..client.state import ClientState, to_event
+from .state import ClientState, to_event
+from ..protocol.client_events import TemperatureEvent
 
 
 @to_event(TemperatureEvent, "actual", "target")
@@ -17,11 +17,14 @@ class Temperature(ClientState):
 
         return round(self.actual) == round(other.actual) and round(self.target) == round(other.target)
 
+    def __repr__(self):
+        return f"Temperature(actual={self.actual}, target={self.target})"
+
     def is_heating(self) -> bool:
-        if self.target is None:
+        if not self.target:
             return False
 
         return round(self.actual) != round(self.target)
 
     def to_list(self):
-        return [round(self.actual)] + ([round(self.target)] if self.target is not None else [])
+        return [round(self.actual)] + ([round(self.target)] if self.target else [])

@@ -8,7 +8,7 @@ from collections import deque
 from functools import wraps
 from typing import Optional
 
-from ._exception_as_value import _exception_as_value
+from .exception_as_value import exception_as_value
 
 _traceability_enabled = contextvars.ContextVar("_traceability_enabled", default=False)
 
@@ -111,7 +111,7 @@ def traceable(*args, record_calls=False, with_stack=False, with_args=False, with
     return decorator
 
 
-@_exception_as_value(return_none=True)
+@exception_as_value(return_none=True)
 def from_func(func):
     obj, key, _ = traceable_location_from_func(func)
 
@@ -126,7 +126,7 @@ def from_func(func):
     return traceability
 
 
-@_exception_as_value(return_none=True)
+@exception_as_value(return_none=True)
 def from_property(prop: property):
     return from_func(prop.fget), from_func(prop.fset)
 
@@ -157,7 +157,7 @@ def from_class_static(cls):
     }
 
 
-@_exception_as_value(return_none=True)
+@exception_as_value(return_none=True)
 def from_class(cls):
     if isinstance(cls, type):
         return from_class_static(cls)

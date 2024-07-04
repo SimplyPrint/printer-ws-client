@@ -1,13 +1,14 @@
 import functools
 import os
 import platform
-import psutil
 import re
 import socket
 import subprocess
 from typing import Optional
 
-from ._exception_as_value import _exception_as_value
+import psutil
+
+from ..utils.exception_as_value import exception_as_value
 
 try:
     import netifaces
@@ -59,25 +60,25 @@ class PhysicalMachine:
             pass
 
         return {
-            "usage": round(psutil.cpu_percent()),
-            "temp": round(temperature),
+            "usage":  round(psutil.cpu_percent()),
+            "temp":   round(temperature),
             "memory": round(psutil.virtual_memory().percent),
-            "flags": 0,
+            "flags":  0,
         }
 
     @classmethod
     def get_info(cls):
         return {
             "python_version": cls.python_version(),
-            "machine": cls.machine(),
-            "os": platform.system(),
-            "mac": cls.mac_address(),
-            "is_ethernet": cls.is_ethernet(),
-            "ssid": cls.ssid(),
-            "hostname": cls.hostname(),
-            "local_ip": cls.local_ip(),
-            "core_count": cls.core_count(),
-            "total_memory": cls.total_memory(),
+            "machine":        cls.machine(),
+            "os":             platform.system(),
+            "mac":            cls.mac_address(),
+            "is_ethernet":    cls.is_ethernet(),
+            "ssid":           cls.ssid(),
+            "hostname":       cls.hostname(),
+            "local_ip":       cls.local_ip(),
+            "core_count":     cls.core_count(),
+            "total_memory":   cls.total_memory(),
         }
 
     @staticmethod
@@ -89,7 +90,7 @@ class PhysicalMachine:
 
     @staticmethod
     @callonce
-    @_exception_as_value(return_none=True)
+    @exception_as_value(return_none=True)
     def __get_cpu_model_linux() -> Optional[str]:
         info_path = "/proc/cpuinfo"
 
@@ -112,14 +113,14 @@ class PhysicalMachine:
 
     @staticmethod
     @callonce
-    @_exception_as_value(return_none=True)
+    @exception_as_value(return_none=True)
     def __get_cpu_model_macos() -> Optional[str]:
         return subprocess.check_output(["sysctl", "-n", "machdep.cpu.brand_string"], shell=False).decode(
             "utf-8").strip()
 
     @staticmethod
     @callonce
-    @_exception_as_value(return_none=True)
+    @exception_as_value(return_none=True)
     def __get_cpu_model_windows() -> Optional[str]:
         name = subprocess.check_output(["wmic", "cpu", "get", "name"], shell=False).decode("utf-8").strip()
 
@@ -138,26 +139,26 @@ class PhysicalMachine:
             return cls.__get_cpu_model_windows()
 
     @staticmethod
-    @_exception_as_value(return_none=True)
+    @exception_as_value(return_none=True)
     def mac_address() -> Optional[str]:
         # Use netifaces
         return netifaces.ifaddresses(netifaces.gateways()["default"][netifaces.AF_INET][1])[netifaces.AF_LINK][0][
             "addr"]
 
     @staticmethod
-    @_exception_as_value(return_none=True)
+    @exception_as_value(return_none=True)
     def is_ethernet() -> bool:
         return netifaces.gateways()["default"][netifaces.AF_INET][1].startswith("eth")
 
     @staticmethod
     @callonce
-    @_exception_as_value(return_none=True)
+    @exception_as_value(return_none=True)
     def __ssid_linux() -> Optional[str]:
         return subprocess.check_output(["iwgetid", "-r"], shell=False).decode("utf-8").strip()
 
     @staticmethod
     @callonce
-    @_exception_as_value(return_none=True)
+    @exception_as_value(return_none=True)
     def __ssid_macos() -> Optional[str]:
         airport_output = map(functools.partial(str.split, sep=': '), map(str.strip, subprocess.check_output(
             ["/System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport", "-I"],
@@ -169,7 +170,7 @@ class PhysicalMachine:
 
     @staticmethod
     @callonce
-    @_exception_as_value(return_none=True)
+    @exception_as_value(return_none=True)
     def __ssid_windows() -> Optional[str]:
         output = subprocess.check_output(["netsh", "wlan", "show", "interfaces"], shell=False).decode(
             "utf-8").strip()
@@ -200,7 +201,7 @@ class PhysicalMachine:
         return socket.gethostname()
 
     @staticmethod
-    @_exception_as_value(return_none=True)
+    @exception_as_value(return_none=True)
     def local_ip() -> Optional[str]:
         interface = netifaces.gateways()["default"][netifaces.AF_INET][1]
 

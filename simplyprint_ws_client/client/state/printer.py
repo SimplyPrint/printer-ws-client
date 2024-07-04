@@ -9,8 +9,10 @@ from traitlets import Unicode, observe
 from traitlets import Union as TraitletsUnion
 
 from .always import Always
+from .ambient_state import AmbientTemperatureState
 from .state import State, ClientState, to_event
-from ...client.protocol.client_events import (
+from .temperature import Temperature
+from ..protocol.client_events import (
     CpuInfoEvent, FileProgressEvent, MachineDataEvent,
     FirmwareEvent,
     FirmwareWarningEvent, FilamentSensorEvent,
@@ -18,8 +20,6 @@ from ...client.protocol.client_events import (
     WebcamStatusEvent,
     WebcamEvent, MaterialDataEvent, StateChangeEvent,
     ConnectionEvent, ToolEvent)
-from ...helpers.ambient_check import AmbientTemperatureState
-from ...helpers.temperature import Temperature
 
 
 class PrinterCpuFlag(Enum):
@@ -256,6 +256,9 @@ class PrinterState(State):
                 model.set_root_state(self)
         else:
             self.material_data = self.material_data[:count]
+
+    def is_printing(self) -> bool:
+        return self.status == PrinterStatus.PRINTING
 
     def is_heating(self) -> bool:
         for tool in self.tool_temperatures:
