@@ -70,12 +70,12 @@ class PrinterInfoData(ClientState):
     os = Unicode(allow_none=True)
     sp_version = Unicode(allow_none=True)
     python_version = Unicode(allow_none=True)
-    is_ethernet = Bool()
+    is_ethernet = Bool(allow_none=True)
     ssid = Unicode(allow_none=True)
     local_ip = Unicode(allow_none=True)
     hostname = Unicode(allow_none=True)
-    core_count = Int()
-    total_memory = Int()
+    core_count = Int(allow_none=True)
+    total_memory = Int(allow_none=True)
     mac = Unicode(allow_none=True)
 
 

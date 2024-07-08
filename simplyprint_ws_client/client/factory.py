@@ -6,9 +6,12 @@ if TYPE_CHECKING:
     from .options import ClientOptions
 
 
-class TClientFactory(Protocol):
-    def __call__(self, config: 'Config') -> 'Client':
+class _TClientFactory(Protocol):
+    def __call__(self, config: 'Config', *args, **kwargs) -> 'Client':
         ...
+
+
+TClientFactory = Union[_TClientFactory, Type['Client']]
 
 
 class ClientFactory:

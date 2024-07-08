@@ -111,7 +111,7 @@ def traceable(*args, record_calls=False, with_stack=False, with_args=False, with
     return decorator
 
 
-@exception_as_value(return_none=True)
+@exception_as_value(return_default=True)
 def from_func(func):
     obj, key, _ = traceable_location_from_func(func)
 
@@ -126,7 +126,7 @@ def from_func(func):
     return traceability
 
 
-@exception_as_value(return_none=True)
+@exception_as_value(return_default=True)
 def from_property(prop: property):
     return from_func(prop.fget), from_func(prop.fset)
 
@@ -157,7 +157,7 @@ def from_class_static(cls):
     }
 
 
-@exception_as_value(return_none=True)
+@exception_as_value(return_default=True)
 def from_class(cls):
     if isinstance(cls, type):
         return from_class_static(cls)

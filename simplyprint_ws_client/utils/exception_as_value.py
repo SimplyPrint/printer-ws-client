@@ -1,7 +1,7 @@
 import functools
 
 
-def exception_as_value(*args, return_none=False, **kwargs):
+def exception_as_value(*args, return_default=False, default=None, **kwargs):
     """ Internal decorator to return an exception as a value
 
     Only used to minimize runtime overhead.
@@ -16,7 +16,7 @@ def exception_as_value(*args, return_none=False, **kwargs):
             try:
                 return func(*fargs, **fkwargs)
             except Exception as e:
-                return e if not return_none else None
+                return e if not return_default else default
 
         return wrapper
 

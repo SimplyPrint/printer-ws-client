@@ -4,7 +4,7 @@ from typing import Optional
 
 from .config import Config
 from .config import ConfigManagerType
-from .factory import TClientFactory
+from .factory import _TClientFactory
 from .instance import Instance, MultiPrinter, SinglePrinter
 from ..helpers.url_builder import SimplyPrintBackend
 from ..utils.event_loop_runner import EventLoopBackend
@@ -40,7 +40,7 @@ class ClientOptions(NamedTuple):
 
     config_manager_type: ConfigManagerType = ConfigManagerType.MEMORY
 
-    client_t: Optional[TClientFactory] = None
+    client_t: Optional[_TClientFactory] = None
     config_t: Optional[TConfigFactory] = None
 
     allow_setup: bool = False
