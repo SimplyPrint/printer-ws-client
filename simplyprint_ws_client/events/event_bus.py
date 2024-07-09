@@ -3,7 +3,7 @@ import functools
 from asyncio import AbstractEventLoop
 from itertools import chain
 from typing import (Callable, Dict, Generator, Hashable, Optional, Union, get_args, Type, Any, Tuple,
-                    Iterable, Iterator, Generic, List, TYPE_CHECKING)
+                    Iterable, Iterator, Generic, TYPE_CHECKING, Set)
 
 from .emitter import Emitter, TEvent
 from .event import Event
@@ -132,7 +132,7 @@ class EventBus(Emitter[TEvent]):
     __slots__ = ('listeners', 'event_klass', 'event_loop_provider')
 
     # Middlewares are global event listeners.
-    middleware: List['EventBusMiddleware']
+    middleware: Set['EventBusMiddleware']
 
     # Event specific listeners.
     listeners: Dict[Hashable, EventBusListeners]
@@ -142,7 +142,7 @@ class EventBus(Emitter[TEvent]):
 
     def __init__(self, event_loop_provider: Optional[EventLoopProvider[AbstractEventLoop]] = None) -> None:
         self.event_loop_provider = event_loop_provider or EventLoopProvider.default()
-        self.middleware = []
+        self.middleware = set()
         self.listeners = {}
 
         # Extract the generic type from the class otherwise

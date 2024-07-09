@@ -92,8 +92,7 @@ class Instance(AsyncStoppable, EventLoopProvider, Generic[TClient, TConfig], ABC
         self.__instance_stop_lock = threading.Lock()
 
         self.event_bus = EventBus()
-        self.event_bus_response = EventBusPredicateResponseMiddleware(provider=self)
-        self.event_bus.middleware.append(self.event_bus_response)
+        self.event_bus_response = EventBusPredicateResponseMiddleware.setup(self.event_bus, provider=self)
 
         self.server_event_backlog = []
         self.client_event_backlog = []

@@ -111,6 +111,9 @@ class ClientProvider(ABC, Generic[TConfig], EventLoopProvider[asyncio.AbstractEv
 
                 return
 
+            if _remove:
+                return
+
             if client is not None and not has_client:
                 # Add the client to the instance.
                 try:

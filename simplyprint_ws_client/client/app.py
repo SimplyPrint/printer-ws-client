@@ -2,8 +2,9 @@ import asyncio
 import functools
 import logging
 import threading
+from asyncio import Future
 from contextlib import suppress
-from typing import Optional, Generic, Dict, Tuple, Coroutine
+from typing import Optional, Generic, Dict
 
 from .config import ConfigManager, PrinterConfig
 from .factory import ClientFactory
@@ -69,7 +70,7 @@ class ClientApp(Generic[TClient, TConfig]):
         if options.sentry_dsn:
             Sentry.initialize_sentry(self.options)
 
-    def load(self, config: PrinterConfig) -> Optional[Tuple[Coroutine, asyncio.Future]]:
+    def load(self, config: PrinterConfig) -> Optional[Future[None]]:
         # Lock to ensure that we don't load the same config twice
         if not self.config_manager.contains(config):
             self.config_manager.persist(config)
@@ -88,9 +89,13 @@ class ClientApp(Generic[TClient, TConfig]):
 
         task = provider.ensure()
         fut = asyncio.run_coroutine_threadsafe(task, self.instance.event_loop)
-        return task, fut
 
-    def unload(self, config: PrinterConfig) -> Optional[Tuple[Coroutine, asyncio.Future]]:
+        try:
+            return asyncio.wrap_future(fut, loop=asyncio.get_running_loop())
+        except RuntimeError:
+            return fut
+
+    def unload(self, config: PrinterConfig) -> Optional[Future[None]]:
         provider = self.client_providers.get(config)
 
         if not provider:
@@ -106,7 +111,11 @@ class ClientApp(Generic[TClient, TConfig]):
 
         task = _unload()
         fut = asyncio.run_coroutine_threadsafe(task, self.instance.event_loop)
-        return task, fut
+
+        try:
+            return asyncio.wrap_future(fut, loop=asyncio.get_running_loop())
+        except RuntimeError:
+            return fut
 
     def get_provider(self, config: PrinterConfig):
         return self.client_providers.get(config)
@@ -117,15 +126,9 @@ class ClientApp(Generic[TClient, TConfig]):
             load_tasks = []
 
             for config in configs:
-                res = self.load(config)
+                load_tasks.append(self.load(config))
 
-                if not res:
-                    continue
-
-                task, _ = res
-                load_tasks.append(task)
-
-            await asyncio.gather(*load_tasks, return_exceptions=True)
+            await asyncio.gather(*[t for t in load_tasks if t is not None], return_exceptions=True)
 
         with suppress(asyncio.CancelledError):
             async with self.instance:

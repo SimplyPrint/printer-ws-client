@@ -12,7 +12,7 @@ class TestEventBus(unittest.IsolatedAsyncioTestCase):
     async def test_simple(self):
         event_bus = EventBus()
         event_bus_response = EventBusPredicateResponseMiddleware(provider=event_bus.event_loop_provider)
-        event_bus.middleware.append(event_bus_response)
+        event_bus.middleware.add(event_bus_response)
 
         future = event_bus_response.create_response(IsInstance(MultiPrinterAddedEvent),
                                                     Extract(p.unique_id) | Eq("something"))
