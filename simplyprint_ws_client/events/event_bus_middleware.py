@@ -1,7 +1,7 @@
 import asyncio
 import functools
 from abc import ABC, abstractmethod
-from typing import Callable, Tuple, Dict, TypeVar, Generic, Any, Optional, NamedTuple, TYPE_CHECKING
+from typing import Callable, Tuple, Dict, TypeVar, Generic, Optional, NamedTuple, TYPE_CHECKING
 
 from .event_bus_listeners import EventBusListener, ListenerLifetimeForever
 from .event_bus_predicate_bucket import EventBusPredicateBucket
@@ -93,7 +93,7 @@ class EventBusKeyResponseMiddleware(EventBusResponseMiddleware, Generic[_THash])
         oneshot: bool
         callback: Callable
 
-    hash_function: Callable[[Any, ...], _THash]
+    hash_function: Callable[..., _THash]
     hash_bucket: Dict[_THash, _HashBucketEntry]
 
     def __init__(self, hash_function: Callable = hash, *args, **kwargs):
