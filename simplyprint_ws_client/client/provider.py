@@ -23,7 +23,7 @@ class TClientProviderFactory(Protocol):
 TConfig = TypeVar('TConfig', bound='Config')
 
 
-class ClientProvider(ABC, AsyncStoppable, Generic[TConfig], EventLoopProvider[asyncio.AbstractEventLoop]):
+class ClientProvider(Generic[TConfig], AsyncStoppable, EventLoopProvider[asyncio.AbstractEventLoop], ABC):
     """
     Instead of a pure factory, write a custom provider that
     decides when to add or remove the config from the instance.
