@@ -21,4 +21,4 @@ class TestEventBus(unittest.IsolatedAsyncioTestCase):
         await future
         await asyncio.sleep(0.0)
 
-        self.assertEqual(len(event_bus_response.predicate_bucket.predicates.predicates), 0)
+        self.assertEqual(len(event_bus_response.predicate_tree.root.predicates), 0)

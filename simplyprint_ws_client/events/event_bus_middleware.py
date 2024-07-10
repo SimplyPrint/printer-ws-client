@@ -1,10 +1,10 @@
 import asyncio
 import functools
 from abc import ABC, abstractmethod
-from typing import Callable, Tuple, Dict, TypeVar, Generic, Optional, NamedTuple, TYPE_CHECKING
+from typing import Callable, Tuple, Dict, TypeVar, Generic, Optional, NamedTuple, TYPE_CHECKING, Final
 
 from .event_bus_listeners import EventBusListener, ListenerLifetimeForever
-from .event_bus_predicate_bucket import EventBusPredicateBucket
+from .event_bus_predicate_tree import EventBusPredicateTree
 from ..utils.event_loop_provider import EventLoopProvider
 from ..utils.predicate import Predicate
 
@@ -93,7 +93,7 @@ class EventBusKeyResponseMiddleware(EventBusResponseMiddleware, Generic[_THash])
         oneshot: bool
         callback: Callable
 
-    hash_function: Callable[..., _THash]
+    hash_function: Final[Callable[..., _THash]]
     hash_bucket: Dict[_THash, _HashBucketEntry]
 
     def __init__(self, hash_function: Callable = hash, *args, **kwargs):
@@ -134,17 +134,17 @@ class EventBusKeyResponseMiddleware(EventBusResponseMiddleware, Generic[_THash])
 class EventBusPredicateResponseMiddleware(EventBusResponseMiddleware):
     """Allow for smart waiting of responses based on predicates that are evaluated on the event arguments."""
 
-    predicate_bucket: EventBusPredicateBucket[Callable]
+    predicate_tree: EventBusPredicateTree[Callable]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.predicate_bucket = EventBusPredicateBucket()
+        self.predicate_tree = EventBusPredicateTree()
 
     def create_response(self, *predicates: Predicate) -> asyncio.Future:
         """WARNING: not threadsafe."""
         resource_id = None
-        future, trigger = self._create_response(lambda _: self.predicate_bucket.remove_resource_id(resource_id))
-        resource_id = self.predicate_bucket.add(trigger, *predicates)
+        future, trigger = self._create_response(lambda _: self.predicate_tree.remove_resource_id(resource_id))
+        resource_id = self.predicate_tree.add(trigger, *predicates)
         return future
 
     async def wait_for_response(self, *predicates: Predicate, timeout: Optional[float] = None, **kwargs):
@@ -153,12 +153,12 @@ class EventBusPredicateResponseMiddleware(EventBusResponseMiddleware):
 
     async def create_response_queue(self, *predicates: Predicate, maxsize=0, **kwargs):
         queue, trigger = self._create_response_queue(maxsize)
-        resource_id = self.predicate_bucket.add(trigger, *predicates)
-        return queue, functools.partial(self.predicate_bucket.remove_resource_id, resource_id)
+        resource_id = self.predicate_tree.add(trigger, *predicates)
+        return queue, functools.partial(self.predicate_tree.remove_resource_id, resource_id)
 
     def handle(self, *args, **kwargs):
-        for resource_id in self.predicate_bucket.evaluate(*args, **kwargs):
-            callback = self.predicate_bucket.resources.get(resource_id)
+        for resource_id in self.predicate_tree.evaluate(*args, **kwargs):
+            callback = self.predicate_tree.resources.get(resource_id)
 
             # TODO: Log when a resource id in the tree exists without an attached resource.
             if not callback:

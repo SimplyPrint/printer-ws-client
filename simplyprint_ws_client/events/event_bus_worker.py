@@ -4,9 +4,9 @@ from abc import ABC
 from queue import Queue, Empty
 from typing import Union, Hashable, NamedTuple, Optional, Dict, Tuple, Any
 
+from simplyprint_ws_client.helpers.physical_machine import PhysicalMachine
 from .emitter import TEvent, Emitter
 from .event_bus import EventBus
-from simplyprint_ws_client.helpers.physical_machine import PhysicalMachine
 from ..utils.stoppable import StoppableThread, AsyncStoppable, StoppableInterface
 
 
@@ -34,7 +34,8 @@ class EventBusWorker(Emitter[TEvent], StoppableInterface, ABC):
     def _full_warning(self):
         if self.event_queue.full():
             logging.warning(
-                f"Event queue worker is full, {self.event_queue.qsize()} events are pending!!! Expect degraded performance.")
+                f"Event queue worker is full, {self.event_queue.qsize()} events are pending!!! Expect degraded "
+                f"performance.")
 
     def stop(self):
         super().stop()

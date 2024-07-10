@@ -39,22 +39,22 @@ class PredicateTreeNode(NamedTuple):
 _TResource = TypeVar('_TResource')
 
 
-class EventBusPredicateBucket(Generic[_TResource]):
+class EventBusPredicateTree(Generic[_TResource]):
     """Store data based on predicate trees. Useful for very dynamic event systems."""
 
+    root: PredicateTreeNode
     resources: Dict[int, _TResource]
-    predicates: PredicateTreeNode
     current_resource_id: int = 0
 
     def __init__(self):
         # Root predicate node, we skip this and access the children directly.
-        self.predicates = PredicateTreeNode(Constant(True), [], set())
+        self.root = PredicateTreeNode(Constant(True), [], set())
         self.resources = {}
 
     def add(self, resource: _TResource, *predicates) -> int:
         self.current_resource_id = next_resource_id = self.current_resource_id + 1
         self.resources[next_resource_id] = resource
-        self.predicates.push(next_resource_id, *predicates)
+        self.root.push(next_resource_id, *predicates)
         return next_resource_id
 
     def remove(self, resource: _TResource):
@@ -72,7 +72,7 @@ class EventBusPredicateBucket(Generic[_TResource]):
             self.resources.pop(resource_id, None)
 
         if entry is None:
-            entry = self.predicates
+            entry = self.root
 
         for i, child in enumerate(entry.predicates):
             if resource_id in child.resources:
@@ -94,7 +94,7 @@ class EventBusPredicateBucket(Generic[_TResource]):
         return [self.resources[resource] for resource in resources if resource in self.resources]
 
     def evaluate(self, *args, **kwargs) -> Iterator[int]:
-        b = self.predicates
+        b = self.root
 
         while len(b.predicates) > 0:
             for entry in b.predicates:

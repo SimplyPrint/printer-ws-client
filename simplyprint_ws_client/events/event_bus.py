@@ -3,7 +3,7 @@ import functools
 from asyncio import AbstractEventLoop
 from itertools import chain
 from typing import (Callable, Dict, Generator, Hashable, Optional, Union, get_args, Type, Any, Tuple,
-                    Iterable, Iterator, Generic, TYPE_CHECKING, Set)
+                    Iterable, Iterator, Generic, TYPE_CHECKING, Set, final)
 
 from .emitter import Emitter, TEvent
 from .event import Event
@@ -14,6 +14,7 @@ if TYPE_CHECKING:
     from .event_bus_middleware import EventBusMiddleware
 
 
+@final
 class _EmitGenerator(Generic[TEvent]):
     """Stateful generator that updates arguments according to input and output."""
     __slots__ = ('event_bus', 'listeners', 'event', 'args', 'kwargs')

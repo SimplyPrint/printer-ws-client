@@ -70,7 +70,7 @@ class ClientApp(Generic[TClient, TConfig]):
         if options.sentry_dsn:
             Sentry.initialize_sentry(self.options)
 
-    def load(self, config: PrinterConfig) -> Optional[Future[None]]:
+    def load(self, config: PrinterConfig) -> Optional[Future]:
         # Lock to ensure that we don't load the same config twice
         if not self.config_manager.contains(config):
             self.config_manager.persist(config)
@@ -95,7 +95,7 @@ class ClientApp(Generic[TClient, TConfig]):
         except RuntimeError:
             return fut
 
-    def unload(self, config: PrinterConfig) -> Optional[Future[None]]:
+    def unload(self, config: PrinterConfig) -> Optional[Future]:
         provider = self.client_providers.get(config)
 
         if not provider:

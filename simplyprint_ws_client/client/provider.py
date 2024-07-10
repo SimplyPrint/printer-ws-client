@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Optional, Protocol, Generic, TypeVar
 from .instance.instance import InstanceException
 from .instance.multi_printer import MultiPrinterFailedToAddException
 from ..utils.event_loop_provider import EventLoopProvider
+from ..utils.stoppable import AsyncStoppable
 
 if TYPE_CHECKING:
     from .config import Config
@@ -22,7 +23,7 @@ class TClientProviderFactory(Protocol):
 TConfig = TypeVar('TConfig', bound='Config')
 
 
-class ClientProvider(ABC, Generic[TConfig], EventLoopProvider[asyncio.AbstractEventLoop]):
+class ClientProvider(ABC, AsyncStoppable, Generic[TConfig], EventLoopProvider[asyncio.AbstractEventLoop]):
     """
     Instead of a pure factory, write a custom provider that
     decides when to add or remove the config from the instance.
@@ -39,7 +40,9 @@ class ClientProvider(ABC, Generic[TConfig], EventLoopProvider[asyncio.AbstractEv
     config: TConfig
 
     def __init__(self, app: 'ClientApp', factory: 'ClientFactory', config: TConfig):
-        super().__init__(provider=app.instance)
+        AsyncStoppable.__init__(self)
+        EventLoopProvider.__init__(self, provider=app.instance)
+
         self.__ensure_lock = asyncio.Lock()
 
         self.app = app
@@ -78,6 +81,11 @@ class ClientProvider(ABC, Generic[TConfig], EventLoopProvider[asyncio.AbstractEv
 
     async def delete(self):
         """Called when the provider is deleted."""
+        if self.is_stopped():
+            raise RuntimeError("Provider is already stopped")
+
+        self.stop()
+
         await self._cancel_retry_task()
 
     async def ensure(self, remove=False):
@@ -140,7 +148,7 @@ class ClientProvider(ABC, Generic[TConfig], EventLoopProvider[asyncio.AbstractEv
         return functools.partial(cls, *args, **kwargs)
 
 
-class BasicClientProvider(ClientProvider):
+class BasicClientProvider(ClientProvider[TConfig]):
     is_cached: bool = False
 
     _cached_client: Optional['Client'] = None
@@ -149,7 +157,10 @@ class BasicClientProvider(ClientProvider):
         super().__init__(*args, **kwargs)
         self.is_cached = is_cached
 
-    def get_client(self) -> 'Client':
+    def get_client(self) -> Optional['Client']:
+        if self.is_stopped():
+            return None
+
         if self.is_cached and self._cached_client:
             return self._cached_client
 
