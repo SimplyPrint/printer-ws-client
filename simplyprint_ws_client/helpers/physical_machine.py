@@ -31,6 +31,15 @@ def callonce(func):
     return wrapper
 
 
+# FIXME:
+# There is a bug in Python that ends up with process.communicate hanging even after
+# The process it runs has exited. This is a workaround for that issue by just introducing a timeout
+# since none of the commands we call do anything important that needs time to run.
+# To reproduce the issue spawning MultiProcessing processes while calling check_output / run
+# seems to do the trick.
+capped_check_output = functools.partial(subprocess.check_output, shell=False, timeout=1.0)
+
+
 class PhysicalMachine:
     """
     Provides hardware and platform information, abstractly.
@@ -115,14 +124,14 @@ class PhysicalMachine:
     @callonce
     @exception_as_value(return_default=True)
     def __get_cpu_model_macos() -> Optional[str]:
-        return subprocess.check_output(["sysctl", "-n", "machdep.cpu.brand_string"], shell=False).decode(
+        return capped_check_output(["sysctl", "-n", "machdep.cpu.brand_string"]).decode(
             "utf-8").strip()
 
     @staticmethod
     @callonce
     @exception_as_value(return_default=True)
     def __get_cpu_model_windows() -> Optional[str]:
-        name = subprocess.check_output(["wmic", "cpu", "get", "name"], shell=False).decode("utf-8").strip()
+        name = capped_check_output(["wmic", "cpu", "get", "name"]).decode("utf-8").strip()
 
         if name.startswith("Name"):
             name = name[4:].strip()
@@ -154,15 +163,15 @@ class PhysicalMachine:
     @callonce
     @exception_as_value(return_default=True)
     def __ssid_linux() -> Optional[str]:
-        return subprocess.check_output(["iwgetid", "-r"], shell=False).decode("utf-8").strip()
+        return capped_check_output(["iwgetid", "-r"]).decode("utf-8").strip()
 
     @staticmethod
     @callonce
     @exception_as_value(return_default=True)
     def __ssid_macos() -> Optional[str]:
-        airport_output = map(functools.partial(str.split, sep=': '), map(str.strip, subprocess.check_output(
-            ["/System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport", "-I"],
-            shell=False).decode("utf-8").strip().split('\n')))
+        airport_output = map(functools.partial(str.split, sep=': '), map(str.strip, capped_check_output(
+            ["/System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport", "-I"]).decode(
+            "utf-8").strip().split('\n')))
 
         for field, value in airport_output:
             if field == "SSID":
@@ -172,7 +181,7 @@ class PhysicalMachine:
     @callonce
     @exception_as_value(return_default=True)
     def __ssid_windows() -> Optional[str]:
-        output = subprocess.check_output(["netsh", "wlan", "show", "interfaces"], shell=False).decode(
+        output = capped_check_output(["netsh", "wlan", "show", "interfaces"]).decode(
             "utf-8").strip()
 
         for line in output.split("\n"):
