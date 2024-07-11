@@ -2,7 +2,7 @@ from enum import Enum
 from typing import NamedTuple, Type, Callable, Union
 from typing import Optional
 
-from .config import Config
+from .config import Config, ConfigManager, PrinterConfig
 from .config import ConfigManagerType
 from .factory import TClientFactory
 from .instance import Instance, MultiPrinter, SinglePrinter
@@ -53,3 +53,13 @@ class ClientOptions(NamedTuple):
 
     def is_valid(self) -> bool:
         return self.client_t is not None and self.config_t is not None
+
+    def create_config_manager(self) -> ConfigManager[PrinterConfig]:
+        """Only create a single instance of a config manager per name.
+        TODO: Singleton
+        """
+        return self.config_manager_type.get_class()(name=self.name, config_t=self.config_t)
+
+    def create_instance(self) -> Instance:
+        return self.mode.get_class()(config_manager=self.create_config_manager(), allow_setup=self.allow_setup,
+                                     reconnect_timeout=self.reconnect_timeout)

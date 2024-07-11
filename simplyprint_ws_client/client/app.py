@@ -40,12 +40,8 @@ class ClientApp(Generic[TClient, TConfig]):
         if options.backend:
             SimplyPrintURL.set_backend(options.backend)
 
-        config_manager_class = options.config_manager_type.get_class()
-        instance_class = options.mode.get_class()
-
-        self.config_manager = config_manager_class(name=options.name, config_t=options.config_t)
-        self.instance = instance_class(config_manager=self.config_manager,
-                                       allow_setup=options.allow_setup, reconnect_timeout=options.reconnect_timeout, )
+        self.instance = options.create_instance()
+        self.config_manager = self.instance.config_manager
 
         self.client_providers = {}
 
