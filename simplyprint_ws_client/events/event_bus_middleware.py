@@ -120,6 +120,9 @@ class EventBusKeyResponseMiddleware(EventBusResponseMiddleware, Generic[_THash])
     def handle(self, *args, **kwargs):
         index = self.hash_function(*args, **kwargs)
 
+        if index is None:
+            return
+
         entry = self.hash_bucket.get(index)
 
         if not entry:

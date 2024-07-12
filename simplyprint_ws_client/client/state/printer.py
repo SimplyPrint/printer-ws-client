@@ -41,6 +41,7 @@ class PrinterStatus(Enum):
     PAUSED = "paused"
     PAUSING = "pausing"
     CANCELLING = "cancelling"
+    RESUMING = "resuming"
     ERROR = "error"
     NOT_READY = "not_ready"
 
