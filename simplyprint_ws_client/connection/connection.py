@@ -135,6 +135,7 @@ class Connection(EventLoopProvider[asyncio.AbstractEventLoop]):
 
                 self.ws = ws
 
+                # SAFETY: Only one of these are emitted on connect
                 _ = self.event_bus.emit_task(ConnectionConnectedEvent(reconnect=reconnection))
 
                 self.logger.debug(f"Connected to {self.url} {reconnection=}")
