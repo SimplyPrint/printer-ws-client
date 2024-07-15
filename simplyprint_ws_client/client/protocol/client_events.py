@@ -260,6 +260,14 @@ class TemperatureEvent(ClientEvent):
 
         return IntervalTypes.TEMPS
 
+    def get_client_mode(self, client: "Client") -> ClientEventMode:
+        # If the target temperature has changed, we want to send it immediately.
+        if client.printer.bed_temperature.has_changed("target") or any(
+                [tool.has_changed("target") for tool in client.printer.tool_temperatures]):
+            return ClientEventMode.DISPATCH
+
+        return super().get_client_mode(client)
+
 
 class AmbientTemperatureEvent(ClientEvent):
     event_type = PrinterEvent.AMBIENT
@@ -288,23 +296,23 @@ class StateChangeEvent(ClientEvent):
 class JobInfoEvent(ClientEvent):
     event_type = PrinterEvent.JOB_INFO
     interval_type = IntervalTypes.JOB
+    state_fields = ["started", "finished", "cancelled", "failed"]
 
     @classmethod
     def build(cls, state: "PrinterState") -> Generator[Tuple, None, None]:
-        state_fields = ["started", "finished", "cancelled", "failed"]
 
-        if state.job_info.has_changed(*state_fields):
+        if state.job_info.has_changed(*cls.state_fields):
             # Only send updates in terms of true, since they
             # are mutually exclusive.
-            for field in state_fields:
+            for field in cls.state_fields:
                 # Find the first True value and send it.
                 if value := getattr(state.job_info, field):
-                    yield field, value, state.job_info.partial_clear(*state_fields)
+                    yield field, value, state.job_info.partial_clear(*cls.state_fields)
                     break
 
         for key, value in state.job_info.trait_values().items():
             # Ignore state fields
-            if key in state_fields:
+            if key in cls.state_fields:
                 continue
 
             if state.job_info.has_changed(key):
@@ -316,6 +324,13 @@ class JobInfoEvent(ClientEvent):
                     value = round(value)
 
                 yield key, value, state.job_info.partial_clear(key)
+
+    def get_client_mode(self, client: "Client") -> ClientEventMode:
+        # ALWAYS send job_info state field changes.
+        if client.printer.job_info.has_changed(*self.state_fields):
+            return ClientEventMode.DISPATCH
+
+        return super().get_client_mode(client)
 
 
 # TODO in the future
