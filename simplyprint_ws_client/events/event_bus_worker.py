@@ -79,10 +79,13 @@ class ThreadedEventBusWorker(EventBusWorker[TEvent], StoppableThread):
             if item is None:
                 break
 
-            if item.is_async:
-                self.event_bus.emit_task(item.event, *item.args, **item.kwargs)
-            else:
-                self.event_bus.emit_sync(item.event, *item.args, **item.kwargs)
+            try:
+                if item.is_async:
+                    self.event_bus.emit_task(item.event, *item.args, **item.kwargs)
+                else:
+                    self.event_bus.emit_sync(item.event, *item.args, **item.kwargs)
+            except Exception as e:
+                logging.exception(f"Error while processing event {item.event}", exc_info=e)
 
 
 class AsyncEventBusWorker(EventBusWorker[TEvent], AsyncStoppable):
@@ -114,7 +117,10 @@ class AsyncEventBusWorker(EventBusWorker[TEvent], AsyncStoppable):
             if item is None:
                 break
 
-            if item.is_async:
-                await self.event_bus.emit(item.event, *item.args, **item.kwargs)
-            else:
-                self.event_bus.emit_sync(item.event, *item.args, **item.kwargs)
+            try:
+                if item.is_async:
+                    await self.event_bus.emit(item.event, *item.args, **item.kwargs)
+                else:
+                    self.event_bus.emit_sync(item.event, *item.args, **item.kwargs)
+            except Exception as e:
+                logging.exception(f"Error while processing event {item.event}", exc_info=e)
