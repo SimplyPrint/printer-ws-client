@@ -133,7 +133,7 @@ class ClientProvider(Generic[TConfig], AsyncStoppable, EventLoopProvider[asyncio
                         f"Failed to add client {client.config.id} to instance due to response status false.")
                     raise
                 except InstanceException as e:
-                    self.app.instance.logger.error(f"Failed to register client: {e}")
+                    self.app.instance.logger.error(f"Failed to register client %s", str(e))
                     await self._ensure_retry_task()
                 except Exception as e:
                     self.app.instance.logger.error(f"An exception occurred while registering the client", exc_info=e)
