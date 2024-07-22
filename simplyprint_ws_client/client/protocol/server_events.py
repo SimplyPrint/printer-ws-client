@@ -137,6 +137,7 @@ class MultiPrinterAddedEvent(ServerEvent):
         self.printer_id: Optional[int] = self.data.get("pid")
         self.unique_id: Optional[str] = self.data.get("unique_id", "")
         self.status: bool = self.data.get("status", False)
+        self.reason: Optional[str] = self.data.get("reason", None)
 
 
 class MultiPrinterRemovedEvent(ServerEvent):

@@ -66,6 +66,9 @@ class ClientEventMode(Enum):
     CANCEL = 2
 
 
+_TDataGenerator = Generator[Tuple[str, Any, Optional[Callable]], None, None]
+
+
 class ClientEvent(Event):
     event_type: PrinterEvent
     interval_type: Optional[IntervalTypeRef] = None
@@ -76,7 +79,7 @@ class ClientEvent(Event):
 
     def __init__(
             self,
-            data: Optional[Union[Dict[str, Any], Generator[Tuple[str, Any, Optional[Callable]], None, None]]] = None,
+            data: Optional[Union[Dict[str, Any], _TDataGenerator]] = None,
             for_client: Optional[Union[str, int]] = None
     ) -> None:
         """
@@ -156,7 +159,7 @@ class ClientEvent(Event):
         return cls(cls.build(state), **kwargs)
 
     @classmethod
-    def build(cls, state: "PrinterState") -> Generator[Tuple[str, Any, Optional[Callable]], None, None]:
+    def build(cls, state: "PrinterState") -> _TDataGenerator:
         ...
 
 
@@ -168,7 +171,7 @@ class MachineDataEvent(ClientEvent):
     event_type = PrinterEvent.INFO
 
     @classmethod
-    def build(cls, state: "PrinterState") -> Generator[Tuple, None, None]:
+    def build(cls, state: "PrinterState") -> _TDataGenerator:
         for key, value in state.info.trait_values().items():
             yield key, value, state.info.partial_clear(key)
 
@@ -177,7 +180,7 @@ class WebcamStatusEvent(ClientEvent):
     event_type = PrinterEvent.WEBCAM_STATUS
 
     @classmethod
-    def build(cls, state: "PrinterState") -> Generator[Tuple, None, None]:
+    def build(cls, state: "PrinterState") -> _TDataGenerator:
         yield "connected", state.webcam_info.connected, state.webcam_info.partial_clear("connected")
 
 
@@ -185,7 +188,7 @@ class WebcamEvent(ClientEvent):
     event_type = PrinterEvent.WEBCAM
 
     @classmethod
-    def build(cls, state: "PrinterState") -> Generator[Tuple, None, None]:
+    def build(cls, state: "PrinterState") -> _TDataGenerator:
         for key, value in state.webcam_settings.trait_values().items():
             if state.webcam_settings.has_changed(key):
                 yield key, value, state.webcam_settings.partial_clear(key)
@@ -203,7 +206,7 @@ class FirmwareEvent(ClientEvent):
     event_type = PrinterEvent.FIRMWARE
 
     @classmethod
-    def build(cls, state: "PrinterState") -> Generator[Tuple, None, None]:
+    def build(cls, state: "PrinterState") -> _TDataGenerator:
         fw = {}
 
         for key, value in state.firmware.trait_values().items():
@@ -221,7 +224,7 @@ class FirmwareWarningEvent(ClientEvent):
     event_type = PrinterEvent.FIRMWARE_WARNING
 
     @classmethod
-    def build(cls, state: "PrinterState") -> Generator[Tuple, None, None]:
+    def build(cls, state: "PrinterState") -> _TDataGenerator:
         for key, value in state.firmware.trait_values().items():
             yield key, value, state.firmware.partial_clear(key)
 
@@ -230,7 +233,7 @@ class ToolEvent(ClientEvent):
     event_type = PrinterEvent.TOOL
 
     @classmethod
-    def build(cls, state: "PrinterState") -> Generator[Tuple, None, None]:
+    def build(cls, state: "PrinterState") -> _TDataGenerator:
         if not state.has_changed("active_tool"):
             return
 
@@ -242,7 +245,7 @@ class TemperatureEvent(ClientEvent):
     interval_type = IntervalTypes.TEMPS
 
     @classmethod
-    def build(cls, state: "PrinterState") -> Generator[Tuple, None, None]:
+    def build(cls, state: "PrinterState") -> _TDataGenerator:
         if state.bed_temperature.has_changed():
             yield "bed", state.bed_temperature.to_list(), state.bed_temperature.partial_clear()
 
@@ -273,7 +276,7 @@ class AmbientTemperatureEvent(ClientEvent):
     event_type = PrinterEvent.AMBIENT
 
     @classmethod
-    def build(cls, state: "PrinterState") -> Generator[Tuple, None, None]:
+    def build(cls, state: "PrinterState") -> _TDataGenerator:
         yield "new", round(state.ambient_temperature.ambient), state.ambient_temperature.partial_clear()
 
 
@@ -285,7 +288,7 @@ class StateChangeEvent(ClientEvent):
     event_type = PrinterEvent.STATUS
 
     @classmethod
-    def build(cls, state: "PrinterState") -> Generator[Tuple, None, None]:
+    def build(cls, state: "PrinterState") -> _TDataGenerator:
         # Status has yet to be decided.
         if state.status is None:
             return
@@ -299,7 +302,7 @@ class JobInfoEvent(ClientEvent):
     state_fields = ["started", "finished", "cancelled", "failed"]
 
     @classmethod
-    def build(cls, state: "PrinterState") -> Generator[Tuple, None, None]:
+    def build(cls, state: "PrinterState") -> _TDataGenerator:
 
         if state.job_info.has_changed(*cls.state_fields):
             # Only send updates in terms of true, since they
@@ -351,7 +354,7 @@ class StreamEvent(ClientEvent):
     interval_type = IntervalTypes.WEBCAM
 
     @classmethod
-    def build(cls, state: "PrinterState") -> Generator[Tuple, None, None]:
+    def build(cls, state: "PrinterState") -> _TDataGenerator:
         # Stream events are not generated by the state, but are constructed
         # manually.
         raise NotImplementedError()
@@ -366,7 +369,7 @@ class LatencyEvent(ClientEvent):
     event_type = PrinterEvent.LATENCY
 
     @classmethod
-    def build(cls, state: "PrinterState") -> Generator[Tuple, None, None]:
+    def build(cls, state: "PrinterState") -> _TDataGenerator:
         yield "ms", (state.latency.pong - state.latency.ping) * 1000, state.latency.partial_clear("ping", "pong")
 
 
@@ -374,7 +377,7 @@ class FileProgressEvent(ClientEvent):
     event_type = PrinterEvent.FILE_PROGRESS
 
     @classmethod
-    def build(cls, state: "PrinterState") -> Generator[Tuple, None, None]:
+    def build(cls, state: "PrinterState") -> _TDataGenerator:
         """
         When a file progress event is triggered, always yield state, the two other fields 
         percent and message are optionally tied to respectfully downloading and error states.
@@ -405,7 +408,7 @@ class FilamentSensorEvent(ClientEvent):
     event_type = PrinterEvent.FILAMENT_SENSOR
 
     @classmethod
-    def build(cls, state: "PrinterState") -> Generator[Tuple, None, None]:
+    def build(cls, state: "PrinterState") -> _TDataGenerator:
         yield "state", state.filament_sensor.state, state.filament_sensor.partial_clear()
 
 
@@ -413,7 +416,7 @@ class PowerControllerEvent(ClientEvent):
     event_type = PrinterEvent.PSU
 
     @classmethod
-    def build(cls, state: "PrinterState") -> Generator[Tuple, None, None]:
+    def build(cls, state: "PrinterState") -> _TDataGenerator:
         yield "on", state.psu_info.on, state.psu_info.partial_clear()
 
 
@@ -422,7 +425,7 @@ class CpuInfoEvent(ClientEvent):
     interval_type = IntervalTypes.CPU
 
     @classmethod
-    def build(cls, state: "PrinterState") -> Generator[Tuple, None, None]:
+    def build(cls, state: "PrinterState") -> _TDataGenerator:
         for key, value in vars(state.cpu_info).get("_trait_values", dict()).items():
             if state.cpu_info.has_changed(key):
                 yield key, value, state.cpu_info.partial_clear(key)
@@ -441,7 +444,7 @@ class MaterialDataEvent(ClientEvent):
     has_changes = False
 
     @classmethod
-    def build(cls, state: "PrinterState") -> Generator[Tuple, None, None]:
+    def build(cls, state: "PrinterState") -> _TDataGenerator:
         if len(state.material_data) == 0:
             return
 

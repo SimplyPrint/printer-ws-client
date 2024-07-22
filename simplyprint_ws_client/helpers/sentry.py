@@ -71,6 +71,11 @@ class Sentry:
 
             sentry_sdk.set_tag("lib_version", VERSION)
 
+            printer_ids = set([str(config.id) for config in options.create_config_manager().get_all()])
+
+            sentry_sdk.set_extra("printer_ids",
+                                 ",".join(list(printer_ids)))
+
         except Exception as e:
             logging.exception(e)
 

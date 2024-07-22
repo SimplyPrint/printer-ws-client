@@ -115,7 +115,7 @@ class ClientProvider(Generic[TConfig], AsyncStoppable, EventLoopProvider[asyncio
                 try:
                     await self.app.instance.deregister_client(client)
                 except InstanceException as e:
-                    self.app.instance.logger.error(f"Failed to deregister client: {e}")
+                    self.app.instance.logger.warning(f"Failed to deregister client: %s", str(e))
 
                 return
 

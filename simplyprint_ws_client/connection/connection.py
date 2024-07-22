@@ -158,7 +158,8 @@ class Connection(EventLoopProvider[asyncio.AbstractEventLoop]):
         await self.close_internal()
         await self.on_disconnect(f"Closed connection to {self.url}")
 
-    async def on_disconnect(self, reason: Optional[str] = None, reconnect=True) -> None:
+    async def on_disconnect(self, reason: Optional[str] = None, reconnect=True,
+                            ignore_connection_criteria=False) -> None:
         """When something goes wrong, reset the socket"""
 
         closed = self.ws.closed if self.ws else False
@@ -170,10 +171,13 @@ class Connection(EventLoopProvider[asyncio.AbstractEventLoop]):
         if not reason:
             reason = "Unknown"
 
-        self.logger.info(f"Disconnected from {self.url} due to: '{reason}' {closed=} {close_code=} {reconnect=}")
+        self.logger.info(
+            f"Disconnected from {self.url} due to: '{reason}' {closed=} {close_code=}"
+            f"{reconnect=} {ignore_connection_criteria=}"
+        )
 
         if reconnect:
-            await self.event_bus.emit(ConnectionDisconnectEvent())
+            await self.event_bus.emit(ConnectionDisconnectEvent(ignore_connection_criteria=ignore_connection_criteria))
 
     async def send_event(self, client: Client, event: ClientEvent) -> None:
         if not self.is_connected():
