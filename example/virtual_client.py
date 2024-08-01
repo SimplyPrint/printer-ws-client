@@ -25,7 +25,15 @@ class VirtualClient(DefaultClient[VirtualConfig]):
 
         self.printer.firmware.name = "Virtual Printer Firmware"
         self.printer.firmware.version = "1.0.0"
+
         self.set_info("Virtual Printer", "0.0.1")
+        self.printer.set_extruder_count(4)
+
+        for i, mat in enumerate(self.printer.material_data):
+            mat.ext = i
+            mat.type = "PLA" if i in (0, 1) else "PETG"
+            mat.color = "Black"
+            mat.hex = "#000000"
 
     @Events.ConnectEvent.on
     async def on_connect(self, event: Events.ConnectEvent):

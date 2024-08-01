@@ -4,8 +4,8 @@ from simplyprint_ws_client.cli import ClientCli
 from simplyprint_ws_client.client import ClientApp, ClientOptions, ClientMode
 from simplyprint_ws_client.client.config import ConfigManagerType
 from simplyprint_ws_client.client.logging import ClientHandler
-from simplyprint_ws_client.examples.virtual_client import VirtualClient, VirtualConfig
 from simplyprint_ws_client.helpers.url_builder import SimplyPrintBackend
+from .virtual_client import VirtualClient, VirtualConfig
 
 if __name__ == "__main__":
     client_options = ClientOptions(
