@@ -217,7 +217,7 @@ class Connection(EventLoopProvider[asyncio.AbstractEventLoop]):
 
             if message.type in (WSMsgType.CLOSED, WSMsgType.CLOSING, WSMsgType.CLOSE):
                 self.logger.debug(
-                    f"Websocket closed by server with code: {self.ws.close_code} and reason: {message.extra}")
+                    f"Websocket closed by server with code: {self.ws.close_code}. {message.data=} {message.extra=}")
 
                 # An exception can be passed via the message.data
                 if isinstance(message.data, Exception):
