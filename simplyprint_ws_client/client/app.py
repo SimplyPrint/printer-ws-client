@@ -96,7 +96,7 @@ class ClientApp(Generic[TClient, TConfig]):
 
         if not provider:
             self.logger.warning(
-                f"Provider for {config} not found. {list(self.client_providers.keys())} are all loaded")
+                f"Could not unload provider as provider for {config.unique_id} not found.")
             return
 
         self.client_providers.pop(config)
