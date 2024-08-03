@@ -4,6 +4,7 @@ import time
 from abc import ABC, abstractmethod
 from typing import Generic, Optional, TypeVar
 
+from simplyprint_ws_client.helpers.physical_machine import PhysicalMachine
 from .config import PrinterConfig
 from .logging import *
 from .protocol import Demands, Events
@@ -13,7 +14,6 @@ from ..events.event import Event
 from ..events.event_bus import EventBus
 from ..helpers.intervals import IntervalTypes, Intervals
 from ..utils.event_loop_provider import EventLoopProvider
-from simplyprint_ws_client.helpers.physical_machine import PhysicalMachine
 from ..utils.traceability import traceable
 
 
@@ -97,7 +97,7 @@ class Client(ABC, EventLoopProvider[asyncio.AbstractEventLoop], Generic[TConfig]
     @traceable(with_args=True, with_stack=True, record_count=5)
     def connected(self, value: bool):
         self._connected = value
-        self.logger.info(f"Client {self.config.id} changed connected now: {self._connected=}")
+        self.logger.debug(f"Client {self.config.id} changed connected now: {self._connected=}")
 
     async def send_event(self, event: ClientEvent):
         """
