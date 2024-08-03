@@ -97,6 +97,7 @@ class Client(ABC, EventLoopProvider[asyncio.AbstractEventLoop], Generic[TConfig]
     @traceable(with_args=True, with_stack=True, record_count=5)
     def connected(self, value: bool):
         self._connected = value
+        self.logger.info(f"Client {self.config.id} changed connected now: {self._connected=}")
 
     async def send_event(self, event: ClientEvent):
         """
@@ -207,8 +208,6 @@ class DefaultClient(Client[TConfig], ABC):
         self.config.name = event.printer_name
         self.config.in_setup = event.in_setup
         self.config.short_id = event.short_id
-
-        self.logger.info(f"Connected to server {event}")
 
         self.intervals.update(event.intervals)
 
