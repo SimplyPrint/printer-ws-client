@@ -388,19 +388,21 @@ class FileProgressEvent(ClientEvent):
         TODO: Make enum accessible beyond circular import so we do not have to use literals.
         """
 
+        from simplyprint_ws_client.client.state import FileProgressState
+
         if state.file_progress.state is None:
             return
 
         yield "state", state.file_progress.state.value, state.file_progress.partial_clear("state")
 
-        if state.file_progress.state.value == "error":
+        if state.file_progress.state.value == FileProgressState.ERROR.value:
             yield "message", state.file_progress.message or "Unknown error", state.file_progress.partial_clear(
                 "message")
 
             return
 
         # Only send percent as a field if we are downloading.
-        if state.file_progress.state.value == "downloading" and state.file_progress.has_changed("percent"):
+        if state.file_progress.state.value == FileProgressState.DOWNLOADING.value:
             yield "percent", state.file_progress.percent, state.file_progress.partial_clear("percent")
 
 
