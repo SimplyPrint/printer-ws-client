@@ -57,8 +57,8 @@ class FileProgressState(Enum):
 @to_event(FileProgressEvent)
 class PrinterFileProgressState(ClientState):
     state: Optional[FileProgressState] = Always(TraitletsEnum(FileProgressState, allow_none=True))
-    percent: Optional[float] = Float()
-    message: Optional[str] = Unicode()  # Typically error message
+    percent: float = Float(default_value=0.0)
+    message: Optional[str] = Unicode(allow_none=True)  # Typically error message
 
 
 @to_event(MachineDataEvent)
