@@ -44,6 +44,13 @@ class AsyncTaskScope(EventLoopProvider):
 
         self.tasks.clear()
 
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        self.cancel_all()
+        return False
+
     def __enter__(self):
         return self
 
