@@ -12,9 +12,14 @@ class FileDownload:
     state: "PrinterFileProgressState"
     client: Client
 
-    def __init__(self, client: Client) -> None:
+    def __init__(self, client: Client, timeout: Optional[aiohttp.ClientTimeout] = None) -> None:
         self.client = client
         self.state = client.printer.file_progress
+
+        self.timeout = aiohttp.ClientTimeout(
+            # 30 minutes, default is 5 minutes which is too short for large files
+            total=60*30,
+        ) if timeout is None else timeout
 
     async def download(self, url, clamp_progress: Optional[Callable] = None) -> AsyncIterable:
         """ 
@@ -22,7 +27,7 @@ class FileDownload:
         """
 
         # Chunk the download so we can get progress
-        async with aiohttp.ClientSession() as session:
+        async with aiohttp.ClientSession(timeout=self.timeout) as session:
             async with session.get(url) as resp:
                 if resp.status != 200:
                     self.state.state = FileProgressState.ERROR
