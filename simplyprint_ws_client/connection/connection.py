@@ -101,6 +101,13 @@ class Connection(EventLoopProvider[asyncio.AbstractEventLoop]):
         if self.last_received_pong >= self.last_sent_ping:
             return True
 
+        time_since_last_ping = time.time() - self.last_sent_ping
+
+        # If we JUST sent a ping inside a timeframe of 1 second, we are still waiting for a pong.
+        # So there is no need to consider the connection non-responsive. This prevents unnecessary log spam.                                                
+        if time_since_last_ping < 1:
+            return True
+
         time_since_last_received = time.time() - self.last_received_at
 
         # If we are missing a pong we consider the connection non-responsive after 6x the ping interval
