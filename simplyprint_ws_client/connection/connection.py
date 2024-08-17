@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import time
 from asyncio import CancelledError
 from contextlib import suppress
 from typing import Any, Dict, Optional, Union
@@ -12,9 +13,11 @@ from yarl import URL
 
 from ..client.client import Client
 from ..client.protocol import DemandEvent, ServerEvent, EventFactory
-from ..client.protocol.client_events import ClientEvent, ClientEventMode
+from ..client.protocol.client_events import ClientEvent, ClientEventMode, PingEvent
+from ..client.protocol.server_events import PongEvent
 from ..events.event import Event
 from ..events.event_bus import EventBus
+from ..helpers.intervals import IntervalTypes
 from ..utils import issue_118950_patch  # noqa
 from ..utils.cancelable_lock import CancelableLock
 from ..utils.event_loop_provider import EventLoopProvider
@@ -64,6 +67,13 @@ class Connection(EventLoopProvider[asyncio.AbstractEventLoop]):
     # the reconnection timeout.
     connection_lock: CancelableLock
 
+    # Keep track of "responsiveness" of the connection
+    # And find failures where pings are sent, heartbeats are responded to
+    # but no events are received when they need to be.
+    last_sent_ping: float = 0.0
+    last_received_pong: float = 0.0
+    last_received_at: float = 0.0
+
     url: Union[URL, str, None] = None
     timeout: float = 5.0
     debug: bool = True
@@ -73,8 +83,44 @@ class Connection(EventLoopProvider[asyncio.AbstractEventLoop]):
         self.event_bus = ConnectionEventBus(event_loop_provider=self)
         self.connection_lock = CancelableLock()
 
-    def is_connected(self) -> bool:
+    def is_open(self) -> bool:
+        """Check if the connection is open."""
         return self.ws is not None and not self.ws.closed
+
+    def is_connected(self) -> bool:
+        """We are connected if the connection is open and responsive."""
+        return self.is_open() and self.is_responsive()
+
+    def is_responsive(self) -> bool:
+        """Check if the connection is responsive by checking if the last pong was received after the last ping.
+        The consistency of pings to pongs does not matter as long as the last pong was received after the last ping.
+        Otherwise, any events will make this check pass, but if we are not receiving any events but are requesting them
+        we should consider the connection non-responsive."""
+
+        # If the last pong was received after the last ping, the connection is responsive.
+        if self.last_received_pong >= self.last_sent_ping:
+            return True
+
+        time_since_last_received = time.time() - self.last_received_at
+
+        # If we are missing a pong we consider the connection non-responsive after 6x the ping interval
+        # since the last received event (could be anything) which is typically 2 minutes.
+        if time_since_last_received > IntervalTypes.PING.value.default_timing * 6:
+            self.logger.warning(
+                "Connection is not responsive as no events has been received for 2 minutes and a pong event is missing."
+                f" {self.last_received_pong=} {self.last_sent_ping=} {self.last_received_at=}"
+            )
+
+            return False
+
+        # Output a debug message if the connection is potentially unresponsive.
+        if self.debug and time_since_last_received > 1:
+            self.logger.debug(
+                f"Connection is potentially unresponsive! Has not received any events for {time_since_last_received} seconds."
+                f" {self.last_received_pong=} {self.last_sent_ping=} {self.last_received_at=}"
+            )
+
+        return True
 
     async def connect(self, url: Union[URL, str, None] = None, timeout: Optional[float] = None,
                       allow_reconnects=False, ignore_connection_criteria=False) -> None:
@@ -82,14 +128,14 @@ class Connection(EventLoopProvider[asyncio.AbstractEventLoop]):
             async with self.connection_lock:
                 self.use_running_loop()
 
-                reconnection = self.is_connected()
+                reconnection = self.is_open()
 
                 if reconnection and not allow_reconnects:
                     self.logger.warning("Already connected, not reconnecting as reconnects are not allowed.")
                     return
 
                 if self.ws or self.session:
-                    await self.close_internal()
+                    await self.force_close()
                     self.ws = self.session = None
 
                 self.url = url or self.url
@@ -140,7 +186,7 @@ class Connection(EventLoopProvider[asyncio.AbstractEventLoop]):
 
                 self.logger.debug(f"Connected to {self.url} {reconnection=}")
 
-    async def close_internal(self):
+    async def force_close(self):
         try:
             if self.ws:
                 await self.ws.close()
@@ -155,7 +201,7 @@ class Connection(EventLoopProvider[asyncio.AbstractEventLoop]):
             self.logger.error("An exception occurred while closing to handle a disconnect condition", exc_info=e)
 
     async def close(self) -> None:
-        await self.close_internal()
+        await self.force_close()
         await self.on_disconnect(f"Closed connection to {self.url}")
 
     async def on_disconnect(self, reason: Optional[str] = None, reconnect=True,
@@ -166,7 +212,7 @@ class Connection(EventLoopProvider[asyncio.AbstractEventLoop]):
         close_code = self.ws.close_code if self.ws else None
 
         if self.is_connected():
-            await self.close_internal()
+            await self.force_close()
 
         if not reason:
             reason = "Unknown"
@@ -198,6 +244,9 @@ class Connection(EventLoopProvider[asyncio.AbstractEventLoop]):
 
             event.on_sent()
 
+            if isinstance(event, PingEvent):
+                self.last_sent_ping = time.time()
+
             if self.debug:
                 self.logger.debug(f"Sent event {event.get_name()}" if len(
                     str(message)) > 1000 else f"Sent event {event} with data {message}")
@@ -214,6 +263,8 @@ class Connection(EventLoopProvider[asyncio.AbstractEventLoop]):
 
         try:
             message = await self.ws.receive(timeout=timeout)
+
+            self.last_received_at = time.time()
 
             if message.type in (WSMsgType.CLOSED, WSMsgType.CLOSING, WSMsgType.CLOSE):
                 self.logger.debug(
@@ -249,6 +300,9 @@ class Connection(EventLoopProvider[asyncio.AbstractEventLoop]):
             except KeyError as e:
                 self.logger.error(f"Unknown event type {e.args[0]}")
                 return
+
+            if isinstance(event, PongEvent):
+                self.last_received_pong = self.last_received_at
 
             if self.debug:
                 self.logger.debug(

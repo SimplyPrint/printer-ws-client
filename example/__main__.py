@@ -9,7 +9,7 @@ from .virtual_client import VirtualClient, VirtualConfig
 
 if __name__ == "__main__":
     client_options = ClientOptions(
-        name="VirtualClient",
+        name="la_fair_printers",
         mode=ClientMode.MULTI_PRINTER,
         client_t=VirtualClient,
         config_t=VirtualConfig,

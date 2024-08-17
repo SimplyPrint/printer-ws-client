@@ -5,6 +5,11 @@ from itertools import chain
 from typing import (Callable, Dict, Generator, Hashable, Optional, Union, get_args, Type, Any, Tuple,
                     Iterable, Iterator, Generic, TYPE_CHECKING, Set, final)
 
+try:
+    from typing import Unpack
+except ImportError:
+    from typing_extensions import Unpack
+
 from .emitter import Emitter, TEvent
 from .event import Event
 from .event_bus_listeners import EventBusListeners, EventBusListener, EventBusListenerOptions
@@ -210,7 +215,7 @@ class EventBus(Emitter[TEvent]):
         return functools.partial(emit_func, event)
 
     def on(self, event_type: Hashable, listener: Optional[Callable] = None, generic: bool = False,
-           **kwargs: EventBusListenerOptions) -> Callable:
+           **kwargs: Unpack[EventBusListenerOptions]) -> Callable:
 
         if listener is None:
             return lambda lst: self._register_listeners(event_type, lst, generic=generic, **kwargs)
@@ -218,7 +223,7 @@ class EventBus(Emitter[TEvent]):
         return self._register_listeners(event_type, listener, generic=generic, **kwargs)
 
     def _register_listeners(self, event_type: Union[Hashable, TEvent], listener: Callable, generic: bool = False,
-                            **kwargs: EventBusListenerOptions) -> Callable:
+                            **kwargs: Unpack[EventBusListenerOptions]) -> Callable:
         """
         Registers all listeners for a generic type given the type is an event type,
         otherwise wraps a single register call.
@@ -233,7 +238,8 @@ class EventBus(Emitter[TEvent]):
 
         return listener
 
-    def _register_listener(self, event_type: Hashable, listener: Callable, **kwargs: EventBusListenerOptions) -> None:
+    def _register_listener(self, event_type: Hashable, listener: Callable,
+                           **kwargs: Unpack[EventBusListenerOptions]) -> None:
         """Registers a single listener for a given event type."""
 
         if event_type not in self.listeners:

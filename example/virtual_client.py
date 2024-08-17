@@ -5,8 +5,12 @@ import random
 from simplyprint_ws_client.client.client import DefaultClient
 from simplyprint_ws_client.client.config import PrinterConfig
 from simplyprint_ws_client.client.protocol import Events, Demands
+from simplyprint_ws_client.client.protocol.client_events import StreamEvent
 from simplyprint_ws_client.client.state.printer import FileProgressState, PrinterStatus
 from simplyprint_ws_client.helpers.file_download import FileDownload
+from simplyprint_ws_client.helpers.intervals import IntervalTypes
+
+_TEST_IMAGE = "iVBORw0KGgoAAAANSUhEUgAAAeAAAAFoCAIAAAAAVb93AAAFMklEQVR4nOzWQQkCYRhFUZFpYAVzWcAAGsAONnFvJ3FtAZc/fJfhnARvdXnb8/Q4wF68bp/pCbDMcXoAAP8JNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRG3f+3l6AyxzeV+nJ8AyHjRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNEDULwAA//+/JAlAlWQCTwAAAABJRU5ErkJggg=="
 
 
 class VirtualConfig(PrinterConfig):
@@ -29,6 +33,8 @@ class VirtualClient(DefaultClient[VirtualConfig]):
         self.set_info("Virtual Printer", "0.0.1")
         self.printer.set_extruder_count(4)
 
+        self.printer.webcam_info.connected = True
+
         for i, mat in enumerate(self.printer.material_data):
             mat.ext = i
             mat.type = "PLA" if i in (0, 1) else "PETG"
@@ -38,6 +44,19 @@ class VirtualClient(DefaultClient[VirtualConfig]):
     @Events.ConnectEvent.on
     async def on_connect(self, event: Events.ConnectEvent):
         print("Yay i am connected :) :) :)")
+
+    @Demands.WebcamTestEvent.on
+    async def on_webcam_test(self, event: Demands.WebcamTestEvent):
+        self.printer.webcam_info.connected = True
+
+    @Demands.StreamOffEvent.on
+    async def on_stream_off(self, event: Demands.StreamOffEvent):
+        self.intervals.set(IntervalTypes.WEBCAM, float('inf'))
+
+    @Demands.WebcamSnapshotEvent.on
+    async def on_webcam_snapshot(self, event: Demands.WebcamSnapshotEvent):
+        await self.intervals.wait_until_ready(IntervalTypes.WEBCAM)
+        await self.send_event(StreamEvent({"base": _TEST_IMAGE}))
 
     @Demands.GcodeEvent.on
     async def on_gcode(self, event: Demands.GcodeEvent):
@@ -117,6 +136,8 @@ class VirtualClient(DefaultClient[VirtualConfig]):
         self.printer.status = PrinterStatus.OPERATIONAL
 
     async def tick(self):
+        await self.send_ping()
+
         # Update temperatures, printer status and so on with smoothing function
         if self.printer.bed_temperature.target:
             target = self.printer.bed_temperature.target

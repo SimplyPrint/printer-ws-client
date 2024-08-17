@@ -3,7 +3,12 @@ import heapq
 import inspect
 from enum import Enum
 from typing import (Callable, List,
-                    Union, Tuple, NamedTuple, Optional, get_args, TypedDict, Iterable, Iterator)
+                    Union, Tuple, NamedTuple, Optional, get_args, Iterable, Iterator)
+
+try:
+    from typing import Unpack, NotRequired, TypedDict
+except ImportError:
+    from typing_extensions import Unpack, NotRequired, TypedDict
 
 from .emitter import Emitter
 
@@ -37,13 +42,13 @@ class ListenerLifetimeForever(ListenerLifetime):
 
 
 class EventBusListenerOptions(TypedDict):
-    lifetime: ListenerLifetime
-    priority: int
-    unique: ListenerUniqueness
+    lifetime: NotRequired[ListenerLifetime]
+    priority: NotRequired[int]
+    unique: NotRequired[ListenerUniqueness]
 
 
 class EventBusListenersOptions(EventBusListenerOptions, TypedDict):
-    generic: bool
+    generic: NotRequired[bool]
 
 
 class EventBusListener:
@@ -106,7 +111,7 @@ class EventBusListeners(Iterable[EventBusListener]):
     def __init__(self) -> None:
         self.listeners = []
 
-    def add(self, listener: Callable, **kwargs: EventBusListenerOptions) -> None:
+    def add(self, listener: Callable, **kwargs: Unpack[EventBusListenerOptions]) -> None:
         unique = kwargs.get('unique', ListenerUniqueness.NONE)
         priority = kwargs.get('priority', 0)
         lifetime = kwargs.get('lifetime', ListenerLifetimeForever(**{}))

@@ -22,7 +22,7 @@ class FileDownload:
             total=None,  # Total number of seconds for the whole request
             connect=5,  # Maximal number of seconds for acquiring a connection from pool
             sock_connect=10,  # Maximal number of seconds for connecting to a peer for a new connection
-            sock_read=60*30  # seconds for consecutive reads - 30 minutes as we do not control the block size
+            sock_read=60 * 30  # seconds for consecutive reads - 30 minutes as we do not control the block size
         )
 
     async def download(self, url, clamp_progress: Optional[Callable] = None) -> AsyncIterable:

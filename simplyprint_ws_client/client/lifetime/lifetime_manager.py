@@ -1,11 +1,9 @@
 import logging
-import traceback
 from enum import Enum
 from typing import Dict, TYPE_CHECKING
 
 from .lifetime import ClientLifetime, ClientAsyncLifetime
 from ..client import Client
-from ...utils import traceability
 from ...utils.stoppable import AsyncStoppable
 
 if TYPE_CHECKING:
@@ -76,22 +74,8 @@ class LifetimeManager(AsyncStoppable):
                     continue
 
                 if self.instance.connection.is_connected() and not client.connected:
-                    connected_trace = traceability.from_class(client).get("connected", None)
-
                     client.logger.warning(
-                        f"Instance is connected but client has not received connected event yet. Last {len(connected_trace.call_record) if connected_trace else 0} traces:")
-
-                    if not connected_trace or not connected_trace.call_record:
-                        continue
-
-                    records = connected_trace.get_call_record()
-                    connected_trace.call_record.clear()
-
-                    for record in records:
-                        client.logger.warning(
-                            f"""[{record.called_at}] Called connected with args {record.args} retval {record.retval}
-{''.join(traceback.StackSummary.from_list(record.stack).format()) if record.stack else "No stack"}
-                            """)
+                        f"Instance is connected but client has not received connected event yet.")
 
             await self.wait(self.lifetime_check_interval)
 

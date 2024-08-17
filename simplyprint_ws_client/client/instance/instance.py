@@ -191,26 +191,30 @@ class Instance(AsyncStoppable, EventLoopProvider, Generic[TClient, TConfig], ABC
         wait_task = loop.create_task(self.wait())
 
         while not self.is_stopped():
-            if not self.connection.is_connected():
-                # TODO: log this with exponential backoff to prevent log spam.
-                self.logger.debug("Not connected - not polling events")
-
-                await self.event_bus.emit(ConnectionDisconnectEvent())
-
-                # If we are not connected yet just wait the timeout anyhow
-                # to prevent a tight loop.
+            # This loop is highly critical and should not be stopped by any exception.
+            try:
                 if not self.connection.is_connected():
-                    await self.wait(1.0)
+                    # TODO: log this with exponential backoff to prevent log spam.
+                    self.logger.debug("Not connected - not polling events")
 
-                continue
+                    await self.event_bus.emit(ConnectionDisconnectEvent())
 
-            await asyncio.wait([
-                wait_task,
-                # SAFETY: This event either completes first, or we leak a single instance.
-                loop.create_task(self.connection.poll_event())
-            ], return_when=asyncio.FIRST_COMPLETED)
+                    # If we are not connected yet just wait the timeout anyhow
+                    # to prevent a tight loop.
+                    if not self.connection.is_connected():
+                        await self.wait(1.0)
 
-        await self.connection.close_internal()
+                    continue
+
+                await asyncio.wait([
+                    wait_task,
+                    # SAFETY: This event either completes first, or we leak a single instance.
+                    loop.create_task(self.connection.poll_event())
+                ], return_when=asyncio.FIRST_COMPLETED)
+            except Exception as e:
+                self.logger.error("Error in poll_events", exc_info=e)
+
+        await self.connection.force_close()
         self.logger.info("Stopped polling events")
 
     async def connect(self, ignore_connect_criteria=False, block_until_connected=True) -> None:
