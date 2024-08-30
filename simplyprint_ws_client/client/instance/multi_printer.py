@@ -13,6 +13,13 @@ from ...helpers.url_builder import SimplyPrintURL
 from ...utils.predicate import IsInstance, Extract, Eq
 from ...utils.property_path import p
 
+# The way we have designed these protocols is that the server will always respond to the client
+# so in the case no response is received, we can assume the server has not received the request
+# or a failure occurred under transport. Since we catch this category of errors with heartbeats and
+# other mechanisms, we can set this timeout to be VERY high, so there is still some chance of automatic
+# failure recovery.
+_DEFAULT_REQUEST_NOT_RECEIVED_TIMEOUT = 1800
+
 
 class MultiPrinterException(InstanceException):
     pass
@@ -205,7 +212,8 @@ class MultiPrinter(Instance[TClient, TConfig]):
 
         self._pending_connection_waiters.clear()
 
-    async def _request_add_printer(self, client: TClient) -> Optional[MultiPrinterAddedEvent]:
+    async def _request_add_printer(self, client: TClient, timeout=_DEFAULT_REQUEST_NOT_RECEIVED_TIMEOUT) -> Optional[
+        MultiPrinterAddedEvent]:
         """TODO: Document this."""
         # We do not add printers before we are connected.
         # Therefore, we need to ignore the connect criteria.
@@ -233,7 +241,7 @@ class MultiPrinter(Instance[TClient, TConfig]):
                 # that is we drop the add_connection event on the server side, this way the
                 # client can retry again at a later time, usually when the server does not respond
                 # NO printers are added, so this is a very rare edge case.
-                args, _ = await asyncio.wait_for(fut, timeout=60)
+                args, _ = await asyncio.wait_for(fut, timeout=timeout)
 
                 assert isinstance(args[0], MultiPrinterAddedEvent)
 
@@ -272,9 +280,12 @@ class MultiPrinter(Instance[TClient, TConfig]):
 
                 return event
             finally:
+                if not fut.done():
+                    self.logger.warning(f"Request to add printer {client.config.unique_id} timed out.")
+
                 self._pending_connection_waiters.discard(fut)
 
-    async def _request_remove_printer(self, client: TClient) -> Optional[MultiPrinterRemovedEvent]:
+    async def _request_remove_printer(self, client: TClient, timeout=_DEFAULT_REQUEST_NOT_RECEIVED_TIMEOUT) -> Optional[MultiPrinterRemovedEvent]:
         """
         Remove events are handled by the event listener on_printer_removed_response,
         but we serialise requests made from the client with the client lock to prevent additions.
@@ -285,10 +296,13 @@ class MultiPrinter(Instance[TClient, TConfig]):
             try:
                 self._pending_connection_waiters.add(fut)
                 await self.connection.send_event(client, MultiPrinterRemovePrinterEvent(client.config))
-                args, _ = await asyncio.wait_for(fut, timeout=60)
+                args, _ = await asyncio.wait_for(fut, timeout=timeout)
                 assert isinstance(args[0], MultiPrinterRemovedEvent)
                 event = args[0]
                 await self.on_printer_removed_response(event, client)
                 return event
             finally:
+                if not fut.done():
+                    self.logger.warning(f"Request to remove printer {client.config.unique_id} timed out.")
+
                 self._pending_connection_waiters.discard(fut)
