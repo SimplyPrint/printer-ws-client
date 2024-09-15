@@ -103,12 +103,6 @@ class ClientState(HasTraits):
         if event is not None:
             self._root_state.mark_event_as_dirty(event)
 
-        # Mark field as changed if it has changed.
-        # Always will always trigger changes,
-        # so we have to check if the value has actually changed.
-        if change.old == change.new:
-            return
-
         # Ensure we keep proper track of changes
         if isinstance(change.new, HasTraits):
             self._root_state.register_client_state(change.new, change.old)
