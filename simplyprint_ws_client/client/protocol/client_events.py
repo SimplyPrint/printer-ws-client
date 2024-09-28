@@ -370,7 +370,7 @@ class LatencyEvent(ClientEvent):
 
     @classmethod
     def build(cls, state: "PrinterState") -> _TDataGenerator:
-        yield "ms", (state.latency.pong - state.latency.ping) * 1000, state.latency.partial_clear("ping", "pong")
+        yield "ms", round((state.latency.pong - state.latency.ping) * 1000), state.latency.partial_clear("ping", "pong")
 
 
 class FileProgressEvent(ClientEvent):
@@ -411,7 +411,7 @@ class FilamentSensorEvent(ClientEvent):
 
     @classmethod
     def build(cls, state: "PrinterState") -> _TDataGenerator:
-        yield "state", state.filament_sensor.state, state.filament_sensor.partial_clear()
+        yield "state", state.filament_sensor.state.value, state.filament_sensor.partial_clear()
 
 
 class PowerControllerEvent(ClientEvent):
