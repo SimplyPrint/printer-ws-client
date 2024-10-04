@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "simplyprint-ws-client"
-version = "1.0.0-rc.24"
+version = "1.0.0-rc.25"
 license = "AGPL-3.0-or-later"
 authors = ["SimplyPrint <contact@simplyprint.io>"]
 description = "SimplyPrint Websocket Client"
