@@ -222,6 +222,11 @@ class EventBus(Emitter[TEvent]):
 
         return self._register_listeners(event_type, listener, generic=generic, **kwargs)
 
+    def clear(self, *event_types: Hashable) -> None:
+        """Clear all listeners for a given event type."""
+        for event_type in event_types:
+            self.listeners.pop(event_type, None)
+
     def _register_listeners(self, event_type: Union[Hashable, TEvent], listener: Callable, generic: bool = False,
                             **kwargs: Unpack[EventBusListenerOptions]) -> Callable:
         """

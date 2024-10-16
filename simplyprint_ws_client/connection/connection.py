@@ -38,9 +38,11 @@ class ConnectionPollEvent(Event):
 
 
 class ConnectionConnectedEvent(Event):
+    initial: bool = False
     reconnect: bool = False
 
-    def __init__(self, reconnect: bool = False) -> None:
+    def __init__(self, initial: bool = False, reconnect: bool = False) -> None:
+        self.initial = initial
         self.reconnect = reconnect
 
 
@@ -59,6 +61,7 @@ class Connection(EventLoopProvider[asyncio.AbstractEventLoop]):
 
     event_bus: ConnectionEventBus
 
+    initial: bool = True
     ws: Optional[ClientWebSocketResponse] = None
     session: Optional[ClientSession] = None
 
@@ -189,9 +192,9 @@ class Connection(EventLoopProvider[asyncio.AbstractEventLoop]):
                 self.ws = ws
 
                 # SAFETY: Only one of these are emitted on connect
-                _ = self.event_bus.emit_task(ConnectionConnectedEvent(reconnect=reconnection))
-
-                self.logger.debug(f"Connected to {self.url} {reconnection=}")
+                _ = self.event_bus.emit_task(ConnectionConnectedEvent(initial=self.initial, reconnect=reconnection))
+                self.logger.debug(f"Connected to {self.url} {self.initial=} {reconnection=}")
+                self.initial = False
 
     async def force_close(self):
         try:
@@ -275,7 +278,7 @@ class Connection(EventLoopProvider[asyncio.AbstractEventLoop]):
 
             if message.type in (WSMsgType.CLOSED, WSMsgType.CLOSING, WSMsgType.CLOSE):
                 self.logger.debug(
-                    f"Websocket closed by server with code: {self.ws.close_code}. {message.data=} {message.extra=}")
+                    f"Websocket closed by server with code: {self.ws.close_code}. {message=}")
 
                 # An exception can be passed via the message.data
                 if isinstance(message.data, Exception):
@@ -285,7 +288,7 @@ class Connection(EventLoopProvider[asyncio.AbstractEventLoop]):
                 return
 
             if message.type == WSMsgType.ERROR:
-                await self.on_disconnect(f"Websocket error: {message.data}")
+                await self.on_disconnect(f"Websocket error: {message=}")
                 return
 
             if message.type == WSMsgType.BINARY:

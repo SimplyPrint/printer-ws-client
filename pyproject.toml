@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "simplyprint-ws-client"
-version = "1.0.0-rc.25"
+version = "1.0.0-rc.26"
 license = "AGPL-3.0-or-later"
 authors = ["SimplyPrint <contact@simplyprint.io>"]
 description = "SimplyPrint Websocket Client"
@@ -14,15 +14,16 @@ packages = [
 ]
 
 [tool.poetry.dependencies]
-yarl = "^1.9.4"
+yarl = "^1.15.3"
 click = "^8.1.7"
 psutil = "^6.0.0"
 python = "^3.8"
-aiohttp = "^3.10.3"
+aiohttp = "^3.10.10"
+aiodns = "^3.2.0"
 traitlets = "^5.14.3"
 netifaces = "^0.11.0"
-sentry-sdk = "^2.13.0"
-platformdirs = "^4.2.2"
+sentry-sdk = "^2.16.0"
+platformdirs = "^4.3.6"
 typing-extensions = "*"
 
 # Install async_timeout for python < 3.11

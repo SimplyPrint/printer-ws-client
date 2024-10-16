@@ -71,7 +71,7 @@ class Instance(AsyncStoppable, EventLoopProvider, Generic[TClient, TConfig], ABC
     connection_is_ready: asyncio.Event
 
     # Ensure we only allow one disconnect event to be processed at a time
-    disconnect_lock: asyncio.Lock
+    connection_lock: asyncio.Lock
 
     # Keep track of events sent too early to be processed, so we can process them later.
     server_event_backlog: List[Tuple[ConnectionPollEvent]]
@@ -119,7 +119,7 @@ class Instance(AsyncStoppable, EventLoopProvider, Generic[TClient, TConfig], ABC
             ConnectionPollEvent, self.on_poll_event)
 
         self.connection_is_ready = asyncio.Event()
-        self.disconnect_lock = asyncio.Lock()
+        self.connection_lock = asyncio.Lock()
 
     def _threadsafe_set_stop(self):
         # Asyncio event is not threadsafe.
@@ -174,7 +174,8 @@ class Instance(AsyncStoppable, EventLoopProvider, Generic[TClient, TConfig], ABC
 
         # Initial connect we cannot block until connected is
         # received as we will never poll any events if this blocks.
-        await self.connect(block_until_connected=False)
+        async with self.connection_lock:
+            await self.connect(block_until_connected=False)
 
         # The poll_events loop is the primary component of the instance
         # The lifetime manager loop simply takes care of cleanup as an essential service
@@ -238,7 +239,7 @@ class Instance(AsyncStoppable, EventLoopProvider, Generic[TClient, TConfig], ABC
             await self.connection_is_ready.wait()
 
     async def on_disconnect(self, event: ConnectionDisconnectEvent):
-        async with self.disconnect_lock:
+        async with self.connection_lock:
             if self.is_stopped() or self.connection.is_connected():
                 self.logger.debug("Still connected somehow so we are not reconnecting")
                 return

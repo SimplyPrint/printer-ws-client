@@ -147,8 +147,13 @@ class MultiPrinter(Instance[TClient, TConfig]):
         await super().on_poll_event(event)
 
     async def on_connect(self, event: ConnectionConnectedEvent):
+        # Initially all clients are registered once, we only need to retry the add connection
+        # when we connect after the initial connection.
+        if event.initial:
+            return
+
         # Ensure we are not connecting and disconnecting at the same time.
-        async with self.disconnect_lock:
+        async with self.connection_lock:
             self._reset_connection_waiters()
 
             for client in list(self.clients.values()):
@@ -165,7 +170,7 @@ class MultiPrinter(Instance[TClient, TConfig]):
                 _ = self.event_loop.create_task(self._request_add_printer(client))
 
     async def on_disconnect(self, event: ConnectionDisconnectEvent):
-        async with self.disconnect_lock:
+        async with self.connection_lock:
             # Remove pending add waiters when we disconnect.
             self._reset_connection_waiters()
 
@@ -219,8 +224,9 @@ class MultiPrinter(Instance[TClient, TConfig]):
         # Therefore, we need to ignore the connect criteria.
         # Alternatively we could directly invoke connection.connect
         # but this seems more elegant.
-        if not self.connection_is_ready.is_set():
-            await self.connect(ignore_connect_criteria=True, block_until_connected=True)
+        async with self.connection_lock:
+            if not self.connection_is_ready.is_set():
+                await self.connect(ignore_connect_criteria=True, block_until_connected=True)
 
         async with client:
             # If the client is already connected, we can skip the add printer event.
@@ -285,7 +291,8 @@ class MultiPrinter(Instance[TClient, TConfig]):
 
                 self._pending_connection_waiters.discard(fut)
 
-    async def _request_remove_printer(self, client: TClient, timeout=_DEFAULT_REQUEST_NOT_RECEIVED_TIMEOUT) -> Optional[MultiPrinterRemovedEvent]:
+    async def _request_remove_printer(self, client: TClient, timeout=_DEFAULT_REQUEST_NOT_RECEIVED_TIMEOUT) -> Optional[
+        MultiPrinterRemovedEvent]:
         """
         Remove events are handled by the event listener on_printer_removed_response,
         but we serialise requests made from the client with the client lock to prevent additions.
