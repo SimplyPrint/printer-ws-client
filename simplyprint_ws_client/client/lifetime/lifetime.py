@@ -71,7 +71,10 @@ class ClientLifetime(AsyncStoppable, ABC):
         if not self.client.connected:
             if self.consume_warning.guard_until_bound():
                 self.client.logger.warning(
-                    f"Client not connected {self.client.config.unique_id=} {self.client._connected=} {self.client.connected=} - still consuming this is an error.")
+                    f"Client not connected {self.client.config.unique_id=} {self.client.connected=} - still consuming this is an error.")
+
+            # Yield until we are connected.
+            await self.client._connected_event.wait()
             return
 
         try:

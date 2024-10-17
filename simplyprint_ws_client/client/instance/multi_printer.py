@@ -133,7 +133,7 @@ class MultiPrinter(Instance[TClient, TConfig]):
             return client
 
     def has_client(self, client: TClient) -> bool:
-        return client in self.clients.values()
+        return client.config.unique_id in self.clients
 
     def should_connect(self) -> bool:
         return len(self.clients) > 0

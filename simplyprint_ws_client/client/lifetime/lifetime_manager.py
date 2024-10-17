@@ -27,7 +27,7 @@ class LifetimeManager(AsyncStoppable):
     lifetime_check_interval = 10
 
     instance: 'Instance'
-    lifetimes: Dict[Client, ClientLifetime]
+    lifetimes: Dict[str, ClientLifetime]
 
     def __init__(self, instance: 'Instance', *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -37,10 +37,10 @@ class LifetimeManager(AsyncStoppable):
         self.lifetimes = {}
 
     def contains(self, client: Client) -> bool:
-        return client in self.lifetimes
+        return client.config.unique_id in self.lifetimes
 
     def get(self, client: Client) -> ClientLifetime:
-        return self.lifetimes.get(client)
+        return self.lifetimes.get(client.config.unique_id)
 
     def add(self, client: Client, lifetime_type: LifetimeType = LifetimeType.ASYNC) -> ClientLifetime:
         if self.is_stopped():
@@ -50,7 +50,7 @@ class LifetimeManager(AsyncStoppable):
             return self.get(client)
 
         lifetime = lifetime_type.get_cls()(self, client)
-        self.lifetimes[client] = lifetime
+        self.lifetimes[client.config.unique_id] = lifetime
         return lifetime
 
     def should_consume(self, _client: Client) -> bool:
@@ -63,26 +63,26 @@ class LifetimeManager(AsyncStoppable):
         await self.wait(self.lifetime_check_interval)
 
         while not self.is_stopped():
-            for client, lifetime in list(self.lifetimes.items()):
+            for lifetime in list(self.lifetimes.values()):
                 # TODO retry the lifetime in a bit...
                 if lifetime.is_stopped():
                     continue
 
                 if not lifetime.is_healthy():
-                    client.logger.warning(f"Client lifetime unhealthy - restarting")
-                    await self.restart_lifetime(client)
+                    lifetime.client.logger.warning(f"Client lifetime unhealthy - restarting")
+                    await self.restart_lifetime(lifetime.client)
                     continue
 
-                if self.instance.connection.is_connected() and not client.connected:
-                    client.logger.warning(
+                if self.instance.connection.is_connected() and not lifetime.client.connected:
+                    lifetime.client.logger.warning(
                         f"Instance is connected but client has not received connected event yet.")
 
             await self.wait(self.lifetime_check_interval)
 
         self.logger.info("Lifetime manager loop stopped - stopping all lifetimes")
 
-        for client, lifetime in list(self.lifetimes.items()):
-            await self.stop_lifetime(client)
+        for _, lifetime in list(self.lifetimes.values()):
+            lifetime.stop()
 
         self.logger.info("Lifetime manager loop stopped")
 
@@ -110,7 +110,7 @@ class LifetimeManager(AsyncStoppable):
         await self.start_lifetime(client)
 
     def remove(self, client: Client) -> None:
-        lifetime = self.lifetimes.pop(client, None)
+        lifetime = self.lifetimes.pop(client.config.unique_id, None)
 
         if lifetime is not None:
             lifetime.stop()

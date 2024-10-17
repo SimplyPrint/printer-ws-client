@@ -49,6 +49,7 @@ class Client(ABC, EventLoopProvider[asyncio.AbstractEventLoop], Generic[TConfig]
     logger: logging.Logger
 
     _connected: bool = False
+    _connected_event: asyncio.Event
     _client_lock: asyncio.Lock
 
     def __init__(
@@ -65,6 +66,7 @@ class Client(ABC, EventLoopProvider[asyncio.AbstractEventLoop], Generic[TConfig]
 
         self.logger = logging.getLogger(ClientName.from_client(self))
 
+        self._connected_event = asyncio.Event()
         self._client_lock = asyncio.Lock()
 
         # Recover handles from the class
@@ -97,6 +99,12 @@ class Client(ABC, EventLoopProvider[asyncio.AbstractEventLoop], Generic[TConfig]
     @traceable(with_args=True, with_stack=True, record_count=5)
     def connected(self, value: bool):
         self._connected = value
+
+        if value:
+            self._connected_event.set()
+        else:
+            self._connected_event.clear()
+
         self.logger.debug(f"Client {self.config.id} changed connected now: {self._connected=}")
 
     async def send_event(self, event: ClientEvent):
