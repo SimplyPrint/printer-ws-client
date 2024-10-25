@@ -92,14 +92,12 @@ class ClientApp(Generic[TClient, TConfig]):
             return fut
 
     def unload(self, config: PrinterConfig) -> Optional[Future]:
-        provider = self.client_providers.get(config)
+        provider = self.client_providers.pop(config, None)
 
         if not provider:
             self.logger.warning(
                 f"Could not unload provider as provider for {config.unique_id} not found.")
             return
-
-        self.client_providers.pop(config)
 
         async def _unload():
             await provider.ensure(remove=True)

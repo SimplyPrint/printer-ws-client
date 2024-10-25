@@ -407,7 +407,7 @@ class Instance(AsyncStoppable, EventLoopProvider, Generic[TClient, TConfig], ABC
         ...
 
     @abstractmethod
-    def has_client(self, client: TClient) -> bool:
+    def has_client(self, client_or_config: Union[TClient, TConfig]) -> bool:
         """
         Returns true if the instance has a client.
         """

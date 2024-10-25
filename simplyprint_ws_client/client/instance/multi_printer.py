@@ -1,6 +1,6 @@
 import asyncio
 from enum import Enum
-from typing import Dict, Iterable, Optional, Set
+from typing import Dict, Iterable, Optional, Set, Union
 
 from ..client import Client
 from ..config import ConfigManager
@@ -132,8 +132,9 @@ class MultiPrinter(Instance[TClient, TConfig]):
 
             return client
 
-    def has_client(self, client: TClient) -> bool:
-        return client.config.unique_id in self.clients
+    def has_client(self, client_or_config: Union[TClient, TConfig]) -> bool:
+        config = client_or_config.config if isinstance(client_or_config, Client) else client_or_config
+        return config.unique_id in self.clients
 
     def should_connect(self) -> bool:
         return len(self.clients) > 0

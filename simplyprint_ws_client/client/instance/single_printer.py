@@ -26,8 +26,11 @@ class SinglePrinter(Instance[TClient, TConfig]):
     def get_clients(self) -> Iterable[TClient]:
         return [self.client]
 
-    def has_client(self, client: TClient) -> bool:
-        return self.client == client
+    def has_client(self, client_or_config: Union[TClient, TConfig]) -> bool:
+        if isinstance(client_or_config, Client):
+            return self.client == client_or_config
+
+        return self.client.config.partial_eq(client_or_config)
 
     async def remove_client(self, client: TClient) -> None:
         if not self.has_client(client):

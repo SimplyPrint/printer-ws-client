@@ -93,10 +93,14 @@ class ClientProvider(Generic[TConfig], AsyncStoppable, EventLoopProvider[asyncio
 
         async with self.__ensure_lock:
             client = self.get_client()
+
             # Deregister client if not supposed to be provided.
             if client is None:
                 client = self.app.instance.get_client(self.config)
                 _remove = True
+
+            if client is None and _remove:
+                return
 
             has_client = self.app.instance.has_client(client)
 
