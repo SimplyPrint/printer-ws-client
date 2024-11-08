@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "simplyprint-ws-client"
-version = "1.0.0-rc.27"
+version = "1.0.0-rc.28"
 license = "AGPL-3.0-or-later"
 authors = ["SimplyPrint <contact@simplyprint.io>"]
 description = "SimplyPrint Websocket Client"
@@ -29,10 +29,6 @@ yarl = [
     { version = "^1.15.3", python = ">=3.9" },
     { version = "^1.15.2", python = "<3.9" },
 ]
-
-# Add optional aiodns for non-windows platforms.
-# This is due to aiodns not supporting the IOCP event loop on Windows.
-aiodns = { version = "^3.2.0", markers = "platform_system != 'Windows'" }
 
 # Install async_timeout for python < 3.11
 async-timeout = { version = "*", python = "<3.11" }
