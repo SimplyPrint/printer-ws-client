@@ -5,8 +5,8 @@ from typing import Callable, Tuple, Dict, TypeVar, Generic, Optional, NamedTuple
 
 from .event_bus_listeners import EventBusListener, ListenerLifetimeForever
 from .event_bus_predicate_tree import EventBusPredicateTree
-from ..utils.event_loop_provider import EventLoopProvider
-from ..utils.predicate import Predicate
+from ..shared.asyncio.event_loop_provider import EventLoopProvider
+from ..shared.events.predicate import Predicate
 
 if TYPE_CHECKING:
     from .event_bus import EventBus

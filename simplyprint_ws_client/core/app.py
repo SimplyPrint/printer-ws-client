@@ -1,0 +1,112 @@
+import functools
+import logging
+import threading
+from typing import Optional
+
+from .client import Client, ClientConfigChangedEvent
+from .config import ConfigManager, PrinterConfig
+from .scheduler import Scheduler
+from .settings import ClientSettings
+from ..const import APP_DIRS
+from ..shared.asyncio.event_loop_runner import EventLoopRunner
+from ..shared.debug import traceability
+from ..shared.sp.sentry import Sentry
+from ..shared.sp.url_builder import SimplyPrintURL
+from ..shared.utils.stoppable import SyncStoppable
+
+
+class ClientApp(SyncStoppable):
+    settings: ClientSettings
+    scheduler: Scheduler
+    config_manager: ConfigManager[PrinterConfig]
+    logger: logging.Logger
+
+    _app_instance: Optional[threading.Thread] = None
+    _app_lock: threading.Lock
+
+    def __init__(self, settings: ClientSettings, logger: logging.Logger = logging.getLogger("app"), **kwargs):
+        super().__init__(**kwargs)
+
+        self._app_lock = threading.Lock()
+
+        if settings.client_factory is None or settings.config_factory is None:
+            raise ValueError("Both client and config factory must be set in settings.")
+
+        self.settings = settings
+        self.scheduler = Scheduler(settings)
+        self.config_manager = settings.config_manager_t(
+            name=settings.name,
+            config_t=settings.config_factory,
+        )
+        self.logger = logger
+
+        if not APP_DIRS.user_log_path.exists():
+            APP_DIRS.user_log_path.mkdir(parents=True, exist_ok=True)
+
+        if settings.backend is not None:
+            SimplyPrintURL.set_backend(settings.backend)
+
+        if settings.sentry_dsn is not None:
+            Sentry.initialize_sentry(settings)
+
+        # On creation, load all current configs.
+        for config in self.config_manager.get_all():
+            self.add(config)
+
+    def run_detached(self, *args, **kwargs):
+        with self._app_lock:
+            if self._app_instance is not None:
+                self.logger.warning("Scheduler already running.")
+                return
+
+            self._app_instance = threading.Thread(target=self.run_blocking, args=args, kwargs=kwargs)
+            self._app_instance.start()
+
+    def run_blocking(self, debug=False, contexts: Optional[list] = None):
+        contexts = contexts or []
+        contexts.append(functools.partial(traceability.enable_traceable, debug))
+
+        with EventLoopRunner(debug, contexts, self.settings.event_loop_backend) as runner:
+            runner.run(self.scheduler.block_until_stopped())
+
+    def add(self, config: PrinterConfig) -> Client:
+        with self._app_lock:
+            if config.unique_id in self.scheduler.client_list:
+                return self.scheduler.client_list[config.unique_id]
+
+            self.config_manager.persist(config)
+            self.config_manager.flush(config)
+
+            client = self.settings.client_factory(config)
+
+            client.event_bus.on(ClientConfigChangedEvent,
+                                lambda *args, **kwargs: self.config_manager.flush(client.config))
+
+            self.scheduler.submit(client)
+            return client
+
+    def remove(self, config: PrinterConfig) -> None:
+        with self._app_lock:
+            client = self.scheduler.client_list.get(config.unique_id)
+
+            if client is None:
+                return
+
+            # Do not persist further changes to the config.
+            client.event_bus.clear(ClientConfigChangedEvent)
+
+            self.scheduler.remove(client)
+            self.config_manager.remove(config)
+            self.config_manager.flush(config)
+
+    def stop(self):
+        super().stop()
+
+        with self._app_lock:
+            self.scheduler.stop()
+
+            if self._app_instance is not None:
+                self._app_instance.join()
+                self._app_instance = None
+
+            self.logger.info("Stopped.")

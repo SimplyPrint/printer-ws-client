@@ -6,7 +6,7 @@ TEvent = TypeVar('TEvent', bound=object)
 
 class Emitter(Generic[TEvent], ABC):
     @abstractmethod
-    def emit(self, event: Union[Hashable, TEvent], *args, **kwargs) -> None:
+    async def emit(self, event: Union[Hashable, TEvent], *args, **kwargs) -> None:
         ...
 
     @abstractmethod

@@ -13,7 +13,7 @@ except ImportError:
 from .emitter import Emitter, TEvent
 from .event import Event
 from .event_bus_listeners import EventBusListeners, EventBusListener, EventBusListenerOptions
-from ..utils.event_loop_provider import EventLoopProvider
+from ..shared.asyncio.event_loop_provider import EventLoopProvider
 
 if TYPE_CHECKING:
     from .event_bus_middleware import EventBusMiddleware
@@ -65,21 +65,19 @@ class _EmitGenerator(Generic[TEvent]):
 
         Given an event listener function like so:
 
-        ```
-        def listener(event: Event, *args, **kwargs) -> Event:
-            # Do something with event
-            return event
-        ```
+            def listener(event: Event, *args, **kwargs) -> Event:
+                # Do something with event
+                return event
+
 
         The returned event will now take precedence over the original event.
 
         Given an event listener function like so:
 
-        ```
-        def listener(event: Event, *args, **kwargs) -> Tuple[Event, ...]:
-            # Do something with event and return more arguments
-            return event, ...
-        ```
+            def listener(event: Event, *args, **kwargs) -> Tuple[Event, ...]:
+                # Do something with event and return more arguments
+                return event, ...
+
 
         Then returned_args will replace the entire argument list.
         """

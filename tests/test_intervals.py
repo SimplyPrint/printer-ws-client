@@ -1,6 +1,6 @@
 import unittest
 
-from simplyprint_ws_client.helpers.intervals import IntervalException, IntervalTypes, Intervals
+from simplyprint_ws_client.helpers import IntervalException, IntervalTypes, Intervals
 
 
 class TimeControlledIntervals(Intervals):

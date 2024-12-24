@@ -1,8 +1,8 @@
 import unittest
 
 from simplyprint_ws_client.client import Client
-from simplyprint_ws_client.client.config import Config, PrinterConfig
-from simplyprint_ws_client.utils import traceability
+from simplyprint_ws_client.client.config import PrinterConfig
+from simplyprint_ws_client.shared.debug_utils import traceability
 
 
 class TestTraceability(unittest.IsolatedAsyncioTestCase):
