@@ -59,6 +59,7 @@ class WebcamSnapshotEvent(DemandEvent):
     def on_event(self):
         self.id: Optional[str] = self.data.get("id")
         self.timer: Optional[int] = self.data.get("timer")
+        self.endpoint: Optional[str] = self.data.get("endpoint")
 
 
 class FileEvent(DemandEvent):

@@ -8,9 +8,10 @@ from ..helpers.url_builder import SimplyPrintURL
 
 class SimplyPrintApi:
     @staticmethod
-    async def post_snapshot(snapshot_id: str, image_data: bytes):
-
-        endpoint = SimplyPrintURL().api_url / "jobs" / "ReceiveSnapshot"
+    async def post_snapshot(snapshot_id: str, image_data: bytes, endpoint: Union[str, URL, None] = None):
+    
+        if endpoint is None:
+            endpoint = SimplyPrintURL().api_url / "jobs" / "ReceiveSnapshot"
 
         data = {
             "id": snapshot_id,
