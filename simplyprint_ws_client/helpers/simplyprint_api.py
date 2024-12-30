@@ -1,6 +1,6 @@
 import aiohttp
 import base64
-from typing import Optional
+from typing import Optional, Union
 
 from ..const import VERSION
 from ..helpers.url_builder import SimplyPrintURL
