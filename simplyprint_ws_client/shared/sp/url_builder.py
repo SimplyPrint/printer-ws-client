@@ -115,6 +115,6 @@ class SimplyPrintURL:
 
 
 value = environ.get("SIMPLYPRINT_BACKEND",
-                    (SimplyPrintBackend.TESTING if IS_TESTING else SimplyPrintBackend.TESTING).value)
+                    (SimplyPrintBackend.TESTING if IS_TESTING else SimplyPrintBackend.PRODUCTION).value)
 
 SimplyPrintURL.set_backend(SimplyPrintBackend(value))
