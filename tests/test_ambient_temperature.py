@@ -2,16 +2,16 @@ import unittest
 
 from traitlets import Instance
 
-from simplyprint_ws_client.client.state import AmbientTemperatureState, Temperature, State
+from simplyprint_ws_client.core.state import AmbientTemperatureState, StateModel, TemperatureState
 
 
-class TestState(State):
+class TestState(StateModel):
     ambient: AmbientTemperatureState = Instance(AmbientTemperatureState)
 
 
 class TestAmbientTemperature(unittest.TestCase):
     def test_simple(self):
-        tools = [Temperature(actual=27.21875, target=0.0)]
+        tools = [TemperatureState(actual=27.21875, target=0.0)]
 
         state = TestState(ambient=AmbientTemperatureState())
 

@@ -1,10 +1,10 @@
 import unittest
 
-from simplyprint_ws_client.client.config import ConfigManager
-from simplyprint_ws_client.client.config import PrinterConfig
-from simplyprint_ws_client.client.config.json import JsonConfigManager
-from simplyprint_ws_client.client.config.memory import MemoryConfigManager
-from simplyprint_ws_client.client.config.sqlite import SQLiteConfigManager
+from simplyprint_ws_client.core.config import ConfigManager
+from simplyprint_ws_client.core.config import PrinterConfig
+from simplyprint_ws_client.core.config.json import JsonConfigManager
+from simplyprint_ws_client.core.config.memory import MemoryConfigManager
+from simplyprint_ws_client.core.config.sqlite import SQLiteConfigManager
 
 
 class TestConfigManager(unittest.TestCase):
@@ -46,6 +46,8 @@ class TestConfigManager(unittest.TestCase):
         self.assertNotEqual(config_manager.find(PrinterConfig(id=3, token="token4")), config3)
 
     def _test_manager(self, config_manager: ConfigManager):
+        config_manager.delete_storage()
+
         config = PrinterConfig.get_blank()
         config_manager.persist(config)
 

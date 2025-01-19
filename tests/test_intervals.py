@@ -1,6 +1,6 @@
 import unittest
 
-from simplyprint_ws_client.helpers import IntervalException, IntervalTypes, Intervals
+from simplyprint_ws_client.core.state import Intervals
 
 
 class TimeControlledIntervals(Intervals):
@@ -26,40 +26,37 @@ class TestConfigManager(unittest.TestCase):
 
         self.assertEqual(intervals.now(), 30000.0)
 
-        intervals.set(IntervalTypes.PING, 1000.0)
+        intervals.set("ping", 1000)
 
-        self.assertEqual(intervals.intervals[IntervalTypes.PING.value], 1000.0)
-        self.assertTrue(intervals.is_ready(IntervalTypes.PING))
+        self.assertEqual(intervals.ping, 1000.0)
+        self.assertTrue(intervals.is_ready("ping"))
 
-        intervals.use(IntervalTypes.PING)
+        intervals.use("ping")
 
-        self.assertFalse(intervals.is_ready(IntervalTypes.PING))
-        self.assertEqual(intervals.time_until_ready(IntervalTypes.PING), 1.0)
+        self.assertFalse(intervals.is_ready("ping"))
+        self.assertEqual(intervals.time_until_ready("ping"), 1000)
 
         intervals.step_time(1000.0)
 
-        self.assertTrue(intervals.is_ready(IntervalTypes.PING))
-        self.assertEqual(intervals.time_until_ready(IntervalTypes.PING), 0.0)
+        self.assertTrue(intervals.is_ready("ping"))
+        self.assertEqual(intervals.time_until_ready("ping"), 0)
 
-        intervals.use(IntervalTypes.PING)
+        intervals.use("ping")
 
-        self.assertFalse(intervals.is_ready(IntervalTypes.PING))
-        self.assertEqual(intervals.time_until_ready(IntervalTypes.PING), 1.0)
-
-        intervals.step_time(500.0)
-
-        self.assertFalse(intervals.is_ready(IntervalTypes.PING))
-        self.assertEqual(intervals.time_until_ready(IntervalTypes.PING), 0.5)
-
-        self.assertRaises(IntervalException, intervals.use, IntervalTypes.PING)
+        self.assertFalse(intervals.is_ready("ping"))
+        self.assertEqual(intervals.time_until_ready("ping"), 1000)
 
         intervals.step_time(500.0)
 
-        self.assertTrue(intervals.is_ready(IntervalTypes.PING))
+        self.assertFalse(intervals.is_ready("ping"))
+        self.assertEqual(intervals.time_until_ready("ping"), 500)
+        self.assertFalse(intervals.use("ping"))
 
-        intervals.use(IntervalTypes.PING)
+        intervals.step_time(500.0)
 
-        self.assertFalse(intervals.is_ready(IntervalTypes.PING))
-        self.assertEqual(intervals.time_until_ready(IntervalTypes.PING), 1.0)
+        self.assertTrue(intervals.is_ready("ping"))
 
-        self.assertTrue(IntervalTypes.PING.value in intervals.intervals)
+        intervals.use("ping")
+
+        self.assertFalse(intervals.is_ready("ping"))
+        self.assertEqual(intervals.time_until_ready("ping"), 1000)

@@ -2,8 +2,6 @@ import asyncio
 import unittest
 from typing import Optional
 
-from simplyprint_ws_client.client.protocol.client_events import ClientEvent
-from simplyprint_ws_client.client.protocol.server_events import ServerEvent, ConnectEvent
 from simplyprint_ws_client.events.event import Event
 from simplyprint_ws_client.events.event_bus import EventBus, EventBusListeners
 from simplyprint_ws_client.events.event_bus_listeners import ListenerUniqueness, ListenerLifetimeForever, \
@@ -25,6 +23,20 @@ class CustomEventBus(EventBus[CustomEvent]):
 
 class DefaultEventBus(EventBus[Event]):
     ...
+
+
+class ClientEvent(Event):
+    ...
+
+
+class ServerEvent(Event):
+    ...
+
+
+class ConnectEvent(Event):
+    def __init__(self, status: str) -> None:
+        super().__init__()
+        self.status = status
 
 
 class TestEventBus(unittest.IsolatedAsyncioTestCase):

@@ -13,7 +13,7 @@ import time
 from enum import IntEnum, StrEnum
 from typing import Optional, Self, Dict, Any, Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, PrivateAttr
 
 
 class PrinterCpuFlag(IntEnum):
@@ -61,19 +61,27 @@ class Intervals(BaseModel):
     ping: int = 20000
     webcam: int = 1000
 
-    _usages: Dict[str, int]
+    _usages: Dict[str, Optional[int]] = PrivateAttr(...)
 
     def model_post_init(self, __context: Any) -> None:
-        self._usages = {key: 0 for key in self.model_fields.keys()}
+        self._usages = {key: None for key in self.model_fields.keys()}
 
     @staticmethod
     def now() -> int:
         return int(time.monotonic_ns() / 1_000_000)
 
     def time_until_ready(self, t: IntervalT) -> int:
-        return self.now() - self._usages[t] - getattr(self, t)
+        timing = getattr(self, t)
+
+        if self._usages[t] is None:
+            return timing
+
+        return timing - (self.now() - self._usages[t])
 
     def is_ready(self, t: IntervalT):
+        if self._usages[t] is None:
+            return True
+
         return self.now() - self._usages[t] >= getattr(self, t)
 
     def dispatch_mode(self, t: IntervalT):

@@ -4,9 +4,8 @@ import uuid
 from io import BytesIO, TextIOWrapper
 from logging.handlers import BaseRotatingHandler
 
-from simplyprint_ws_client.client.config import PrinterConfig
-from simplyprint_ws_client.client.logging import ClientHandler
-from simplyprint_ws_client.client.logging import ClientName
+from simplyprint_ws_client.core.config import PrinterConfig
+from simplyprint_ws_client.shared.logging import ClientName, ClientHandler
 
 config = PrinterConfig.get_blank()
 config.unique_id = "test"

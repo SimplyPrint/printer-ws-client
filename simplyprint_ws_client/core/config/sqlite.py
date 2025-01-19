@@ -56,6 +56,8 @@ class SQLiteConfigManager(ConfigManager):
             return
 
         self._database_file.unlink()
+        self.db = None
+        self.__table_exists = False
 
     def backup_storage(self, *args, **kwargs):
         self._ensure_database()

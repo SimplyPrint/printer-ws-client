@@ -1,4 +1,5 @@
 __all__ = [
+    'StateModel',
     'TemperatureState',
     'AmbientTemperatureState',
     'FileProgressState',
@@ -35,6 +36,7 @@ from .models import *
 from .state_model import StateModel
 from ..config import PrinterConfig
 from ...shared.hardware.physical_machine import PhysicalMachine
+from ...shared.sp.ambient_check import AmbientCheck
 
 
 class TemperatureState(StateModel):
@@ -70,6 +72,26 @@ class AmbientTemperatureState(StateModel):
     initial_sample: Optional[float] = None
     ambient: int = 0
     update_interval: Optional[float] = None
+
+    def on_changed(self, new_ambient: float):
+        self.ambient = round(new_ambient)
+
+    def invoke_check(self, tool_temperatures: List['TemperatureState']):
+        """
+        It is up to the implementation to decide when to invoke the check or respect the update_interval,
+        the entire state is self-contained and requires the tool_temperatures to be passed in from the PrinterState,
+        but it handles triggering the appropriate events.
+        """
+        (
+            self.initial_sample,
+            self.ambient,
+            self.update_interval
+        ) = AmbientCheck.detect(
+            self.on_changed,
+            tool_temperatures,
+            self.initial_sample,
+            self.ambient
+        )
 
 
 class FileProgressState(StateModel):
