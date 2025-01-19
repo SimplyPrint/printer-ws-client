@@ -9,8 +9,7 @@ import logging
 from enum import Enum, auto
 from typing import Optional, final, Hashable
 
-from aiohttp import ClientWebSocketResponse, ClientSession, WSMsgType, ClientError, WebSocketError, ClientTimeout, \
-    ClientWSTimeout
+from aiohttp import ClientWebSocketResponse, ClientSession, WSMsgType, ClientError, WebSocketError, ClientTimeout
 from pydantic import ValidationError
 from pydantic_core import PydanticSerializationError
 from yarl import URL
@@ -64,7 +63,6 @@ class State(Enum):
 
 
 ConnectionTimeout = ClientTimeout(total=None, connect=60.0, sock_connect=60.0, sock_read=None)
-WsConnectionTimeout = ClientWSTimeout(ws_receive=None, ws_close=10.0)
 
 # aiohttp WebSocket parameters.
 # https://docs.aiohttp.org/en/stable/client_reference.html#aiohttp.ClientSession.ws_connect
@@ -73,8 +71,16 @@ WsParams = {
     "autoping":     True,
     "heartbeat":    30,
     "max_msg_size": 0,
-    "timeout":      WsConnectionTimeout
 }
+
+try:
+    # Added in aiohttp 3.11 / No python 3.8 support.
+    from aiohttp import ClientWSTimeout  # noqa
+
+    WsConnectionTimeout = ClientWSTimeout(ws_receive=None, ws_close=10.0)
+    WsParams["timeout"] = WsConnectionTimeout
+except ImportError:
+    pass
 
 # Errors we treat as a closed connection.
 WsConnectionErrors = (
@@ -118,7 +124,7 @@ class Connection(AsyncStoppable, EventLoopProvider[asyncio.AbstractEventLoop], H
     event_bus: EventBus[ConnectionEvent]
 
     _state: State
-    _queue: asyncio.Queue[Action]
+    _queue: asyncio.Queue
     _loop_task: ContinuousTask[None]
 
     def __init__(
