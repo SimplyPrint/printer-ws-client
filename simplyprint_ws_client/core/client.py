@@ -263,6 +263,7 @@ class Client(ABC, Generic[TConfig], EventLoopProvider[asyncio.AbstractEventLoop]
 
         # handle connection lost.
         self.v = event.v
+        self._pending_action_backoff.reset()
         self.state = State.CONNECTING
         self.signal()
 
