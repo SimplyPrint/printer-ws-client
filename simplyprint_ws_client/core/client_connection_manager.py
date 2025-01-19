@@ -11,7 +11,7 @@ import asyncio
 import functools
 from typing import final, Dict, Optional, Set, cast, Iterable
 
-from .client import Client
+from .client import Client, State
 from .client_list import ClientList, TUniqueId
 from .client_view import ClientView
 from .config import PrinterConfig
@@ -111,6 +111,12 @@ class ClientConnectionManager(AsyncStoppable, EventLoopProvider[asyncio.Abstract
             return
 
         view = self._allocate_new_connection()
+        connection = view.connection
+
+        if connection.connected:
+            client.v = connection.v
+            client.state = State.NOT_CONNECTED
+
         self.client_views[client.unique_id] = view
         view.add(client)
 
@@ -123,9 +129,9 @@ class ClientConnectionManager(AsyncStoppable, EventLoopProvider[asyncio.Abstract
             client.event_bus.on(ConnectionOutgoingEvent, transform_message_with_unique_id, priority=10)
 
         client.event_bus.on(ConnectionOutgoingEvent,
-                            functools.partial(view.connection.event_bus.emit, ConnectionOutgoingEvent))
+                            functools.partial(connection.event_bus.emit, ConnectionOutgoingEvent))
 
-        await view.connection.connect(hint=self._derive_connection_hint(client))
+        await connection.connect(hint=self._derive_connection_hint(client))
 
     async def deallocate(self, client: Client):
         """Deallocate a connection and remove it from the client."""

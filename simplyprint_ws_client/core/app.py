@@ -114,6 +114,7 @@ class ClientApp(SyncStoppable):
             # Do not persist further changes to the config.
             client.event_bus.clear(ClientConfigChangedEvent)
 
+            # TODO: TECHNICALLY this should happen after the scheduler calls _delete.
             self.config_manager.remove(config)
             self.config_manager.flush(config)
 

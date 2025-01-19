@@ -181,9 +181,9 @@ class Client(ABC, Generic[TConfig], EventLoopProvider[asyncio.AbstractEventLoop]
             return self.state == State.CONNECTED
 
         if self.state == State.NOT_CONNECTED and self._can_do_pending():
-            self._do_pending()
-            await self.send(MultiPrinterAddConnectionMsg(self.config, allow_setup))
             self.state = State.PENDING_ADDED
+            await self.send(MultiPrinterAddConnectionMsg(self.config, allow_setup))
+            self._do_pending()
 
         return self.state == State.CONNECTED
 
@@ -198,9 +198,9 @@ class Client(ABC, Generic[TConfig], EventLoopProvider[asyncio.AbstractEventLoop]
             return self.state == State.CONNECTING
 
         if self.state == State.CONNECTED and self._can_do_pending():
-            self._do_pending()
-            await self.send(MultiPrinterRemoveConnectionMsg(self.config))
             self.state = State.PENDING_REMOVED
+            await self.send(MultiPrinterRemoveConnectionMsg(self.config))
+            self._do_pending()
 
         return self.state == State.NOT_CONNECTED
 

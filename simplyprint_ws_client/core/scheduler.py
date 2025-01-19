@@ -64,8 +64,12 @@ class Scheduler(AsyncStoppable, EventLoopProvider[asyncio.AbstractEventLoop]):
         if client.unique_id in self.client_list:
             return
 
-        self.client_list.add(client)
+        if client.unique_id in self._to_delete:
+            self.logger.warning("client %s is being submitted is also pending deletion.", client.unique_id)
+            self._to_delete.discard(client.unique_id)
+
         self._tasks.pop(client.unique_id, None)
+        self.client_list.add(client)
         self.signal()
 
     def remove(self, client: Client):
