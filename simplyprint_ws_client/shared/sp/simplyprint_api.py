@@ -23,7 +23,7 @@ class SimplyPrintApi:
         headers = {"User-Agent": f"simplyprint-ws-client/{VERSION}"}
 
         async with aiohttp.ClientSession() as session:
-            async with session.post(str(endpoint), json=data, headers=headers, timeout=45) as response:
+            async with session.post(str(endpoint), data=data, headers=headers, timeout=45) as response:
                 if response.status != 200:
                     raise Exception(f"Failed to post snapshot: {await response.text()}")
 
