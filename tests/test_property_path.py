@@ -2,7 +2,7 @@ import unittest
 from dataclasses import dataclass, field
 from typing import List
 
-from simplyprint_ws_client.utils.property_path import PropertyPath, as_path, p
+from simplyprint_ws_client.shared.events.property_path import PropertyPath, as_path, p
 
 
 class TestPropertyPath(unittest.TestCase):

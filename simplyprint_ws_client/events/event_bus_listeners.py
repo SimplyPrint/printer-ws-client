@@ -1,4 +1,5 @@
 import asyncio
+import functools
 import heapq
 import inspect
 from enum import Enum
@@ -51,6 +52,13 @@ class EventBusListenersOptions(EventBusListenerOptions, TypedDict):
     generic: NotRequired[bool]
 
 
+def _is_async(handler: Callable) -> bool:
+    if isinstance(handler, functools.partial):
+        return _is_async(handler.func)
+
+    return asyncio.iscoroutinefunction(handler)
+
+
 class EventBusListener:
     __slots__ = ('lifetime', 'priority', 'handler', 'is_async', 'forward_emitter')
 
@@ -70,7 +78,7 @@ class EventBusListener:
         self.lifetime = lifetime
         self.priority = priority
         self.handler = handler
-        self.is_async = asyncio.iscoroutinefunction(handler)
+        self.is_async = _is_async(handler)
         self.forward_emitter = None
 
         # If function takes a named argument with the type Emitter, store that kwarg name.
@@ -100,7 +108,14 @@ class EventBusListener:
         return hash(self.handler)
 
     def __repr__(self):
-        return f"EventListener(handler={self.handler.__name__}, priority={self.priority})"
+        if isinstance(self.handler, functools.partial):
+            name = self.handler.func.__name__
+        elif hasattr(self.handler, '__name__'):
+            name = self.handler.__name__
+        else:
+            name = "Unknown"
+
+        return f"EventListener(handler={name}, priority={self.priority}, is_async={self.is_async})"
 
 
 class EventBusListeners(Iterable[EventBusListener]):

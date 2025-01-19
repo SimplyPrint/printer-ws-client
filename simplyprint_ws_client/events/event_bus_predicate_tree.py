@@ -1,6 +1,6 @@
 from typing import NamedTuple, List, Dict, Set, Iterator, TypeVar, Generic, Iterable
 
-from ..utils.predicate import Predicate, Constant
+from ..shared.events.predicate import Predicate, Constant
 
 
 class PredicateTreeNode(NamedTuple):

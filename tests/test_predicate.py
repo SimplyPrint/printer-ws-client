@@ -1,8 +1,8 @@
 import unittest
 
 from simplyprint_ws_client.events import Event
-from simplyprint_ws_client.utils.predicate import Constant, Reduce, Eq, Extract, Sel, And, EmptyPipe
-from simplyprint_ws_client.utils.property_path import p
+from simplyprint_ws_client.shared.events.predicate import Constant, Reduce, Eq, Extract, Sel, And, EmptyPipe
+from simplyprint_ws_client.shared.events.property_path import p
 
 
 class TestPredicate(unittest.TestCase):

@@ -2,13 +2,11 @@ import asyncio
 import math
 import random
 
-from simplyprint_ws_client.client.client import DefaultClient
-from simplyprint_ws_client.client.config import PrinterConfig
-from simplyprint_ws_client.client.protocol import Events, Demands
-from simplyprint_ws_client.client.protocol.client_events import StreamEvent
-from simplyprint_ws_client.client.state.printer import FileProgressState, PrinterStatus
-from simplyprint_ws_client.helpers.file_download import FileDownload
-from simplyprint_ws_client.helpers.intervals import IntervalTypes
+from simplyprint_ws_client.core.client import DefaultClient
+from simplyprint_ws_client.core.config import PrinterConfig
+from simplyprint_ws_client.core.state import FileProgressState, PrinterStatus
+from simplyprint_ws_client.core.ws_protocol.messages import StreamMsg, GcodeDemandData, FileDemandData
+from simplyprint_ws_client.shared.files.file_download import FileDownload
 
 _TEST_IMAGE = "iVBORw0KGgoAAAANSUhEUgAAAeAAAAFoCAIAAAAAVb93AAAFMklEQVR4nOzWQQkCYRhFUZFpYAVzWcAAGsAONnFvJ3FtAZc/fJfhnARvdXnb8/Q4wF68bp/pCbDMcXoAAP8JNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRG3f+3l6AyxzeV+nJ8AyHjRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNEDULwAA//+/JAlAlWQCTwAAAABJRU5ErkJggg=="
 
@@ -22,7 +20,7 @@ def expt_smooth(target, actual, alpha, dt) -> float:
 
 
 class VirtualClient(DefaultClient[VirtualConfig]):
-    job_progress_alpha: float = 0.05
+    job_progress_alpha: float = 0.5
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -30,7 +28,7 @@ class VirtualClient(DefaultClient[VirtualConfig]):
         self.printer.firmware.name = "Virtual Printer Firmware"
         self.printer.firmware.version = "1.0.0"
 
-        self.set_info("Virtual Printer", "0.0.1")
+        self.printer.set_info("Virtual Printer", "0.0.1")
         self.printer.set_extruder_count(4)
 
         self.printer.webcam_info.connected = True
@@ -41,28 +39,24 @@ class VirtualClient(DefaultClient[VirtualConfig]):
             mat.color = "Black"
             mat.hex = "#000000"
 
-    @Events.ConnectEvent.on
-    async def on_connect(self, event: Events.ConnectEvent):
+    async def on_connected(self):
+        _ = self
         print("Yay i am connected :) :) :)")
 
-    @Demands.WebcamTestEvent.on
-    async def on_webcam_test(self, event: Demands.WebcamTestEvent):
+    async def on_webcam_test(self):
         self.printer.webcam_info.connected = True
 
-    @Demands.StreamOffEvent.on
-    async def on_stream_off(self, event: Demands.StreamOffEvent):
-        self.intervals.set(IntervalTypes.WEBCAM, float('inf'))
+    async def on_stream_off(self):
+        self.printer.intervals.set("webcam", -1)
 
-    @Demands.WebcamSnapshotEvent.on
-    async def on_webcam_snapshot(self, event: Demands.WebcamSnapshotEvent):
-        await self.intervals.wait_until_ready(IntervalTypes.WEBCAM)
-        await self.send_event(StreamEvent({"base": _TEST_IMAGE}))
+    async def on_webcam_snapshot(self):
+        await self.printer.intervals.wait_for("webcam")
+        await self.send(StreamMsg(_TEST_IMAGE))
 
-    @Demands.GcodeEvent.on
-    async def on_gcode(self, event: Demands.GcodeEvent):
-        print("Gcode: %s", event.list)
+    async def on_gcode(self, data: GcodeDemandData):
+        print("Gcode: %s", data.list)
 
-        for gcode in event.list:
+        for gcode in data.list:
             if gcode[:4] == "M104":
                 target = float(gcode[6:])
 
@@ -83,8 +77,7 @@ class VirtualClient(DefaultClient[VirtualConfig]):
                 else:
                     self.printer.bed_temperature.target = 0.0
 
-    @Demands.FileEvent.on
-    async def on_file(self, event: Demands.FileEvent):
+    async def on_file(self, data: FileDemandData):
         downloader = FileDownload(self)
 
         # fake self.printer.file_progress.percent using event.file_size
@@ -103,11 +96,10 @@ class VirtualClient(DefaultClient[VirtualConfig]):
             await asyncio.sleep(0.1)
 
         self.printer.file_progress.state = FileProgressState.READY
-        await self.on_start_print(event)
+        await self.on_start_print(data)
 
-    @Demands.StartPrintEvent.on
     async def on_start_print(self, _):
-        self.job_progress_alpha = random.uniform(0.05, 0.1)
+        # self.job_progress_alpha = random.uniform(0.05, 0.1)
 
         self.printer.status = PrinterStatus.PRINTING
         self.printer.job_info.started = True
@@ -118,8 +110,7 @@ class VirtualClient(DefaultClient[VirtualConfig]):
         self.printer.bed_temperature.target = 60.0
         self.printer.tool_temperatures[0].target = 225.0
 
-    @Demands.CancelEvent.on
-    async def on_cancel_event(self, _):
+    async def on_cancel(self, _):
         self.printer.status = PrinterStatus.CANCELLING
         self.printer.job_info.cancelled = True
         await asyncio.sleep(2)
@@ -135,7 +126,7 @@ class VirtualClient(DefaultClient[VirtualConfig]):
         self.printer.tool_temperatures[0].target = 0.0
         self.printer.status = PrinterStatus.OPERATIONAL
 
-    async def tick(self):
+    async def tick(self, _):
         await self.send_ping()
 
         # Update temperatures, printer status and so on with smoothing function
@@ -185,5 +176,8 @@ class VirtualClient(DefaultClient[VirtualConfig]):
                 self.printer.bed_temperature.target = 0.0
                 self.printer.tool_temperatures[0].target = 0.0
 
-    async def stop(self):
+    async def halt(self):
+        pass
+
+    async def teardown(self):
         pass

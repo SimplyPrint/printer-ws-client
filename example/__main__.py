@@ -1,30 +1,25 @@
-import logging
-
-from simplyprint_ws_client.cli import ClientCli
-from simplyprint_ws_client.client import ClientApp, ClientOptions, ClientMode
-from simplyprint_ws_client.client.config import ConfigManagerType
-from simplyprint_ws_client.client.logging import ClientHandler
-from simplyprint_ws_client.helpers.url_builder import SimplyPrintBackend
+from simplyprint_ws_client.core.app import ClientApp
+from simplyprint_ws_client.core.config import ConfigManagerType
+from simplyprint_ws_client.core.settings import ClientSettings
+from simplyprint_ws_client.core.ws_protocol.connection import ConnectionMode
+from simplyprint_ws_client.shared.cli.cli import ClientCli
+from simplyprint_ws_client.shared.logging import ClientHandler
+from simplyprint_ws_client.shared.sp.url_builder import SimplyPrintBackend
 from .virtual_client import VirtualClient, VirtualConfig
 
 if __name__ == "__main__":
-    client_options = ClientOptions(
-        name="la_fair_printers",
-        mode=ClientMode.MULTI_PRINTER,
-        client_t=VirtualClient,
-        config_t=VirtualConfig,
+    settings = ClientSettings(
+        name="VirtualPrinters",
+        mode=ConnectionMode.MULTI,
+        client_factory=VirtualClient,
+        config_factory=VirtualConfig,
         allow_setup=True,
-        config_manager_type=ConfigManagerType.JSON,
-        backend=SimplyPrintBackend.TESTING,
+        config_manager_t=ConfigManagerType.JSON,
+        backend=SimplyPrintBackend.PRODUCTION,
     )
 
-    logging.basicConfig(
-        level=logging.DEBUG,
-        format="[%(asctime)s] %(levelname)s %(name)s.%(funcName)s: %(message)s",
-        handlers=[logging.StreamHandler(), ClientHandler.root_handler(client_options)]
-    )
-
-    app = ClientApp(client_options)
+    ClientHandler.setup_logging(settings)
+    app = ClientApp(settings)
     cli = ClientCli(app)
     cli.start_client = lambda: app.run_blocking()
     cli(prog_name="python -m simplyprint_ws_client")

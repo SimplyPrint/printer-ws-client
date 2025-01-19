@@ -4,10 +4,10 @@ from abc import ABC
 from queue import Queue, Empty
 from typing import Union, Hashable, NamedTuple, Optional, Dict, Tuple, Any
 
-from simplyprint_ws_client.helpers.physical_machine import PhysicalMachine
 from .emitter import TEvent, Emitter
 from .event_bus import EventBus
-from ..utils.stoppable import StoppableThread, AsyncStoppable, StoppableInterface
+from ..shared.hardware.physical_machine import PhysicalMachine
+from ..shared.utils.stoppable import StoppableThread, AsyncStoppable, StoppableInterface
 
 
 class _EventQueueItem(NamedTuple):

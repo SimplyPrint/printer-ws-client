@@ -1,0 +1,230 @@
+import asyncio
+import functools
+import inspect
+from functools import partial
+from typing import Type, Unpack, get_origin, Hashable, Dict, Optional, get_args, \
+    Literal, Tuple, List, TYPE_CHECKING
+
+from pydantic import BaseModel
+
+from .state import PrinterState
+from .ws_protocol.messages import ClientMsg, DemandMsgType, DispatchMode, ServerMsgType, ServerMsgKind, DemandMsgKind
+from ..events.event_bus_listeners import EventBusListenerOptions
+
+if TYPE_CHECKING:
+    from .client import Client
+
+_client_msg_map: Dict[str, Type[ClientMsg]] = {}
+
+
+def configure(event: Optional[Hashable] = None, **kwargs: Unpack[EventBusListenerOptions]):
+    """Map a function as a callback for an event."""
+
+    def decorator(func):
+        if not hasattr(func, '_event_bus_event'):
+            func._event_bus_event = None
+
+        if not hasattr(func, '_event_bus_wrap'):
+            func._event_bus_wrap = False
+
+        if not hasattr(func, '_event_bus_listeners_args'):
+            func._event_bus_listeners_args = {}
+
+        func._event_bus_listeners_args.update(kwargs)
+        func._event_bus_event = event or func._event_bus_event
+
+        return func
+
+    return decorator
+
+
+def autoconfigure(attr: callable):
+    """Automatically configure a function based on its signature."""
+    if isinstance(attr, partial) or isinstance(attr, functools.partialmethod):
+        attr = attr.func
+
+    if not inspect.isfunction(attr):
+        raise ValueError("Expected a function.")
+
+    signature = inspect.signature(attr)
+    parameters = dict(signature.parameters.copy())
+    parameters.pop('self', None)
+
+    if len(parameters) == 0:
+        attr._event_bus_wrap = True
+
+    name = attr.__name__
+
+    msg_lookup, msg_data_lookup, demand_lookup = build_autoconfiguration_state()
+
+    if name.startswith('on_'):
+        event_name = name[3:]
+
+        if event_name in ServerMsgType:
+            event_guess = ServerMsgType(event_name)
+            attr._event_bus_event = event_guess
+            return
+
+        elif event_name in DemandMsgType:
+            event_guess = DemandMsgType(event_name)
+            attr._event_bus_event = event_guess
+            return
+
+    # We extract event information given one argument.
+    if len(parameters) != 1:
+        return
+
+    param_type = next(iter(parameters.values())).annotation
+
+    # Only consider first argument type.
+    if not isinstance(param_type, type):
+        return
+
+    if msg_cls := msg_lookup.get(param_type):
+        attr._event_bus_event = msg_cls
+        return
+
+    if demand_cls := demand_lookup.get(param_type):
+        attr._event_bus_event = demand_cls
+        return
+
+    if data_cls := msg_data_lookup.get(param_type):
+        attr._event_bus_event = data_cls
+        return
+
+
+@functools.cache
+def build_autoconfiguration_state():
+    demand_lookup: Dict[Type[BaseModel], DemandMsgType] = {}
+    msg_lookup: Dict[Type[BaseModel], ServerMsgType] = {}
+    msg_data_lookup: Dict[Type[BaseModel], ServerMsgType] = {}
+
+    for m in set(get_args(ServerMsgKind)):
+        type_annotation = m.model_fields['type'].annotation
+
+        if not get_origin(type_annotation) is Literal:
+            continue
+
+        msg_type = get_args(type_annotation)[0]
+
+        if not isinstance(msg_type, ServerMsgType):
+            continue
+
+        msg_lookup[m] = msg_type
+
+        data_annotation = m.model_fields['data'].annotation
+
+        if isinstance(data_annotation, type) and issubclass(data_annotation, BaseModel):
+            msg_data_lookup[data_annotation] = msg_type
+
+    for m in set(get_args(DemandMsgKind)):
+        demand_annotation = m.model_fields['demand'].annotation
+
+        if not get_origin(demand_annotation) is Literal:
+            continue
+
+        demand_type = get_args(demand_annotation)[0]
+
+        if not isinstance(demand_type, DemandMsgType):
+            continue
+
+        demand_lookup[m] = demand_type
+
+    return msg_lookup, msg_data_lookup, demand_lookup
+
+
+def autoconfigure_class_dict(class_dict: dict):
+    """
+    # autofill opts based on:
+    # function name
+    # function arguments
+    """
+    for name in class_dict:
+        attr = class_dict[name]
+
+        # Only consider functions.
+        if not inspect.isfunction(attr) and not isinstance(attr, partial):
+            continue
+
+        autoconfigure(attr)
+
+
+def debug(cls: Type['Client']):
+    # Show all configured functions
+    for name in dir(cls):
+        attr = getattr(cls, name)
+
+        if not inspect.isfunction(attr):
+            continue
+
+        if hasattr(attr, '_event_bus_event'):
+            print(f"{name} => {getattr(attr, '_event_bus_event')}")
+
+
+def instrument(client: 'Client'):
+    """Instrument and instance of a client based on its methods."""
+    for name in dir(client.__class__):
+        attr = getattr(client.__class__, name)
+
+        if not hasattr(attr, f'_event_bus_event'):
+            continue
+
+        e = getattr(attr, '_event_bus_event')
+        kwargs = {}
+
+        if hasattr(attr, f'_event_bus_listeners_args'):
+            kwargs = getattr(attr, f'_event_bus_listeners_args')
+
+        func = getattr(client, name)
+
+        if hasattr(attr, '_event_bus_wrap') and getattr(attr, '_event_bus_wrap') is True:
+            if asyncio.iscoroutinefunction(func):
+                async def func(*args, inner_func=func, **_):
+                    return await inner_func()
+            else:
+                def func(*args, inner_func=func, **_):
+                    return inner_func()
+
+        client.event_bus.on(e, func, **kwargs)
+
+
+def produce(msg_cls, *when_key_changes: str):
+    """Map a message to a key"""
+    for key in when_key_changes:
+        _client_msg_map[key] = msg_cls
+
+
+def consume(state: PrinterState) -> Tuple[List[ClientMsg], int]:
+    """Consume state from mappings"""
+    changes = state.model_recursive_changeset
+
+    msg_kinds = {
+        _client_msg_map[k]: v for k, v in changes.items() if k in _client_msg_map}
+
+    # Sort by v and make it a list
+    msg_kinds = [k for k in sorted(msg_kinds, key=msg_kinds.get)]
+
+    msgs = []
+
+    is_pending = state.config.is_pending()
+
+    for msg_kind in msg_kinds:
+        # Skip over messages that are not allowed to be sent when pending.
+        if is_pending and not msg_kind.msg_type().when_pending():
+            continue
+
+        data = dict(msg_kind.build(state))
+
+        if not data:
+            continue
+
+        msg = msg_kind(data)
+
+        # Skip over messages that are not supposed to be sent.
+        if msg.dispatch_mode(state) != DispatchMode.DISPATCH:
+            continue
+
+        msgs.append(msg)
+        msg.reset_changes(state)
+
+    return msgs, -1
