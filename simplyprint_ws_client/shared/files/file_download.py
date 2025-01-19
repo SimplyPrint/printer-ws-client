@@ -1,11 +1,10 @@
 from pathlib import Path
-from pathlib import Path
 from typing import Callable, Optional, AsyncIterable
 
 import aiohttp
 
 from ...core.client import Client
-from ...core.state import FileProgressState
+from ...core.state import FileProgressState, FileProgressStateEnum
 
 
 class FileDownload:
@@ -34,16 +33,16 @@ class FileDownload:
         async with aiohttp.ClientSession(timeout=self.timeout) as session:
             async with session.get(url) as resp:
                 if resp.status != 200:
-                    self.state.state = FileProgressState.ERROR
+                    self.state.state = FileProgressStateEnum.ERROR
                     self.state.message = f"Failed to download file: {resp.status}"
                     return
 
-                self.state.state = FileProgressState.STARTED
+                self.state.state = FileProgressStateEnum.STARTED
 
                 size = int(resp.headers.get('content-length', 0))
                 downloaded = 0
 
-                self.state.state = FileProgressState.DOWNLOADING
+                self.state.state = FileProgressStateEnum.DOWNLOADING
 
                 # Download chunk by chunk
                 async for chunk in resp.content.iter_any():
