@@ -89,13 +89,22 @@ __all__ = [
 ]
 
 from enum import StrEnum, IntEnum
-from types import NoneType
-from typing import Generic, TypeVar, Union, Literal, Optional, List, Dict, Any, Annotated, Tuple, Generator, get_args
+from typing import Generic, TypeVar, Union, Literal, Optional, List, Dict, Any, Tuple, Generator, get_args
 
 from pydantic import BaseModel, Field, field_validator, RootModel, model_serializer
 
 from ..config import PrinterConfig
 from ..state import Intervals, PrinterSettings, FileProgressStateEnum, PrinterState, JobInfoState
+
+try:
+    from typing import Annotated
+except ImportError:
+    from typing_extensions import Annotated
+
+try:
+    from types import NoneType
+except ImportError:
+    NoneType = type(None)
 
 
 class ServerMsgType(StrEnum):

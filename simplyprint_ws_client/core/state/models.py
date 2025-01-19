@@ -11,9 +11,14 @@ __all__ = [
 import asyncio
 import time
 from enum import IntEnum, StrEnum
-from typing import Optional, Self, Dict, Any, Literal
+from typing import Optional, Dict, Any, Literal
 
 from pydantic import BaseModel, PrivateAttr
+
+try:
+    from typing import Self
+except ImportError:
+    from typing_extensions import Self
 
 
 class PrinterCpuFlag(IntEnum):

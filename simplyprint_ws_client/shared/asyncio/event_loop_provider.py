@@ -23,10 +23,10 @@ class EventLoopProvider(Generic[TEventLoop]):
             (lambda *args, **_: provider.event_loop) if provider is not None else None)
 
     def use_running_loop(self):
-        self.__event_loop_factory = asyncio.get_running_loop
+        self.__event_loop = asyncio.get_running_loop()
 
     def use_existing_loop(self):
-        self.__event_loop_factory = asyncio.get_event_loop
+        self.__event_loop = asyncio.get_event_loop()
 
     def reset_event_loop(self):
         self.__event_loop = None

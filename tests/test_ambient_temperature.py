@@ -1,12 +1,12 @@
 import unittest
 
-from traitlets import Instance
+from pydantic import Field
 
 from simplyprint_ws_client.core.state import AmbientTemperatureState, StateModel, TemperatureState
 
 
 class TestState(StateModel):
-    ambient: AmbientTemperatureState = Instance(AmbientTemperatureState)
+    ambient: AmbientTemperatureState = Field(defaut_factory=AmbientTemperatureState)
 
 
 class TestAmbientTemperature(unittest.TestCase):

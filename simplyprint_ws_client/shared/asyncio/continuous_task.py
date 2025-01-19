@@ -16,10 +16,8 @@ class ContinuousTask(Generic[T], EventLoopProvider[AbstractEventLoop]):
     coro_factory: Callable[..., Coroutine[T, Any, Any]]
 
     def __init__(self, coro_factory: Callable[..., Coroutine[T, Any, Any]], **kwargs):
-        super().__init__(**kwargs)
-
-        if not self.event_loop_is_not_closed():
-            self.use_running_loop()
+        Generic.__init__(self)
+        EventLoopProvider.__init__(self, **kwargs)
 
         self.coro_factory = coro_factory
         self.task = None

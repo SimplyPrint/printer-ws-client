@@ -91,7 +91,6 @@ class Client(ABC, Generic[TConfig], EventLoopProvider[asyncio.AbstractEventLoop]
     Attributes:
         v: Client version
         msg_id: Current message id (incrementing)
-        monitor: Condition variable for synchronization
         printer: Modifiable state of the printer.
         event_bus: Event bus for handling events.
         logger: Logger instance
@@ -107,35 +106,32 @@ class Client(ABC, Generic[TConfig], EventLoopProvider[asyncio.AbstractEventLoop]
 
     v: int = -1
     msg_id: int = -1
-    monitor: asyncio.Condition
     printer: PrinterState
     event_bus: EventBus
     logger: logging.Logger
 
     _state: VersionedState
     _should_be_allocated: bool = True
+    _signal_cb: Optional[Callable] = None
 
     _pending_action_backoff: Backoff
     _pending_action_delay: timedelta = timedelta.min
     _pending_action_ts: datetime = datetime.min
     _pending_action_log_ts: datetime = datetime.min
 
-    def __init__(self, config: PrinterConfig, *, event_loop_provider: Optional[EventLoopProvider] = None, **kwargs):
+    def __init__(self, config: PrinterConfig, *, event_loop_provider: Optional[EventLoopProvider] = None,
+                 signal_cb: Optional[Callable] = None, **kwargs):
         ABC.__init__(self)
         Generic.__init__(self)
         EventLoopProvider.__init__(self, provider=event_loop_provider)
-
-        if event_loop_provider is None:
-            self.use_running_loop()
-
         self._state = VersionedState(-1, State.CONNECTING)
-        self.monitor = asyncio.Condition()
         self.printer = PrinterState(config=config)
         self.printer.provide_context(weakref.ref(self))
         self.printer.set_extruder_count(1)
         self.printer.set_nozzle_count(1)
-        self.event_bus = EventBus()
+        self.event_bus = EventBus(event_loop_provider=self)
         self.logger = logging.getLogger(ClientName.from_client(self))
+        self._signal_cb = signal_cb
         self._pending_action_backoff = ExponentialBackoff(10, 600, 3600)
         instrument(self)
 
@@ -230,26 +226,11 @@ class Client(ABC, Generic[TConfig], EventLoopProvider[asyncio.AbstractEventLoop]
         self._pending_action_ts = datetime.now()
         self._pending_action_delay = timedelta(seconds=self._pending_action_backoff.delay())
 
-    async def wait(self):
-        async with self.monitor:
-            await self.monitor.wait()
-
-    async def wait_for(self, predicate: Callable[..., bool]):
-        async with self.monitor:
-            await self.monitor.wait_for(predicate)
-
-    async def wait_until_connected(self):
-        await self.wait_for(lambda: self.state == State.CONNECTED)
-
-    async def asignal(self):
-        async with self.monitor:
-            self.monitor.notify_all()
-
     def signal(self):
-        if not self.event_loop_is_not_closed():
+        if not self._signal_cb:
             return
 
-        asyncio.run_coroutine_threadsafe(self.asignal(), self.event_loop)
+        self._signal_cb()
 
     def consume(self):
         """Consume list of pending messages."""
@@ -292,7 +273,7 @@ class Client(ABC, Generic[TConfig], EventLoopProvider[asyncio.AbstractEventLoop]
         if not msg.data.status:
             self.logger.debug("Failed to add connection. %s", msg)
             self.state = State.NOT_CONNECTED
-            await self.asignal()
+            self.signal()
             return
 
         self.config.id = msg.data.pid
@@ -302,13 +283,13 @@ class Client(ABC, Generic[TConfig], EventLoopProvider[asyncio.AbstractEventLoop]
     async def _on_multi_printer_removed(self, msg: MultiPrinterRemovedMsg):
         self.logger.debug("Connection removed. %s", msg)
         self.state = State.NOT_CONNECTED
-        await self.asignal()
+        self.signal()
 
     @configure(ServerMsgType.CONNECTED, priority=2)
     async def _on_connected_state(self):
         self.printer.mark_common_fields_as_changed()
         self.state = State.CONNECTED
-        await self.asignal()
+        self.signal()
 
     # client methods
 

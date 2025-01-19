@@ -1,9 +1,10 @@
 import functools
 import logging
 import threading
-from typing import Optional
+from typing import Optional, cast
 
 from .client import Client, ClientConfigChangedEvent
+from .client_list import ClientList
 from .config import ConfigManager, PrinterConfig
 from .scheduler import Scheduler
 from .settings import ClientSettings
@@ -17,8 +18,9 @@ from ..shared.utils.stoppable import SyncStoppable
 
 class ClientApp(SyncStoppable):
     settings: ClientSettings
-    scheduler: Scheduler
+    client_list: ClientList
     config_manager: ConfigManager[PrinterConfig]
+    scheduler: Optional[Scheduler] = None
     logger: logging.Logger
 
     _app_instance: Optional[threading.Thread] = None
@@ -33,7 +35,7 @@ class ClientApp(SyncStoppable):
             raise ValueError("Both client and config factory must be set in settings.")
 
         self.settings = settings
-        self.scheduler = Scheduler(settings)
+        self.client_list = ClientList()
         self.config_manager = settings.config_manager_t(
             name=settings.name,
             config_t=settings.config_factory,
@@ -53,6 +55,19 @@ class ClientApp(SyncStoppable):
         for config in self.config_manager.get_all():
             self.add(config)
 
+    async def run(self):
+        if self.scheduler is None:
+            self.scheduler = Scheduler(self.client_list, self.settings)
+
+        await self.scheduler.block_until_stopped()
+
+    def run_blocking(self, debug=False, contexts: Optional[list] = None):
+        contexts = contexts or []
+        contexts.append(functools.partial(traceability.enable_traceable, debug))
+
+        with EventLoopRunner(debug, contexts, self.settings.event_loop_backend) as runner:
+            runner.run(self.run())
+
     def run_detached(self, *args, **kwargs):
         with self._app_lock:
             if self._app_instance is not None:
@@ -62,32 +77,36 @@ class ClientApp(SyncStoppable):
             self._app_instance = threading.Thread(target=self.run_blocking, args=args, kwargs=kwargs)
             self._app_instance.start()
 
-    def run_blocking(self, debug=False, contexts: Optional[list] = None):
-        contexts = contexts or []
-        contexts.append(functools.partial(traceability.enable_traceable, debug))
+    def _signal_cb(self):
+        if not self.scheduler:
+            return
 
-        with EventLoopRunner(debug, contexts, self.settings.event_loop_backend) as runner:
-            runner.run(self.scheduler.block_until_stopped())
+        self.scheduler.signal()
 
     def add(self, config: PrinterConfig) -> Client:
         with self._app_lock:
-            if config.unique_id in self.scheduler.client_list:
-                return self.scheduler.client_list[config.unique_id]
+            if config.unique_id in self.client_list:
+                return self.client_list[config.unique_id]
 
             self.config_manager.persist(config)
             self.config_manager.flush(config)
 
-            client = self.settings.client_factory(config)
+            client = self.settings.client_factory(config, event_loop_provider=self.scheduler,
+                                                  signal_cb=self._signal_cb)
 
             client.event_bus.on(ClientConfigChangedEvent,
-                                lambda *args, **kwargs: self.config_manager.flush(client.config))
+                                lambda *args, **kwargs: self.config_manager.flush(cast(PrinterConfig, client.config)))
 
-            self.scheduler.submit(client)
-            return client
+            if self.scheduler is not None:
+                self.scheduler.submit(client)
+            else:
+                self.client_list.add(client)
+
+        return client
 
     def remove(self, config: PrinterConfig) -> None:
         with self._app_lock:
-            client = self.scheduler.client_list.get(config.unique_id)
+            client = self.client_list.get(config.unique_id)
 
             if client is None:
                 return
@@ -95,9 +114,11 @@ class ClientApp(SyncStoppable):
             # Do not persist further changes to the config.
             client.event_bus.clear(ClientConfigChangedEvent)
 
-            self.scheduler.remove(client)
             self.config_manager.remove(config)
             self.config_manager.flush(config)
+
+            if self.scheduler is not None:
+                self.scheduler.remove(client)
 
     def stop(self):
         super().stop()

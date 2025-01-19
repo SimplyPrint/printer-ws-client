@@ -142,7 +142,7 @@ class Connection(AsyncStoppable, EventLoopProvider[asyncio.AbstractEventLoop], H
 
         self._state = State.NOT_CONNECTED
         self._queue = asyncio.Queue()
-        self._loop_task = ContinuousTask(self._loop)
+        self._loop_task = ContinuousTask(self._loop, provider=self)
 
     def __hash__(self):
         return hash(id(self))
@@ -179,11 +179,11 @@ class Connection(AsyncStoppable, EventLoopProvider[asyncio.AbstractEventLoop], H
         backoff = ConstantBackoff()
         action: Optional[Action] = None
 
-        queue_task = ContinuousTask(self._queue.get)
-        poll_task = ContinuousTask(self.poll)
-        ws_connect_task = ContinuousTask(lambda: self.session.ws_connect(self.url, **WsParams))
-        wait_delay_task = ContinuousTask(lambda d: self.wait(d))
-        wait_stop_task = ContinuousTask(self.wait)
+        queue_task = ContinuousTask(self._queue.get, provider=self)
+        poll_task = ContinuousTask(self.poll, provider=self)
+        ws_connect_task = ContinuousTask(lambda: self.session.ws_connect(self.url, **WsParams), provider=self)
+        wait_delay_task = ContinuousTask(lambda d: self.wait(d), provider=self)
+        wait_stop_task = ContinuousTask(self.wait, provider=self)
 
         # Flat main loop. Handles all states correctly.
         # First, PAUSED is excluded and handled.

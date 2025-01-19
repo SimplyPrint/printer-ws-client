@@ -2,7 +2,7 @@ import asyncio
 import functools
 import inspect
 from functools import partial
-from typing import Type, Unpack, get_origin, Hashable, Dict, Optional, get_args, \
+from typing import Type, get_origin, Hashable, Dict, Optional, get_args, \
     Literal, Tuple, List, TYPE_CHECKING
 
 from pydantic import BaseModel
@@ -13,6 +13,11 @@ from ..events.event_bus_listeners import EventBusListenerOptions
 
 if TYPE_CHECKING:
     from .client import Client
+
+try:
+    from typing import Unpack
+except ImportError:
+    from typing_extensions import Unpack
 
 _client_msg_map: Dict[str, Type[ClientMsg]] = {}
 
@@ -60,12 +65,12 @@ def autoconfigure(attr: callable):
     if name.startswith('on_'):
         event_name = name[3:]
 
-        if event_name in ServerMsgType:
+        if event_name in ServerMsgType.__members__:
             event_guess = ServerMsgType(event_name)
             attr._event_bus_event = event_guess
             return
 
-        elif event_name in DemandMsgType:
+        elif event_name in DemandMsgType.__members__:
             event_guess = DemandMsgType(event_name)
             attr._event_bus_event = event_guess
             return
@@ -93,7 +98,7 @@ def autoconfigure(attr: callable):
         return
 
 
-@functools.cache
+@functools.lru_cache()
 def build_autoconfiguration_state():
     demand_lookup: Dict[Type[BaseModel], DemandMsgType] = {}
     msg_lookup: Dict[Type[BaseModel], ServerMsgType] = {}

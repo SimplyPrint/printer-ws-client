@@ -13,13 +13,6 @@ class AsyncTaskScope(EventLoopProvider):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-
-        if not self.event_loop_is_not_closed():
-            try:
-                self.use_running_loop()
-            except RuntimeError:
-                raise RuntimeError("AsyncTaskScope must be used inside an async context.")
-
         self.tasks = set()
 
     def create_task(self, *args, **kwargs):

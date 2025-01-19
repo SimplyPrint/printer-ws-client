@@ -39,6 +39,7 @@ class Scheduler(AsyncStoppable, EventLoopProvider[asyncio.AbstractEventLoop]):
 
     def __init__(
             self,
+            client_list: ClientList,
             settings: ClientSettings,
             logger: logging.Logger = logging.getLogger("Scheduler"),
             **kwargs
@@ -47,8 +48,9 @@ class Scheduler(AsyncStoppable, EventLoopProvider[asyncio.AbstractEventLoop]):
         EventLoopProvider.__init__(self, **kwargs)
 
         self.use_running_loop()
+
         self.settings = settings
-        self.client_list = ClientList()
+        self.client_list = client_list
         self.manager = ClientConnectionManager(self.settings.mode, self.client_list, provider=self)
         self.monitor = asyncio.Condition()
         self.logger = logger
@@ -64,7 +66,7 @@ class Scheduler(AsyncStoppable, EventLoopProvider[asyncio.AbstractEventLoop]):
 
         self.client_list.add(client)
         self._tasks.pop(client.unique_id, None)
-        self._signal_self()
+        self.signal()
 
     def remove(self, client: Client):
         if client.unique_id not in self.client_list:
@@ -72,15 +74,15 @@ class Scheduler(AsyncStoppable, EventLoopProvider[asyncio.AbstractEventLoop]):
 
         client.active = False
         self._to_delete.add(client.unique_id)
-        self._signal_self()
+        self.signal()
 
     def _delete(self, client: Client):
         self.client_list.remove(client)
         self._tasks.pop(client.unique_id, None)
         self._to_delete.discard(client.unique_id)
-        self._signal_self()
+        self.signal()
 
-    def _signal_self(self):
+    def signal(self):
         if not self.event_loop_is_not_closed():
             return
 
@@ -139,9 +141,9 @@ class Scheduler(AsyncStoppable, EventLoopProvider[asyncio.AbstractEventLoop]):
 
     def _process_clients(self):
         """Schedule all clients for processing."""
-        for unique_id, client in self.client_list.items():
+        for unique_id, client in list(self.client_list.items()):
             if unique_id not in self._tasks:
-                self._tasks[unique_id] = ContinuousTask(self._schedule_client)
+                self._tasks[unique_id] = ContinuousTask(self._schedule_client, provider=self)
 
             task = self._tasks[unique_id]
 
@@ -187,8 +189,10 @@ class Scheduler(AsyncStoppable, EventLoopProvider[asyncio.AbstractEventLoop]):
         if self._schedule_task.task != asyncio.current_task():
             raise RuntimeError("Connection task already running.")
 
+        self.logger.info("Scheduler started")
+
         last_scheduled = datetime.now()
-        task_scope = AsyncTaskScope()
+        task_scope = AsyncTaskScope(provider=self)
 
         while not self.is_stopped():
             try:
@@ -206,12 +210,10 @@ class Scheduler(AsyncStoppable, EventLoopProvider[asyncio.AbstractEventLoop]):
             finally:
                 # Cancel and GC non-finalized tasks.
                 with task_scope:
-                    # TODO: Make this smarter / more performant?
                     # Wait until either a change is made to the state or a timeout occurs.
                     conditions = [
                         task_scope.create_task(self.wait(self.settings.tick_rate)),
                         task_scope.create_task(self._wait_self()),
-                        *(task_scope.create_task(c.wait()) for c in self.client_list.values())
                     ]
 
                     await asyncio.wait(conditions, return_when=asyncio.FIRST_COMPLETED)

@@ -38,6 +38,9 @@ yarl = [
 # Install async_timeout for python < 3.11
 async-timeout = { version = "*", python = "<3.11" }
 
+# Install strenum for python < 3.11
+strenum = { version = "*", python = "<3.11" }
+
 [tool.poetry.dev-dependencies]
 unittest = "*"
 pylint = "*"

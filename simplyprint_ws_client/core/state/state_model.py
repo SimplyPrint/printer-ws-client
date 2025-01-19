@@ -77,7 +77,7 @@ class StateModel(BaseModel):
 
     if TYPE_CHECKING:
         model_self_changed_fields: Dict[str, int] = PrivateAttr(...)
-        ctx: weakref.ref['Client'] = PrivateAttr(...)
+        ctx: weakref.ref = PrivateAttr(...)
 
     __slots__ = ("model_self_changed_fields", "ctx")
 
@@ -86,7 +86,7 @@ class StateModel(BaseModel):
         object.__setattr__(self, "ctx", ctx)
         self.model_reset_changed()
 
-    def provide_context(self, ctx: Union['StateModel', weakref.ref['Client']]) -> None:
+    def provide_context(self, ctx: Union['StateModel', weakref.ref]) -> None:
         """Give tree a reference"""
         if isinstance(ctx, StateModel):
             object.__setattr__(self, "ctx", ctx.ctx)

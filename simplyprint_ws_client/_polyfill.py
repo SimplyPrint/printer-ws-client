@@ -5,6 +5,7 @@ import sys
 if sys.version_info < (3, 11):
     import asyncio  # noqa
     from async_timeout import timeout  # noqa
+
     asyncio.timeout = timeout  # noqa
 
 # Implements https://github.com/python/cpython/pull/118960
@@ -28,3 +29,12 @@ if sys.version_info < (3, 12, 8) or (sys.version_info.micro == 13 and sys.versio
 
 
     _SSLProtocolTransport.is_closing = is_closing
+
+# Provide StrEnum and IntEnum for Python 3.9 and below.
+if sys.version_info < (3, 11):
+    import enum  # noqa
+
+    if not hasattr(enum, "StrEnum"):  # noqa
+        from strenum import StrEnum  # noqa
+
+        enum.StrEnum = StrEnum  # noqa
