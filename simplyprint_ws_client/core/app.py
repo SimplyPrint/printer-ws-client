@@ -119,6 +119,8 @@ class ClientApp(SyncStoppable):
 
             if self.scheduler is not None:
                 self.scheduler.remove(client)
+            else:
+                self.client_list.remove(client)
 
     def stop(self):
         super().stop()

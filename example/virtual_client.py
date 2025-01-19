@@ -4,7 +4,7 @@ import random
 
 from simplyprint_ws_client.core.client import DefaultClient
 from simplyprint_ws_client.core.config import PrinterConfig
-from simplyprint_ws_client.core.state import FileProgressState, PrinterStatus
+from simplyprint_ws_client.core.state import FileProgressState, PrinterStatus, FileProgressStateEnum
 from simplyprint_ws_client.core.ws_protocol.messages import StreamMsg, GcodeDemandData, FileDemandData
 from simplyprint_ws_client.shared.files.file_download import FileDownload
 
@@ -81,7 +81,7 @@ class VirtualClient(DefaultClient[VirtualConfig]):
         downloader = FileDownload(self)
 
         # fake self.printer.file_progress.percent using event.file_size
-        self.printer.file_progress.state = FileProgressState.DOWNLOADING
+        self.printer.file_progress.state = FileProgressStateEnum.DOWNLOADING
         self.printer.file_progress.percent = 0.0
 
         alpha = random.uniform(0.1, 0.5)
@@ -95,7 +95,7 @@ class VirtualClient(DefaultClient[VirtualConfig]):
             ))
             await asyncio.sleep(0.1)
 
-        self.printer.file_progress.state = FileProgressState.READY
+        self.printer.file_progress.state = FileProgressStateEnum.READY
         await self.on_start_print(data)
 
     async def on_start_print(self, _):

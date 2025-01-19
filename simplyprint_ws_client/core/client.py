@@ -175,9 +175,6 @@ class Client(ABC, Generic[TConfig], EventLoopProvider[asyncio.AbstractEventLoop]
 
     async def ensure_added(self, mode: ConnectionMode, allow_setup=False) -> bool:
         """Progress inner state based on mode protocol. Goal: Connected"""
-
-        # TODO Add some timeouts and rate limiting!
-
         # For the single connection mode we do not have to perform any
         # additional actions beyond the initial connection.
         if mode == ConnectionMode.SINGLE:
@@ -196,8 +193,6 @@ class Client(ABC, Generic[TConfig], EventLoopProvider[asyncio.AbstractEventLoop]
         For single mode the goal is to be disconnected.
         For multi-printer mode the goal is to be removed.
         """
-
-        # TODO Add some timeouts and rate limiting!
 
         if mode == ConnectionMode.SINGLE:
             return self.state == State.CONNECTING
@@ -277,6 +272,8 @@ class Client(ABC, Generic[TConfig], EventLoopProvider[asyncio.AbstractEventLoop]
             self.signal()
             return
 
+        # A successful addition does not require a backoff.
+        self._pending_action_backoff.reset()
         self.config.id = msg.data.pid
         await self._on_connected_state()
 
