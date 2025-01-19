@@ -63,14 +63,14 @@ def autoconfigure(attr: callable):
     msg_lookup, msg_data_lookup, demand_lookup = build_autoconfiguration_state()
 
     if name.startswith('on_'):
-        event_name = name[3:]
+        event_name: str = name[3:]
 
-        if event_name in ServerMsgType.__members__:
+        if event_name.upper() in ServerMsgType.__members__:
             event_guess = ServerMsgType(event_name)
             attr._event_bus_event = event_guess
             return
 
-        elif event_name in DemandMsgType.__members__:
+        elif event_name.upper() in DemandMsgType.__members__:
             event_guess = DemandMsgType(event_name)
             attr._event_bus_event = event_guess
             return
