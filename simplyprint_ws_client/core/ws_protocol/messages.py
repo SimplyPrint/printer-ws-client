@@ -351,6 +351,7 @@ class WebcamSnapshotDemandData(BaseModel):
     demand: Literal[DemandMsgType.WEBCAM_SNAPSHOT] = DemandMsgType.WEBCAM_SNAPSHOT
     id: Optional[str] = None
     timer: Optional[int] = None
+    endpoint: Optional[str] = None
 
 
 class FileDemandData(BaseModel):

@@ -394,6 +394,7 @@ class Connection(AsyncStoppable, EventLoopProvider[asyncio.AbstractEventLoop], H
         # We drop messages if we are not connected.
         if not self.connected:
             self.logger.warning("Dropped message %s, not connected.", msg)
+            await self.interrupt()
             return
 
         # Optionally, specify a connection version the message was targeted for.
