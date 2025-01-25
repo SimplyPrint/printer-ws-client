@@ -364,7 +364,7 @@ class FileDemandData(BaseModel):
     file_size: Optional[int] = None
     start_options: Dict[str, bool] = Field(default_factory=dict)
     zip_printable: Optional[str] = None
-    mms_map: Optional[List[int]] = None
+    mms_map: Optional[List[Optional[int]]] = None
 
     @field_validator('mms_map', mode='after')
     @classmethod

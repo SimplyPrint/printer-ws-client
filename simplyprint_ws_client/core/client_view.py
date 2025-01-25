@@ -63,6 +63,15 @@ class ClientView(Emitter, MutableSet[Client], Hashable):
             if client_id is None and isinstance(msg, (MultiPrinterAddedMsg, MultiPrinterRemovedMsg)):
                 client_id = msg.data.unique_id
 
+            # Deprecated: client_id could be the clients' id.
+            # This is a bug, but we handle it here for backwards compatibility.
+            # TODO: Remove this.
+            if isinstance(client_id, int):
+                for client in self:
+                    if client.config.id == client_id:
+                        client_id = client.unique_id
+                        break
+
             if client_id not in self.clients:
                 return
 
@@ -76,7 +85,7 @@ class ClientView(Emitter, MutableSet[Client], Hashable):
                 event.v)
             return
 
-        # Default handling for all other events.
+        # Default handling for all other events.m
         await self._emit_all(event, *args, **kwargs)
 
     def emit_sync(self, event: Union[Hashable, TEvent], *args, **kwargs) -> None:

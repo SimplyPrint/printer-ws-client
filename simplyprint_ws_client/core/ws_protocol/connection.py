@@ -367,12 +367,12 @@ class Connection(AsyncStoppable, EventLoopProvider[asyncio.AbstractEventLoop], H
         if not self.connected:
             raise ConnectionResetError(f"Connection not open. Close code: {self.ws.close_code}")
 
+        message = await self.ws.receive()
+
+        if message.type in (WSMsgType.CLOSE, WSMsgType.CLOSING, WSMsgType.CLOSED, WSMsgType.ERROR):
+            raise ConnectionResetError(f"Connection closed. {message.data} / {message.extra}")
+
         try:
-            message = await self.ws.receive()
-
-            if message.type in (WSMsgType.CLOSE, WSMsgType.CLOSING, WSMsgType.CLOSED, WSMsgType.ERROR):
-                raise ConnectionResetError(f"Connection closed. {message.data} / {message.extra}")
-
             if message.type in (WSMsgType.TEXT, WSMsgType.BINARY):
                 msg = ServerMsg.model_validate_json(message.data).root
                 self.logger.debug("received %s", msg)
@@ -383,7 +383,7 @@ class Connection(AsyncStoppable, EventLoopProvider[asyncio.AbstractEventLoop], H
 
         except ValidationError as e:
             # Invalid message.
-            self.logger.error("Invalid message.", exc_info=e)
+            self.logger.error("Invalid message: %s", message, exc_info=e)
 
     async def send(self, msg: ClientMsg[ClientMsgType], v: Optional[int] = None) -> None:
         """

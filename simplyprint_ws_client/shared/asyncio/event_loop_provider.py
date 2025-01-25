@@ -1,6 +1,11 @@
 import asyncio
 from typing import Callable, Optional, TypeVar, Generic
 
+try:
+    from typing import Self
+except ImportError:
+    from typing_extensions import Self
+
 TEventLoop = TypeVar("TEventLoop", bound=asyncio.AbstractEventLoop)
 TEventLoopFactory = Callable[[], TEventLoop]
 
@@ -17,7 +22,7 @@ class EventLoopProvider(Generic[TEventLoop]):
     __event_loop_factory: Optional[TEventLoopFactory]
 
     def __init__(self, loop: Optional[TEventLoop] = None, factory: Optional[TEventLoopFactory] = None,
-                 provider: "Optional[EventLoopProvider[TEventLoop]]" = None, **kwargs):
+                 provider: Optional[Self] = None, **kwargs):
         self.__event_loop = loop
         self.__event_loop_factory = factory or (
             (lambda *args, **_: provider.event_loop) if provider is not None else None)
