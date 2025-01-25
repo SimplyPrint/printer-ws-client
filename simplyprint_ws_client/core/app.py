@@ -1,15 +1,15 @@
+import asyncio
 import functools
 import logging
 import threading
 from typing import Optional, cast
 
-from .client import Client, ClientConfigChangedEvent
+from .client import Client, ClientConfigChangedEvent, ClientStateChangeEvent
 from .client_list import ClientList
 from .config import ConfigManager, PrinterConfig
 from .scheduler import Scheduler
 from .settings import ClientSettings
-from ..const import APP_DIRS
-from ..shared.asyncio.event_loop_runner import EventLoopRunner
+from ..shared.asyncio.event_loop_runner import Runner
 from ..shared.debug import traceability
 from ..shared.sp.sentry import Sentry
 from ..shared.sp.url_builder import SimplyPrintURL
@@ -19,31 +19,35 @@ from ..shared.utils.stoppable import SyncStoppable
 class ClientApp(SyncStoppable):
     settings: ClientSettings
     client_list: ClientList
+    scheduler: Scheduler
     config_manager: ConfigManager[PrinterConfig]
-    scheduler: Optional[Scheduler] = None
     logger: logging.Logger
 
+    _app_event_loop: asyncio.AbstractEventLoop
     _app_instance: Optional[threading.Thread] = None
     _app_lock: threading.Lock
 
     def __init__(self, settings: ClientSettings, logger: logging.Logger = logging.getLogger("app"), **kwargs):
         super().__init__(**kwargs)
 
-        self._app_lock = threading.Lock()
-
         if settings.client_factory is None or settings.config_factory is None:
             raise ValueError("Both client and config factory must be set in settings.")
 
+        self._app_lock = threading.Lock()
+
+        # For older python versions we want to set the event loop that loop mixins use
+        # before we can initialize objects that require it.
+        self._app_event_loop = settings.event_loop_backend.new_event_loop()
+        asyncio.set_event_loop(self._app_event_loop)
+
         self.settings = settings
         self.client_list = ClientList()
+        self.scheduler = Scheduler(self.client_list, self.settings, loop=self._app_event_loop)
         self.config_manager = settings.config_manager_t(
             name=settings.name,
             config_t=settings.config_factory,
         )
         self.logger = logger
-
-        if not APP_DIRS.user_log_path.exists():
-            APP_DIRS.user_log_path.mkdir(parents=True, exist_ok=True)
 
         if settings.backend is not None:
             SimplyPrintURL.set_backend(settings.backend)
@@ -56,17 +60,14 @@ class ClientApp(SyncStoppable):
             self.add(config)
 
     async def run(self):
-        if self.scheduler is None:
-            self.scheduler = Scheduler(self.client_list, self.settings)
-
         await self.scheduler.block_until_stopped()
 
     def run_blocking(self, debug=False, contexts: Optional[list] = None):
         contexts = contexts or []
         contexts.append(functools.partial(traceability.enable_traceable, debug))
 
-        with EventLoopRunner(debug, contexts, self.settings.event_loop_backend) as runner:
-            runner.run(self.run())
+        with Runner(debug, contexts, self.settings.event_loop_backend) as runner:
+            runner.run(self.run(), loop_factory=lambda: self._app_event_loop)
 
     def run_detached(self, *args, **kwargs):
         with self._app_lock:
@@ -77,12 +78,6 @@ class ClientApp(SyncStoppable):
             self._app_instance = threading.Thread(target=self.run_blocking, args=args, kwargs=kwargs)
             self._app_instance.start()
 
-    def _signal_cb(self):
-        if not self.scheduler:
-            return
-
-        self.scheduler.signal()
-
     def add(self, config: PrinterConfig) -> Client:
         with self._app_lock:
             if config.unique_id in self.client_list:
@@ -91,16 +86,14 @@ class ClientApp(SyncStoppable):
             self.config_manager.persist(config)
             self.config_manager.flush(config)
 
-            client = self.settings.client_factory(config, event_loop_provider=self.scheduler,
-                                                  signal_cb=self._signal_cb)
+            client = self.settings.client_factory(config, event_loop_provider=self.scheduler)
 
             client.event_bus.on(ClientConfigChangedEvent,
                                 lambda *args, **kwargs: self.config_manager.flush(cast(PrinterConfig, client.config)))
 
-            if self.scheduler is not None:
-                self.scheduler.submit(client)
-            else:
-                self.client_list.add(client)
+            client.event_bus.on(ClientStateChangeEvent, self.scheduler.signal)
+
+            self.scheduler.submit(client)
 
         return client
 
@@ -112,16 +105,13 @@ class ClientApp(SyncStoppable):
                 return
 
             # Do not persist further changes to the config.
-            client.event_bus.clear(ClientConfigChangedEvent)
+            client.event_bus.clear(ClientConfigChangedEvent, ClientStateChangeEvent)
 
             # TODO: TECHNICALLY this should happen after the scheduler calls _delete.
             self.config_manager.remove(config)
             self.config_manager.flush(config)
 
-            if self.scheduler is not None:
-                self.scheduler.remove(client)
-            else:
-                self.client_list.remove(client)
+            self.scheduler.remove(client)
 
     def stop(self):
         super().stop()

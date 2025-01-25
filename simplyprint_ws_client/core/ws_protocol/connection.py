@@ -418,5 +418,5 @@ class Connection(AsyncStoppable, EventLoopProvider[asyncio.AbstractEventLoop], H
     def stop(self):
         super().stop()
 
-        if self.event_loop_is_not_closed():
+        if self.event_loop_is_running():
             asyncio.run_coroutine_threadsafe(self.interrupt(), self.event_loop)

@@ -70,6 +70,9 @@ class ClientHandler(RotatingFileHandler):
 
     @classmethod
     def setup_logging(cls, settings: 'ClientSettings'):
+        if not APP_DIRS.user_log_path.exists():
+            APP_DIRS.user_log_path.mkdir(parents=True, exist_ok=True)
+
         logging.basicConfig(
             level=logging.DEBUG,
             format="[%(asctime)s] %(levelname)s %(name)s.%(funcName)s: %(message)s",

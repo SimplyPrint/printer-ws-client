@@ -28,12 +28,29 @@ class EventLoopProvider(Generic[TEventLoop]):
     def use_existing_loop(self):
         self.__event_loop = asyncio.get_event_loop()
 
+    def use_new_loop(self):
+        self.__event_loop = asyncio.new_event_loop()
+
     def reset_event_loop(self):
         self.__event_loop = None
 
-    def event_loop_is_not_closed(self) -> bool:
+    def event_loop_is_running(self):
+        if self.__event_loop is None and self.__event_loop_factory is None:
+            return False
+
         try:
-            return self.event_loop and not self.event_loop.is_closed()
+            loop = self.event_loop
+            return loop.is_running()
+        except RuntimeError:
+            return False
+
+    def event_loop_is_not_closed(self) -> bool:
+        if self.__event_loop is None and self.__event_loop_factory is None:
+            return False
+
+        try:
+            loop = self.event_loop
+            return loop.is_closed()
         except RuntimeError:
             return False
 

@@ -1,6 +1,7 @@
 __all__ = [
     'Client',
     'ClientConfigChangedEvent',
+    'ClientStateChangeEvent',
     'DefaultClient',
     'PhysicalClient',
     'State',
@@ -12,8 +13,8 @@ import logging
 import weakref
 from abc import ABC, ABCMeta
 from datetime import timedelta, datetime
-from enum import Enum
-from typing import Callable, NamedTuple, Optional, Union, Generic, TypeVar
+from enum import IntEnum
+from typing import NamedTuple, Optional, Union, Generic, TypeVar, List
 
 from ._event_instrumentation import autoconfigure_class_dict, produce, configure, instrument, consume
 from .config import PrinterConfig
@@ -55,7 +56,7 @@ class InstrumentClientMeta(ABCMeta):
         return super().__new__(cls, name, bases, class_dict, **kwargs)
 
 
-class State(Enum):
+class State(IntEnum):
     """
     CONNECTING -> Connection not established, pending establishment.
     NOT_CONNECTED -> Connection established, not connected.
@@ -79,6 +80,10 @@ class VersionedState(NamedTuple):
 
 
 class ClientConfigChangedEvent(Event):
+    ...
+
+
+class ClientStateChangeEvent(Event):
     ...
 
 
@@ -106,21 +111,20 @@ class Client(ABC, Generic[TConfig], EventLoopProvider[asyncio.AbstractEventLoop]
 
     v: int = -1
     msg_id: int = -1
+    last_msg_id: int = -1
     printer: PrinterState
     event_bus: EventBus
     logger: logging.Logger
 
     _state: VersionedState
     _should_be_allocated: bool = True
-    _signal_cb: Optional[Callable] = None
 
     _pending_action_backoff: Backoff
     _pending_action_delay: timedelta = timedelta.min
     _pending_action_ts: datetime = datetime.min
     _pending_action_log_ts: datetime = datetime.min
 
-    def __init__(self, config: PrinterConfig, *, event_loop_provider: Optional[EventLoopProvider] = None,
-                 signal_cb: Optional[Callable] = None, **kwargs):
+    def __init__(self, config: PrinterConfig, *, event_loop_provider: Optional[EventLoopProvider] = None, **kwargs):
         ABC.__init__(self)
         Generic.__init__(self)
         EventLoopProvider.__init__(self, provider=event_loop_provider)
@@ -131,7 +135,7 @@ class Client(ABC, Generic[TConfig], EventLoopProvider[asyncio.AbstractEventLoop]
         self.printer.set_nozzle_count(1)
         self.event_bus = EventBus(event_loop_provider=self)
         self.logger = logging.getLogger(ClientName.from_client(self))
-        self._signal_cb = signal_cb
+        self._changes_event = asyncio.Event()
         self._pending_action_backoff = ExponentialBackoff(10, 600, 3600)
         instrument(self)
 
@@ -167,11 +171,21 @@ class Client(ABC, Generic[TConfig], EventLoopProvider[asyncio.AbstractEventLoop]
         self.logger.debug(f"State changed to {self._state}")
         self.signal()
 
+    @property
+    def has_changes(self) -> bool:
+        return self.msg_id > self.last_msg_id
+
     def next_msg_id(self):
         self.msg_id += 1
         return self.msg_id
 
     # coordination methods
+
+    def is_added(self) -> bool:
+        return self.state == State.CONNECTED
+
+    def is_removed(self) -> bool:
+        return self.state <= State.NOT_CONNECTED
 
     async def ensure_added(self, mode: ConnectionMode, allow_setup=False) -> bool:
         """Progress inner state based on mode protocol. Goal: Connected"""
@@ -202,7 +216,7 @@ class Client(ABC, Generic[TConfig], EventLoopProvider[asyncio.AbstractEventLoop]
             await self.send(MultiPrinterRemoveConnectionMsg(self.config))
             self._do_pending()
 
-        return self.state == State.NOT_CONNECTED
+        return self.state <= State.NOT_CONNECTED
 
     def _can_do_pending(self):
         now = datetime.now()
@@ -222,13 +236,11 @@ class Client(ABC, Generic[TConfig], EventLoopProvider[asyncio.AbstractEventLoop]
         self._pending_action_delay = timedelta(seconds=self._pending_action_backoff.delay())
 
     def signal(self):
-        if not self._signal_cb:
-            return
-
-        self._signal_cb()
+        self.event_bus.emit_sync(ClientStateChangeEvent)
 
     def consume(self):
         """Consume list of pending messages."""
+        self.last_msg_id = self.msg_id
         return consume(self.printer)
 
     # internal methods

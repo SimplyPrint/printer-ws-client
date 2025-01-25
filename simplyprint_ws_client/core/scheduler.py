@@ -9,6 +9,7 @@ from .settings import ClientSettings
 from ..shared.asyncio.async_task_scope import AsyncTaskScope
 from ..shared.asyncio.continuous_task import ContinuousTask
 from ..shared.asyncio.event_loop_provider import EventLoopProvider
+from ..shared.asyncio.utils import cond_notify_all, cond_wait
 from ..shared.utils.stoppable import AsyncStoppable
 
 
@@ -19,8 +20,8 @@ class Scheduler(AsyncStoppable, EventLoopProvider[asyncio.AbstractEventLoop]):
         settings:
         client_list: ClientList
         manager: ClientConnectionManager
-        monitor: asyncio.Condition
         logger: logging.Logger
+        _cond: asyncio.Condition
         _tasks: Dict[str, ContinuousTask]
         _to_delete: Set[str]
         _schedule_task: ContinuousTask
@@ -29,11 +30,11 @@ class Scheduler(AsyncStoppable, EventLoopProvider[asyncio.AbstractEventLoop]):
     settings: ClientSettings
     client_list: ClientList
     manager: ClientConnectionManager
-    monitor: asyncio.Condition
     logger: logging.Logger
-
+    _cond: asyncio.Condition
     _tasks: Dict[str, ContinuousTask]
     _last_ticked: Dict[str, datetime]
+    _tick_rate_delta: timedelta
     _to_delete: Set[str]
     _schedule_task: ContinuousTask
 
@@ -47,16 +48,14 @@ class Scheduler(AsyncStoppable, EventLoopProvider[asyncio.AbstractEventLoop]):
         AsyncStoppable.__init__(self, **kwargs)
         EventLoopProvider.__init__(self, **kwargs)
 
-        self.use_running_loop()
-
         self.settings = settings
         self.client_list = client_list
         self.manager = ClientConnectionManager(self.settings.mode, self.client_list, provider=self)
-        self.monitor = asyncio.Condition()
         self.logger = logger
-
+        self._cond = asyncio.Condition()
         self._tasks = {}
         self._last_ticked = {}
+        self._tick_rate_delta = timedelta(seconds=self.settings.tick_rate)
         self._to_delete = set()
         self._schedule_task = ContinuousTask(self._schedule_loop, provider=self)
 
@@ -87,18 +86,23 @@ class Scheduler(AsyncStoppable, EventLoopProvider[asyncio.AbstractEventLoop]):
         self.signal()
 
     def signal(self):
-        if not self.event_loop_is_not_closed():
+        if not self.event_loop_is_running():
             return
 
-        asyncio.run_coroutine_threadsafe(self._asignal_self(), self.event_loop)
+        asyncio.run_coroutine_threadsafe(cond_notify_all(self._cond), self.event_loop)
 
-    async def _asignal_self(self):
-        async with self.monitor:
-            self.monitor.notify_all()
+    def _should_schedule_client(self, client: Client, when: datetime):
+        # Always schedule clients that have changes.
+        if client.has_changes:
+            return True
 
-    async def _wait_self(self):
-        async with self.monitor:
-            await self.monitor.wait()
+        # Always schedule clients that are pending a tick.
+        if when - self._last_ticked.get(client.unique_id, datetime.min) >= self._tick_rate_delta:
+            return True
+
+        # Schedule if the client needs to change its connection state.
+        is_active = client.active
+        return (is_active and not client.is_added()) or (not is_active and not client.is_removed())
 
     async def _schedule_client(self, client: Client):
         """Schedule single client."""
@@ -131,12 +135,15 @@ class Scheduler(AsyncStoppable, EventLoopProvider[asyncio.AbstractEventLoop]):
         now = datetime.now()
         delta_tick = now - last_ticked
 
-        if delta_tick >= timedelta(seconds=self.settings.tick_rate):
+        if delta_tick >= self._tick_rate_delta:
             self._last_ticked[client.unique_id] = now
 
             # TODO: Manage timeouts.
             async with asyncio.timeout(5):
                 await client.tick(delta_tick)
+
+        if not client.has_changes:
+            return
 
         msgs, v = client.consume()
 
@@ -145,7 +152,13 @@ class Scheduler(AsyncStoppable, EventLoopProvider[asyncio.AbstractEventLoop]):
 
     def _process_clients(self):
         """Schedule all clients for processing."""
+        now = datetime.now()
+
         for unique_id, client in list(self.client_list.items()):
+            # Optimization: Skip clients that do not need to be scheduled.
+            if not self._should_schedule_client(client, now):
+                continue
+
             if unique_id not in self._tasks:
                 self._tasks[unique_id] = ContinuousTask(self._schedule_client, provider=self)
 
@@ -171,7 +184,7 @@ class Scheduler(AsyncStoppable, EventLoopProvider[asyncio.AbstractEventLoop]):
                 self._to_delete.discard(client_id)
                 continue
 
-            if client.active or client.state.value > State.NOT_CONNECTED.value:
+            if client.active or client.state > State.NOT_CONNECTED:
                 continue
 
             self._delete(client)
@@ -217,7 +230,7 @@ class Scheduler(AsyncStoppable, EventLoopProvider[asyncio.AbstractEventLoop]):
                     # Wait until either a change is made to the state or a timeout occurs.
                     conditions = [
                         task_scope.create_task(self.wait(self.settings.tick_rate)),
-                        task_scope.create_task(self._wait_self()),
+                        task_scope.create_task(cond_wait(self._cond)),
                     ]
 
                     await asyncio.wait(conditions, return_when=asyncio.FIRST_COMPLETED)
