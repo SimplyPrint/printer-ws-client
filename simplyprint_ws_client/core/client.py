@@ -135,7 +135,6 @@ class Client(ABC, Generic[TConfig], EventLoopProvider[asyncio.AbstractEventLoop]
         self.printer.set_nozzle_count(1)
         self.event_bus = EventBus(event_loop_provider=self)
         self.logger = logging.getLogger(ClientName.from_client(self))
-        self._changes_event = asyncio.Event()
         self._pending_action_backoff = ExponentialBackoff(10, 600, 3600)
         instrument(self)
 
