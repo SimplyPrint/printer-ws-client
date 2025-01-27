@@ -242,7 +242,7 @@ class Msg(BaseModel, Generic[TMsgType, TMsgData], populate_by_name=True):
 
 
 class ErrorMsgData(BaseModel):
-    error: str
+    msg: str
 
 
 class ErrorMsg(Msg[Literal[ServerMsgType.ERROR], ErrorMsgData]):
@@ -755,6 +755,9 @@ class ShutdownMsg(ClientMsg[Literal[ClientMsgType.SHUTDOWN]]):
 class StreamMsg(ClientMsg[Literal[ClientMsgType.STREAM]]):
     def __init__(self, base64jpg: str):
         super().__init__(data={"base": base64jpg})
+
+    def dispatch_mode(self, state: PrinterState) -> DispatchMode:
+        return state.intervals.dispatch_mode("webcam")
 
 
 class PingMsg(ClientMsg[Literal[ClientMsgType.PING]]):

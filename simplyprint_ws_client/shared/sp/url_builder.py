@@ -1,6 +1,6 @@
 from enum import Enum
 from os import environ
-from typing import NamedTuple, Optional
+from typing import NamedTuple
 
 from yarl import URL
 
@@ -12,78 +12,77 @@ class SimplyPrintWsVersion(Enum):
     VERSION_0_2 = "0.2"
 
 
-class Host(NamedTuple):
-    root: str
-    subdomain: Optional[str] = None
-    port: Optional[int] = None
-
-    def __str__(self):
-        return ".".join(filter(None, [self.subdomain, self.root]))
-
-    def with_port(self, port: int) -> "Host":
-        return self._replace(port=port)
-
-    def with_subdomain(self, subdomain: str) -> "Host":
-        return self._replace(subdomain=subdomain)
+class SimplyPrintURLCollection(NamedTuple):
+    web: URL
+    api: URL
+    ws: URL
 
 
-class SimplyPrintURLs(NamedTuple):
-    main_host: Host
-    api_host: Host
-    ws_host: Host
-    secure: bool = True
+PRODUCTION_URLS = SimplyPrintURLCollection(
+    URL("https://simplyprint.io"),
+    URL("https://api.simplyprint.io"),
+    URL("wss://ws.simplyprint.io")
+)
 
-    @property
-    def _http_scheme(self) -> str:
-        return "https" if self.secure else "http"
+TESTING_URLS = SimplyPrintURLCollection(
+    URL("https://test.simplyprint.io"),
+    URL("https://testapi.simplyprint.io"),
+    URL("wss://testws3.simplyprint.io")
+)
 
-    @property
-    def _ws_scheme(self) -> str:
-        return "wss" if self.secure else "ws"
+STAGING_URLS = SimplyPrintURLCollection(
+    URL("https://staging.simplyprint.io"),
+    URL("https://apistaging.simplyprint.io"),
+    URL("wss://wsstaging.simplyprint.io")
+)
 
-    @property
-    def main_url(self) -> URL:
-        return URL.build(scheme=self._http_scheme, host=str(self.main_host), port=self.main_host.port)
+PILOT_URLS = SimplyPrintURLCollection(
+    URL("https://pilot.simplyprint.io"),
+    URL("https://pilotapi.simplyprint.io"),
+    URL("wss://pilotws.simplyprint.io")
+)
 
-    @property
-    def api_url(self) -> URL:
-        return URL.build(scheme=self._http_scheme, host=str(self.api_host), port=self.api_host.port)
-
-    @property
-    def ws_url(self) -> URL:
-        return URL.build(scheme=self._ws_scheme,
-                         host=str(self.ws_host),
-                         port=self.ws_host.port) / SimplyPrintWsVersion.VERSION_0_2.value
+LOCALHOST_URLS = SimplyPrintURLCollection(
+    URL("http://localhost:8080"),
+    URL("http://localhost:8080/api"),
+    URL("ws://localhost:8081")
+)
 
 
-_root = Host("simplyprint.io")
+def get_custom_urls() -> SimplyPrintURLCollection:
+    """Parse the following environment variables as yarl.URL and convert into SimplyPrintURLs
 
-PRODUCTION_URLS = SimplyPrintURLs(_root, _root.with_subdomain("api"),
-                                  _root.with_subdomain("ws"))
+    SIMPLYPRINT_WS_URL
+    SIMPLYPRINT_API_URL
+    SIMPLYPRINT_MAIN_URL
+    Default to _localhost if not set
+    """
 
-TESTING_URLS = SimplyPrintURLs(_root.with_subdomain("test"), _root.with_subdomain("testapi"),
-                               _root.with_subdomain("testws3"))
-
-STAGING_URLS = SimplyPrintURLs(_root.with_subdomain("staging"), _root.with_subdomain("apistaging"),
-                               _root.with_subdomain("wsstaging"))
-
-_localhost = Host("localhost", port=8080)
-
-LOCALHOST_URLS = SimplyPrintURLs(_localhost, _localhost, _localhost.with_port(8081), secure=False)
+    return SimplyPrintURLCollection(
+        URL(environ.get("SIMPLYPRINT_MAIN_URL", "http://localhost:8080")),
+        URL(environ.get("SIMPLYPRINT_API_URL", "http://localhost:8080/api")),
+        URL(environ.get("SIMPLYPRINT_WS_URL", "ws://localhost:8081"))
+    )
 
 
 class SimplyPrintBackend(Enum):
     PRODUCTION = "production"
     TESTING = "test"
     STAGING = "staging"
-    LOCALHOST = "custom"
+    LOCALHOST = "local"
+    PILOT = "pilot"
+    CUSTOM = "custom"
 
-    def get_urls(self) -> SimplyPrintURLs:
+    def urls(self) -> SimplyPrintURLCollection:
+        if self is self.CUSTOM:
+            return get_custom_urls()
+
         if urls := {
             SimplyPrintBackend.PRODUCTION: PRODUCTION_URLS,
             SimplyPrintBackend.TESTING:    TESTING_URLS,
             SimplyPrintBackend.STAGING:    STAGING_URLS,
-            SimplyPrintBackend.LOCALHOST:  LOCALHOST_URLS
+            SimplyPrintBackend.LOCALHOST:  LOCALHOST_URLS,
+            SimplyPrintBackend.PILOT:      PILOT_URLS,
         }.get(self):
             return urls
 
@@ -98,23 +97,29 @@ class SimplyPrintURL:
         SimplyPrintURL._active_backend = backend
 
     @staticmethod
-    def urls() -> SimplyPrintURLs:
-        return SimplyPrintURL._active_backend.get_urls()
+    def backend_urls() -> SimplyPrintURLCollection:
+        return SimplyPrintURL._active_backend.urls()
 
     @property
     def main_url(self) -> URL:
-        return self.urls().main_url
+        return self.backend_urls().web
 
     @property
     def api_url(self) -> URL:
-        return self.urls().api_url
+        return self.backend_urls().api
 
     @property
     def ws_url(self) -> URL:
-        return self.urls().ws_url
+        return self.backend_urls().ws / SimplyPrintWsVersion.VERSION_0_2.value
 
 
-value = environ.get("SIMPLYPRINT_BACKEND",
-                    (SimplyPrintBackend.TESTING if IS_TESTING else SimplyPrintBackend.PRODUCTION).value)
-
-SimplyPrintURL.set_backend(SimplyPrintBackend(value))
+if value := environ.get("SIMPLYPRINT_BACKEND"):
+    SimplyPrintURL.set_backend(SimplyPrintBackend(value))
+elif {"SIMPLYPRINT_WS_URL", "SIMPLYPRINT_API_URL", "SIMPLYPRINT_MAIN_URL"} & environ.keys():
+    # If custom urls are set, use them
+    SimplyPrintURL.set_backend(SimplyPrintBackend.CUSTOM)
+elif IS_TESTING:
+    SimplyPrintURL.set_backend(SimplyPrintBackend.TESTING)
+else:
+    # Default to production
+    SimplyPrintURL.set_backend(SimplyPrintBackend.PRODUCTION)

@@ -35,6 +35,7 @@ from .exclusive_bool import ExclusiveBool
 from .models import *
 from .state_model import StateModel
 from ..config import PrinterConfig
+from ...const import VERSION
 from ...shared.hardware.physical_machine import PhysicalMachine
 from ...shared.sp.ambient_check import AmbientCheck
 
@@ -113,7 +114,7 @@ class PrinterInfoState(StateModel):
     api_version: Optional[str] = None
     machine: Optional[str] = None
     os: Optional[str] = None
-    sp_version: Optional[str] = None
+    sp_version: Optional[str] = VERSION
     python_version: Optional[str] = None
     is_ethernet: Optional[bool] = None
     ssid: Optional[str] = None
@@ -250,7 +251,6 @@ class PrinterState(StateModel):
         """ Set same info for all fields, both for UI / API and the client. """
         self.set_api_info(name, version)
         self.set_ui_info(name, version)
-        self.info.sp_version = version
 
     def set_api_info(self, api: str, api_version: str):
         self.info.api = api
@@ -291,9 +291,12 @@ class PrinterState(StateModel):
     def is_heating(self) -> bool:
         return any([tool.is_heating() for tool in (self.bed_temperature, *self.tool_temperatures)])
 
-    def populate_info_from_physical_machine(self):
+    def populate_info_from_physical_machine(self, *skip: str):
         """Set information about the physical machine the client is running on."""
         for k, v in PhysicalMachine.get_info().items():
+            if k in skip:
+                continue
+
             setattr(self.info, k, v)
 
     def mark_common_fields_as_changed(self):

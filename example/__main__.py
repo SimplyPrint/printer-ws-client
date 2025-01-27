@@ -15,7 +15,6 @@ if __name__ == "__main__":
         config_factory=VirtualConfig,
         allow_setup=True,
         config_manager_t=ConfigManagerType.JSON,
-        backend=SimplyPrintBackend.PRODUCTION,
     )
 
     ClientHandler.setup_logging(settings)
