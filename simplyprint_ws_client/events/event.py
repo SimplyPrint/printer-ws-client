@@ -1,6 +1,6 @@
-from typing import Type, Union
+__all__ = ['Event', 'sync_only']
 
-from .event_bus_listeners import ListenerUniqueness, ListenerLifetime, ListenerLifetimeForever, EventBusListenersOptions
+from typing import Type, Union, ClassVar
 
 
 class EventTraits:
@@ -26,16 +26,30 @@ class EventType(EventTraits, type):
         raise NotImplementedError()
 
 
+def sync_only(cls: Type['Event']) -> Type['Event']:
+    """Mark an event as sync-only, this will prevent it from being listened to with an async handler."""
+    if isinstance(cls, type) and not issubclass(cls, Event):
+        raise TypeError("sync_only decorator can only be used on Event subclasses.")
+
+    cls._Event__sync_only = True
+    return cls
+
+
 class Event(EventTraits, metaclass=EventType):
     """
     Base event class for type-hinting, not required to be used.
     """
 
     __stopped: bool = False
+    __sync_only: ClassVar[bool] = False
 
     @classmethod
     def get_name(cls) -> str:
         return cls.__name__
+
+    @classmethod
+    def is_sync_only(cls) -> bool:
+        return cls.__sync_only
 
     # Allow for propagation control of events.
     def is_stopped(self) -> bool:
@@ -43,19 +57,3 @@ class Event(EventTraits, metaclass=EventType):
 
     def stop_event(self) -> None:
         self.__stopped = True
-
-    @classmethod
-    def on(cls, generic=False, lifetime: ListenerLifetime = ListenerLifetimeForever(**{}), priority: int = 0,
-           unique: ListenerUniqueness = ListenerUniqueness.NONE):
-        """Use as decorator to mark functions as event handlers"""
-
-        def decorator(func):
-            if not hasattr(func, '_Event__opts'):
-                func._Event__opts = {}
-
-            func._Event__opts[cls] = EventBusListenersOptions(generic=generic, lifetime=lifetime, priority=priority,
-                                                              unique=unique)
-
-            return func
-
-        return decorator

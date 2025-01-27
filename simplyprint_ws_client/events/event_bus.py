@@ -220,6 +220,16 @@ class EventBus(Emitter[TEvent]):
 
         return self._register_listeners(event_type, listener, generic=generic, **kwargs)
 
+    def off(self, event_type: Hashable, listener: Callable) -> None:
+        """Remove a listener from the event bus."""
+        if event_type not in self.listeners:
+            return
+
+        self.listeners[event_type].remove(listener)
+
+        if len(self.listeners[event_type]) == 0:
+            self.listeners.pop(event_type)
+
     def clear(self, *event_types: Hashable) -> None:
         """Clear all listeners for a given event type."""
         for event_type in event_types:
@@ -241,12 +251,13 @@ class EventBus(Emitter[TEvent]):
 
         return listener
 
-    def _register_listener(self, event_type: Hashable, listener: Callable,
+    def _register_listener(self, event_type: Union[Hashable, TEvent], listener: Callable,
                            **kwargs: Unpack[EventBusListenerOptions]) -> None:
         """Registers a single listener for a given event type."""
-
         if event_type not in self.listeners:
-            self.listeners[event_type] = EventBusListeners()
+            # An event can be marked as "sync_only", meaning non async listeners can be attached.
+            self.listeners[event_type] = EventBusListeners(
+                event_type.is_sync_only() if isinstance(event_type, type) and issubclass(event_type, Event) else False)
 
         self.listeners[event_type].add(listener, **kwargs)
 

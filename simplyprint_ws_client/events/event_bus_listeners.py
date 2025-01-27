@@ -119,12 +119,14 @@ class EventBusListener:
 
 
 class EventBusListeners(Iterable[EventBusListener]):
-    __slots__ = ('listeners',)
+    __slots__ = ('listeners', 'sync_only')
 
     listeners: List[Tuple[int, EventBusListener]]
+    sync_only: bool
 
-    def __init__(self) -> None:
+    def __init__(self, sync_only=False) -> None:
         self.listeners = []
+        self.sync_only = sync_only
 
     def add(self, listener: Callable, **kwargs: Unpack[EventBusListenerOptions]) -> None:
         unique = kwargs.get('unique', ListenerUniqueness.NONE)
@@ -144,8 +146,12 @@ class EventBusListeners(Iterable[EventBusListener]):
         if self.contains(listener):
             raise ValueError("Listener already registered")
 
-        heapq.heappush(self.listeners, (priority,
-                                        EventBusListener(lifetime, priority, listener)))
+        listener = EventBusListener(lifetime, priority, listener)
+
+        if self.sync_only and listener.is_async:
+            raise ValueError("Listener marked as sync only but is async.")
+
+        heapq.heappush(self.listeners, (priority, listener))
 
     def remove(self, listener: Callable) -> None:
         for i, (_, reg_listener) in reversed(list(enumerate(self.listeners))):

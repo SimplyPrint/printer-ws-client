@@ -14,7 +14,7 @@ import weakref
 from abc import ABC, ABCMeta
 from datetime import timedelta, datetime
 from enum import IntEnum
-from typing import NamedTuple, Optional, Union, Generic, TypeVar, List
+from typing import NamedTuple, Optional, Union, Generic, TypeVar
 
 from ._event_instrumentation import autoconfigure_class_dict, produce, configure, instrument, consume
 from .config import PrinterConfig
@@ -24,6 +24,7 @@ from .ws_protocol.events import ConnectionOutgoingEvent, ConnectionEstablishedEv
     ConnectionIncomingEvent
 from .ws_protocol.messages import *
 from ..events import EventBus, Event
+from ..events.event import sync_only
 from ..shared.asyncio.event_loop_provider import EventLoopProvider
 from ..shared.hardware.physical_machine import PhysicalMachine
 from ..shared.logging import ClientName
@@ -83,6 +84,7 @@ class ClientConfigChangedEvent(Event):
     ...
 
 
+@sync_only
 class ClientStateChangeEvent(Event):
     ...
 
