@@ -285,6 +285,9 @@ class Connection(AsyncStoppable, EventLoopProvider[asyncio.AbstractEventLoop], H
 
                     self.logger.info(f"Connected to {self.url}")
 
+                if not self.connected:
+                    raise ConnectionResetError(f"Invalid connection state. Previous close code: {self.ws.close_code}")
+
                 # In this state we are connected and actively polling the connection.
                 # Poll for messages and interrupt on queue action.
                 await asyncio.wait([queue_task.schedule(), poll_task.schedule()], return_when=asyncio.FIRST_COMPLETED)
@@ -363,10 +366,6 @@ class Connection(AsyncStoppable, EventLoopProvider[asyncio.AbstractEventLoop], H
         Raises:
          ConnectionResetError: Signal that the connection is closed.
         """
-
-        if not self.connected:
-            raise ConnectionResetError(f"Connection not open. Close code: {self.ws.close_code}")
-
         message = await self.ws.receive()
 
         if message.type in (WSMsgType.CLOSE, WSMsgType.CLOSING, WSMsgType.CLOSED, WSMsgType.ERROR):
@@ -376,7 +375,7 @@ class Connection(AsyncStoppable, EventLoopProvider[asyncio.AbstractEventLoop], H
             if message.type in (WSMsgType.TEXT, WSMsgType.BINARY):
                 msg = ServerMsg.model_validate_json(message.data).root
                 self.logger.debug("received %s", msg)
-                await self.event_bus.emit(ConnectionIncomingEvent, msg, self.v)
+                _ = self.event_bus.emit_task(ConnectionIncomingEvent, msg, self.v)
                 return
 
             self.logger.warning(f"Unhandled message: %s", message)
