@@ -286,7 +286,8 @@ class Connection(AsyncStoppable, EventLoopProvider[asyncio.AbstractEventLoop], H
                     self.logger.info(f"Connected to {self.url}")
 
                 if not self.connected:
-                    raise ConnectionResetError(f"Invalid connection state. Previous close code: {self.ws.close_code}")
+                    raise ConnectionResetError(
+                        f"Invalid connection state. Previous close code: {self.ws.close_code if self.ws is not None else None}")
 
                 # In this state we are connected and actively polling the connection.
                 # Poll for messages and interrupt on queue action.
