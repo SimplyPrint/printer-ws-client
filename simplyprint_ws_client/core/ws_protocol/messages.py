@@ -193,6 +193,7 @@ class ClientMsgType(StrEnum):
     LOGS_SENT = "logs_sent"
     FILAMENT_SENSOR = "filament_sensor"
     MATERIAL_DATA = "material_data"
+    NOTIFICATION = "notification"
 
     def when_pending(self) -> bool:
         # Allowed messages for a pending printer connection
@@ -845,3 +846,8 @@ class MaterialDataMsg(ClientMsg[Literal[ClientMsgType.MATERIAL_DATA]]):
     def reset_changes(self, state: PrinterState, v: Optional[int] = None) -> None:
         for material in state.material_data:
             material.model_reset_changed()
+
+
+class NotificationDataMsg(ClientMsg[Literal[ClientMsgType.NOTIFICATION]]):
+    def __init__(self, notification_type: Literal['simple'], contents: dict):
+        super().__init__(data={"type": notification_type, "contents": contents})
