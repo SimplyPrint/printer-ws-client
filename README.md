@@ -14,5 +14,4 @@ TBD
 - [ ] Add usage documentation
 - [ ] Add examples
 - [ ] Add tests for event system and reactivity
-- [ ] Improve reactivity API and internals (move away from traitlets)
 - [ ] Unify event bus api with printer events.
