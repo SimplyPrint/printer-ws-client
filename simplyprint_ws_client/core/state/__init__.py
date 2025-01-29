@@ -298,8 +298,18 @@ class PrinterState(StateModel):
         else:
             self.material_data = self.material_data[:count]
 
-    def is_printing(self) -> bool:
-        return self.status == PrinterStatus.PRINTING
+    def is_printing(self, *status) -> bool:
+        """If any of the statuses are printing, return True. Default behavior is to check own status."""
+        if len(status) == 0:
+            status = (self.status,)
+
+        return len(set(status).intersection({
+            PrinterStatus.PRINTING,
+            PrinterStatus.PAUSED,
+            PrinterStatus.PAUSING,
+            PrinterStatus.RESUMING,
+            PrinterStatus.CANCELLING,
+        })) > 0
 
     def is_heating(self) -> bool:
         return any([tool.is_heating() for tool in (self.bed_temperature, *self.tool_temperatures)])
