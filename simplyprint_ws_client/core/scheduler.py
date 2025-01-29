@@ -118,49 +118,52 @@ class Scheduler(AsyncStoppable, EventLoopProvider[asyncio.AbstractEventLoop]):
 
     async def _schedule_client(self, client: Client):
         """Schedule single client."""
-        was_allocated = self.manager.is_allocated(client)
+        try:
+            was_allocated = self.manager.is_allocated(client)
 
-        if not client.active:
+            if not client.active:
+                if not was_allocated:
+                    return
+
+                # Remove the connection from the multi printer.
+                if not await client.ensure_removed(self.settings.mode):
+                    return
+
+                # Then we can deallocate the client from the connection.
+                await self.manager.deallocate(client)
+                await client.halt()
+                return
+
             if not was_allocated:
+                await self.manager.allocate(client)
+                await client.init()
+
+            # Progress inner client state until we reach CONNECTED state.
+            # e.i. in multi printer mode until we receive the connected message.
+            if not await client.ensure_added(self.settings.mode, self.settings.allow_setup):
                 return
 
-            # Remove the connection from the multi printer.
-            if not await client.ensure_removed(self.settings.mode):
+            # Tick client.
+            last_ticked = self._last_ticked.get(client.unique_id, datetime.min)
+            now = datetime.now()
+            delta_tick = now - last_ticked
+
+            if delta_tick >= self._tick_rate_delta:
+                self._last_ticked[client.unique_id] = now
+
+                # TODO: Manage timeouts.
+                async with asyncio.timeout(5):
+                    await client.tick(delta_tick)
+
+            if not client.has_changes:
                 return
 
-            # Then we can deallocate the client from the connection.
-            await self.manager.deallocate(client)
-            await client.halt()
-            return
+            msgs, v = client.consume()
 
-        if not was_allocated:
-            await self.manager.allocate(client)
-            await client.init()
-
-        # Progress inner client state until we reach CONNECTED state.
-        # e.i. in multi printer mode until we receive the connected message.
-        if not await client.ensure_added(self.settings.mode, self.settings.allow_setup):
-            return
-
-        # Tick client.
-        last_ticked = self._last_ticked.get(client.unique_id, datetime.min)
-        now = datetime.now()
-        delta_tick = now - last_ticked
-
-        if delta_tick >= self._tick_rate_delta:
-            self._last_ticked[client.unique_id] = now
-
-            # TODO: Manage timeouts.
-            async with asyncio.timeout(5):
-                await client.tick(delta_tick)
-
-        if not client.has_changes:
-            return
-
-        msgs, v = client.consume()
-
-        for msg in msgs:
-            await client.send(msg)
+            for msg in msgs:
+                await client.send(msg)
+        except Exception as e:
+            client.logger.error("Error while scheduling client", exc_info=e)
 
     def _process_clients(self):
         """Schedule all clients for processing."""

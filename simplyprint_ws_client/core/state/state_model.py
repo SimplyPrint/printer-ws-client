@@ -11,9 +11,6 @@ from pydantic import BaseModel, PrivateAttr
 
 from .exclusive_bool import ExclusiveBool
 
-if TYPE_CHECKING:
-    from ..client import Client
-
 TStateModel = TypeVar("TStateModel", bound="StateModel")
 
 
@@ -97,16 +94,24 @@ class StateModel(BaseModel):
             if isinstance(value := getattr(self, field), StateModel):
                 value.provide_context(self)
 
-    def model_reset_changed(self, *keys: str) -> None:
+    def model_reset_changed(self, *keys: str, v: Optional[int] = None) -> None:
         """
         Reset the changed state, this will clear model_self_changed_fields.
         """
 
-        if not keys:
+        if not keys and v is None:
             object.__setattr__(self, "model_self_changed_fields", {})
             return
 
+        if not keys and v is not None:
+            object.__setattr__(self, "model_self_changed_fields",
+                               {k: v2 for k, v2 in self.model_self_changed_fields.items() if v2 > v})
+            return
+
         for key in keys:
+            if v is not None and self.model_self_changed_fields.get(key, -1) > v:
+                continue
+
             self.model_self_changed_fields.pop(key, None)
 
     @property

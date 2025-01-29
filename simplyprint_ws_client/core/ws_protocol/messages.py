@@ -545,7 +545,7 @@ class ClientMsg(Msg[TMsgType, Optional[dict]]):
         """Construct a dict with data based on the current state"""
         raise NotImplemented()
 
-    def reset_changes(self, state: PrinterState) -> None:
+    def reset_changes(self, state: PrinterState, v: Optional[int] = None) -> None:
         """
         Custom reset logic for the message, typically used to
         fully reset some state, but optionally comparing and only
@@ -592,7 +592,7 @@ class MachineDataMsg(ClientMsg[Literal[ClientMsgType.INFO]]):
         for key in state.info.model_fields:
             yield key, getattr(state.info, key)
 
-    def reset_changes(self, state: PrinterState) -> None:
+    def reset_changes(self, state: PrinterState, v: Optional[int] = None) -> None:
         state.info.model_reset_changed()
 
 
@@ -601,7 +601,7 @@ class WebcamStatusMsg(ClientMsg[Literal[ClientMsgType.WEBCAM_STATUS]]):
     def build(cls, state: PrinterState) -> TClientMsgDataGenerator:
         yield "connected", state.webcam_info.connected
 
-    def reset_changes(self, state: PrinterState) -> None:
+    def reset_changes(self, state: PrinterState, v: Optional[int] = None) -> None:
         state.webcam_info.model_reset_changed()
 
 
@@ -611,7 +611,7 @@ class WebcamMsg(ClientMsg[Literal[ClientMsgType.WEBCAM]]):
         for key in state.webcam_settings.model_changed_fields:
             yield key, getattr(state.webcam_settings, key)
 
-    def reset_changes(self, state: PrinterState) -> None:
+    def reset_changes(self, state: PrinterState, v: Optional[int] = None) -> None:
         state.webcam_settings.model_reset_changed()
 
 
@@ -634,7 +634,7 @@ class FirmwareMsg(ClientMsg[Literal[ClientMsgType.FIRMWARE]]):
             {(f"firmware_{key}" if key != "name" else "firmware"): value for key in
              state.firmware.model_fields if (value := getattr(state.firmware, key)) is not None})
 
-    def reset_changes(self, state: PrinterState) -> None:
+    def reset_changes(self, state: PrinterState, v: Optional[int] = None) -> None:
         state.firmware.model_reset_changed()
 
 
@@ -644,7 +644,7 @@ class FirmwareWarningMsg(ClientMsg[Literal[ClientMsgType.FIRMWARE_WARNING]]):
         for key in state.firmware_warning.model_changed_fields:
             yield key, getattr(state.firmware_warning, key)
 
-    def reset_changes(self, state: PrinterState) -> None:
+    def reset_changes(self, state: PrinterState, v: Optional[int] = None) -> None:
         state.firmware_warning.model_reset_changed()
 
 
@@ -653,7 +653,7 @@ class ToolMsg(ClientMsg[Literal[ClientMsgType.TOOL]]):
     def build(cls, state: PrinterState) -> TClientMsgDataGenerator:
         yield "new", state.active_tool
 
-    def reset_changes(self, state: PrinterState) -> None:
+    def reset_changes(self, state: PrinterState, v: Optional[int] = None) -> None:
         state.model_reset_changed("active_tool")
 
 
@@ -669,7 +669,7 @@ class TemperatureMsg(ClientMsg[Literal[ClientMsgType.TEMPERATURES]]):
 
             yield f"tool{i}", tool.to_list()
 
-    def reset_changes(self, state: PrinterState) -> None:
+    def reset_changes(self, state: PrinterState, v: Optional[int] = None) -> None:
         state.bed_temperature.model_reset_changed()
 
         for tool in state.tool_temperatures:
@@ -691,7 +691,7 @@ class AmbientTemperatureMsg(ClientMsg[Literal[ClientMsgType.AMBIENT]]):
     def build(cls, state: PrinterState) -> TClientMsgDataGenerator:
         yield "new", state.ambient_temperature.ambient
 
-    def reset_changes(self, state: PrinterState) -> None:
+    def reset_changes(self, state: PrinterState, v: Optional[int] = None) -> None:
         state.ambient_temperature.model_reset_changed()
 
 
@@ -707,7 +707,7 @@ class StateChangeMsg(ClientMsg[Literal[ClientMsgType.STATUS]]):
 
         yield "new", state.status
 
-    def reset_changes(self, state: PrinterState) -> None:
+    def reset_changes(self, state: PrinterState, v: Optional[int] = None) -> None:
         state.model_reset_changed("status")
 
 
@@ -728,7 +728,7 @@ class JobInfoMsg(ClientMsg[Literal[ClientMsgType.JOB_INFO]]):
 
             yield key, value
 
-    def reset_changes(self, state: PrinterState) -> None:
+    def reset_changes(self, state: PrinterState, v: Optional[int] = None) -> None:
         state.job_info.model_reset_changed()
 
     def dispatch_mode(self, state: PrinterState) -> DispatchMode:
@@ -770,7 +770,7 @@ class LatencyMsg(ClientMsg[Literal[ClientMsgType.LATENCY]]):
     def build(cls, state: PrinterState) -> TClientMsgDataGenerator:
         yield "ms", state.latency.get_latency()
 
-    def reset_changes(self, state: PrinterState) -> None:
+    def reset_changes(self, state: PrinterState, v: Optional[int] = None) -> None:
         state.latency.model_reset_changed()
 
 
@@ -790,8 +790,8 @@ class FileProgressMsg(ClientMsg[Literal[ClientMsgType.FILE_PROGRESS]]):
         if state.file_progress.state in (FileProgressStateEnum.DOWNLOADING, FileProgressStateEnum.STARTED):
             yield "percent", state.file_progress.percent
 
-    def reset_changes(self, state: PrinterState) -> None:
-        state.file_progress.model_reset_changed()
+    def reset_changes(self, state: PrinterState, v: Optional[int] = None) -> None:
+        state.file_progress.model_reset_changed(v=v)
 
 
 class FilamentSensorMsg(ClientMsg[Literal[ClientMsgType.FILAMENT_SENSOR]]):
@@ -799,7 +799,7 @@ class FilamentSensorMsg(ClientMsg[Literal[ClientMsgType.FILAMENT_SENSOR]]):
     def build(cls, state: PrinterState) -> TClientMsgDataGenerator:
         yield "state", state.filament_sensor.state
 
-    def reset_changes(self, state: PrinterState) -> None:
+    def reset_changes(self, state: PrinterState, v: Optional[int] = None) -> None:
         state.filament_sensor.model_reset_changed()
 
 
@@ -808,7 +808,7 @@ class PowerControllerMsg(ClientMsg[Literal[ClientMsgType.PSU]]):
     def build(cls, state: PrinterState) -> TClientMsgDataGenerator:
         yield "on", state.psu_info
 
-    def reset_changes(self, state: PrinterState) -> None:
+    def reset_changes(self, state: PrinterState, v: Optional[int] = None) -> None:
         state.psu_info.model_reset_changed()
 
 
@@ -818,7 +818,7 @@ class CpuInfoMsg(ClientMsg[Literal[ClientMsgType.CPU_INFO]]):
         for key in state.cpu_info.model_changed_fields:
             yield key, getattr(state.cpu_info, key)
 
-    def reset_changes(self, state: PrinterState) -> None:
+    def reset_changes(self, state: PrinterState, v: Optional[int] = None) -> None:
         state.cpu_info.model_reset_changed()
 
     def dispatch_mode(self, state: PrinterState) -> DispatchMode:
@@ -842,6 +842,6 @@ class MaterialDataMsg(ClientMsg[Literal[ClientMsgType.MATERIAL_DATA]]):
         if any(m.model_has_changed for m in state.material_data):
             yield "materials", [m.model_dump(mode='json') if m.type is not None else None for m in state.material_data]
 
-    def reset_changes(self, state: PrinterState) -> None:
+    def reset_changes(self, state: PrinterState, v: Optional[int] = None) -> None:
         for material in state.material_data:
             material.model_reset_changed()

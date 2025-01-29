@@ -25,9 +25,7 @@ __all__ = [
 ]
 
 import time
-from typing import Optional, Literal
-from typing import Union, List, Set, \
-    ClassVar
+from typing import Optional, Literal, no_type_check, Union, List, Set, ClassVar
 
 from pydantic import Field, field_validator
 
@@ -99,6 +97,14 @@ class FileProgressState(StateModel):
     state: Optional[FileProgressStateEnum] = None
     percent: float = 0.0
     message: Optional[str] = None
+
+    @no_type_check
+    def __setattr__(self, key, value):
+        super().__setattr__(key, value)
+
+        # Reset the progress when the state changes away from downloading.
+        if key == 'state' and value != FileProgressStateEnum.DOWNLOADING:
+            self.percent = 0.0
 
 
 class CpuInfoState(StateModel):
@@ -174,6 +180,7 @@ class JobInfoState(StateModel, validate_assignment=True):
     def convert_to_always_true(cls, value):
         return ExclusiveBool(value=value)
 
+    @no_type_check
     def __setattr__(self, key, value):
         """Only one of the 4 fields can be True at a time."""
         if not key in self.MUTUALLY_EXCLUSIVE_FIELDS:
@@ -264,6 +271,9 @@ class PrinterState(StateModel):
         if count < 1:
             raise ValueError("Nozzle count must be at least 1")
 
+        if len(self.tool_temperatures) == count:
+            return
+
         if count > len(self.tool_temperatures):
             for _ in range(count - len(self.tool_temperatures)):
                 self.tool_temperatures.append(model := TemperatureState())
@@ -277,6 +287,9 @@ class PrinterState(StateModel):
 
         if self.active_tool is not None and self.active_tool >= count:
             self.active_tool = None
+
+        if len(self.material_data) == count:
+            return
 
         if count > len(self.material_data):
             for _ in range(count - len(self.material_data)):
