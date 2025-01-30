@@ -86,6 +86,7 @@ __all__ = [
     'MeshDataMsg',
     'LogsSentMsg',
     'MaterialDataMsg',
+    'NotificationDataMsg',
 ]
 
 from enum import StrEnum, IntEnum

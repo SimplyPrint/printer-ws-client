@@ -131,7 +131,7 @@ class Connection(AsyncStoppable, EventLoopProvider[asyncio.AbstractEventLoop], H
             self,
             session: Optional[ClientSession] = None,
             hint: Optional[ConnectionHint] = None,
-            logger: logging.Logger = logging.getLogger(__name__),
+            logger: logging.Logger = logging.getLogger("simplyprint_ws"),
             **kwargs
     ):
         AsyncStoppable.__init__(self, **kwargs)

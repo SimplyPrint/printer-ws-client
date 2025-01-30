@@ -1,4 +1,6 @@
-from typing import TYPE_CHECKING, List, Optional
+__all__ = ['ClientName']
+
+from typing import TYPE_CHECKING, List, Optional, Union
 
 try:
     from typing import Self
@@ -9,26 +11,30 @@ if TYPE_CHECKING:
     from ...core.client import Client
     from ...core.config import PrinterConfig
 
+    TClientContext = Union[Client, PrinterConfig]
+else:
+    TClientContext = Union['Client', 'PrinterConfig']
+
 
 class ClientName(str):
+    ctx: TClientContext
     stack: List[str]
-    config: 'PrinterConfig'
 
-    def __new__(cls, config: 'PrinterConfig') -> str:
-        return super().__new__(cls, config.unique_id)
+    def __new__(cls, ctx: TClientContext) -> str:
+        return super().__new__(cls, ctx.unique_id)
 
-    def __init__(self, config: 'PrinterConfig') -> None:
-        self.config = config
+    def __init__(self, ctx: TClientContext) -> None:
+        self.ctx = ctx
         self.stack = []
 
     def __str__(self) -> str:
-        return ".".join([self.config.unique_id] + self.stack)
+        return ".".join([self.ctx.unique_id] + self.stack)
 
     def __hash__(self) -> int:
         return hash(str(self))
 
     def copy(self) -> Self:
-        return ClientName(self.config).push_all(self.stack)
+        return ClientName(self.ctx).push_all(self.stack)
 
     def push_all(self, names: List[str]) -> Self:
         for name in names:
@@ -51,7 +57,3 @@ class ClientName(str):
 
     def getChild(self, suffix: str) -> Self:
         return self.copy().push(suffix)
-
-    @staticmethod
-    def from_client(client: 'Client') -> 'ClientName':
-        return ClientName(client.config)

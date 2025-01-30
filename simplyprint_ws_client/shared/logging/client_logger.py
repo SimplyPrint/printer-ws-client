@@ -1,3 +1,5 @@
+__all__ = ["ClientLogger"]
+
 import logging
 from typing import Union
 
@@ -6,7 +8,6 @@ try:
 except ImportError:
     from typing_extensions import Self
 
-from .client_handler import ClientHandler
 from .client_name import ClientName
 
 
@@ -36,29 +37,5 @@ class ClientLogger(logging.Logger):
         return logger
 
     def _initialize_client_logger(self):
-        # Remove the previous ClientHandler
-        # And add a new one based on the new name
-
-        for handler in self.handlers:
-            if isinstance(handler, ClientHandler):
-                self.removeHandler(handler)
-
-        self.addHandler(ClientHandler.from_client_name(self.name))
-
-        root_stream_handler = None
-
-        for handler in self.root.handlers:
-            if not type(handler) is logging.StreamHandler:
-                continue
-
-            root_stream_handler = handler
-            break
-
-        if root_stream_handler:
-            self.addHandler(root_stream_handler)
-
-        self.propagate = False
-
-
-# When loading this module, set the default logger class to ClientLogger
-logging.setLoggerClass(ClientLogger)
+        from . import ClientFilesHandler
+        ClientFilesHandler.register_client_name(self.name)

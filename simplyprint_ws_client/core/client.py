@@ -136,7 +136,7 @@ class Client(ABC, Generic[TConfig], EventLoopProvider[asyncio.AbstractEventLoop]
         self.printer.set_extruder_count(1)
         self.printer.set_nozzle_count(1)
         self.event_bus = EventBus(event_loop_provider=self)
-        self.logger = logging.getLogger(ClientName.from_client(self))
+        self.logger = logging.getLogger(ClientName(self))
         self._pending_action_backoff = ExponentialBackoff(10, 600, 3600)
         instrument(self)
 
@@ -288,7 +288,8 @@ class Client(ABC, Generic[TConfig], EventLoopProvider[asyncio.AbstractEventLoop]
         # A successful addition does not require a backoff.
         self._pending_action_backoff.reset()
         self.config.id = msg.data.pid
-        await self._on_connected_state()
+        self.state = State.CONNECTED
+        self.signal()
 
     @configure(ServerMsgType.REMOVE_CONNECTION, priority=1)
     async def _on_multi_printer_removed(self, msg: MultiPrinterRemovedMsg):
