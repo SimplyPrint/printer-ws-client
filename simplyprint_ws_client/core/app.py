@@ -55,11 +55,11 @@ class ClientApp(SyncStoppable):
         if settings.sentry_dsn is not None:
             Sentry.initialize_sentry(settings)
 
-        # On creation, load all current configs.
+    async def run(self):
+        # On start, load all current configs.
         for config in self.config_manager.get_all():
             self.add(config)
 
-    async def run(self):
         await self.scheduler.block_until_stopped()
 
     def run_blocking(self, debug=False, contexts: Optional[list] = None):
