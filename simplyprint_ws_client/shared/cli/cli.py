@@ -132,7 +132,7 @@ class ClientCli(CommandBag, click.MultiCommand):
     @property
     def start_client(self):
         if self._client_runner is None:
-            return self.app.run_blocking
+            return lambda: self.app.run_blocking()
 
         return self._client_runner
 
