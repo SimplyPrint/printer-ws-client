@@ -61,9 +61,9 @@ class EventBusWorker(Emitter[TEvent], StoppableInterface, ABC):
 
 
 class ThreadedEventBusWorker(EventBusWorker[TEvent], StoppableThread):
-    def __init__(self, event_bus: EventBus[TEvent], *args, **kwargs):
-        EventBusWorker.__init__(self, event_bus, *args, **kwargs)
-        StoppableThread.__init__(self, *args, **kwargs)
+    def __init__(self, event_bus: EventBus[TEvent], **kwargs):
+        EventBusWorker.__init__(self, event_bus, **kwargs)
+        StoppableThread.__init__(self, **kwargs)
         self.event_queue = Queue(maxsize=self.maxsize)
 
     async def emit(self, event: Union[Hashable, TEvent], *args, **kwargs) -> None:

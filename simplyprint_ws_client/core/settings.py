@@ -37,6 +37,7 @@ class ClientSettings:
     tick_rate = 1.0
     reconnect_timeout = 5.0
     sentry_dsn: Optional[str] = None
+    camera_pool_workers: Optional[int] = None
 
     def new_config_manager(self):
         return self.config_manager_t(name=self.name, config_t=self.config_factory)

@@ -10,6 +10,7 @@ from .config import ConfigManager, PrinterConfig
 from .scheduler import Scheduler
 from .settings import ClientSettings
 from ..shared.asyncio.event_loop_runner import Runner
+from ..shared.camera.pool import CameraPool
 from ..shared.debug import traceability
 from ..shared.sp.sentry import Sentry
 from ..shared.sp.url_builder import SimplyPrintURL
@@ -21,6 +22,7 @@ class ClientApp(SyncStoppable):
     client_list: ClientList
     scheduler: Scheduler
     config_manager: ConfigManager[PrinterConfig]
+    camera_pool: Optional[CameraPool] = None
     logger: logging.Logger
 
     _app_event_loop: asyncio.AbstractEventLoop
@@ -55,10 +57,16 @@ class ClientApp(SyncStoppable):
         if settings.sentry_dsn is not None:
             Sentry.initialize_sentry(settings)
 
+        if self.settings.camera_pool_workers is not None:
+            self.camera_pool = CameraPool(self.settings.camera_pool_workers)
+
     async def run(self):
         # On start, load all current configs.
         for config in self.config_manager.get_all():
             self.add(config)
+
+        if self.camera_pool is not None:
+            self.camera_pool.spawn_processes()
 
         await self.scheduler.block_until_stopped()
 
@@ -86,7 +94,8 @@ class ClientApp(SyncStoppable):
             self.config_manager.persist(config)
             self.config_manager.flush(config)
 
-            client = self.settings.client_factory(config, event_loop_provider=self.scheduler)
+            client = self.settings.client_factory(config, event_loop_provider=self.scheduler,
+                                                  camera_pool=self.camera_pool)
 
             client.event_bus.on(ClientConfigChangedEvent,
                                 lambda *args, **kwargs: self.config_manager.flush(cast(PrinterConfig, client.config)))
@@ -122,5 +131,8 @@ class ClientApp(SyncStoppable):
             if self._app_instance is not None:
                 self._app_instance.join()
                 self._app_instance = None
+
+            if self.camera_pool is not None:
+                self.camera_pool.stop()
 
             self.logger.info("Stopped.")

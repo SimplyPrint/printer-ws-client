@@ -2,6 +2,7 @@ import asyncio
 import multiprocessing
 import threading
 from abc import ABC, abstractmethod
+from multiprocessing.synchronize import Event
 from typing import Optional, Union, TypeVar, Generic
 
 from ..asyncio.async_task_scope import AsyncTaskScope
@@ -9,6 +10,14 @@ from ..asyncio.async_task_scope import AsyncTaskScope
 TStopEvent = TypeVar("TStopEvent", bound=Union[threading.Event, asyncio.Event, multiprocessing.Condition])
 TCondition = TypeVar("TCondition", bound=Union[threading.Condition, asyncio.Condition, multiprocessing.Condition])
 TAnyStoppable = Union["Stoppable", TStopEvent]
+
+
+def _cleanup_kwargs(kwargs, *allowed_keys):
+    for key in list(kwargs.keys()):
+        if key not in allowed_keys:
+            del kwargs[key]
+
+    return kwargs
 
 
 class StoppableInterface(ABC):
@@ -62,7 +71,7 @@ class Stoppable(Generic[TStopEvent, TCondition], StoppableInterface, ABC):
 
             return stoppable._stop_event_property
 
-        if not isinstance(stoppable, (threading.Event, asyncio.Event, multiprocessing.Event)):
+        if not isinstance(stoppable, (threading.Event, asyncio.Event, Event)):
             return default
 
         return stoppable
@@ -186,8 +195,9 @@ class ProcessStoppable(Stoppable[multiprocessing.Event, multiprocessing.Conditio
 
 class StoppableThread(SyncStoppable, threading.Thread, ABC):
     def __init__(self, *args, **kwargs):
-        SyncStoppable.__init__(self, *args, **kwargs)
-        threading.Thread.__init__(self)
+        SyncStoppable.__init__(self, **kwargs)
+        _cleanup_kwargs(kwargs, "group", "target", "name", "args", "kwargs", "daemon")
+        threading.Thread.__init__(self, **kwargs)
 
     @abstractmethod
     def run(self):
@@ -196,8 +206,9 @@ class StoppableThread(SyncStoppable, threading.Thread, ABC):
 
 class StoppableProcess(ProcessStoppable, multiprocessing.Process, ABC):
     def __init__(self, *args, **kwargs):
-        ProcessStoppable.__init__(self, *args, **kwargs)
-        multiprocessing.Process.__init__(self)
+        ProcessStoppable.__init__(self, **kwargs)
+        _cleanup_kwargs(kwargs, "group", "target", "name", "args", "kwargs", "daemon")
+        multiprocessing.Process.__init__(self, **kwargs)
 
     @abstractmethod
     def run(self):
