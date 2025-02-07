@@ -14,6 +14,8 @@ if __name__ == "__main__":
         config_factory=VirtualConfig,
         allow_setup=True,
         config_manager_t=ConfigManagerType.JSON,
+        development=True,
+        camera_pool_workers=1,
     )
 
     setup_logging(settings)
