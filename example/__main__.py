@@ -4,7 +4,7 @@ from simplyprint_ws_client.core.settings import ClientSettings
 from simplyprint_ws_client.core.ws_protocol.connection import ConnectionMode
 from simplyprint_ws_client.shared.cli.cli import ClientCli
 from simplyprint_ws_client.shared.logging import setup_logging
-from .virtual_client import VirtualClient, VirtualConfig
+from .virtual_client import VirtualClient, VirtualConfig, VirtualCamera
 
 if __name__ == "__main__":
     settings = ClientSettings(
@@ -15,7 +15,8 @@ if __name__ == "__main__":
         allow_setup=True,
         config_manager_t=ConfigManagerType.JSON,
         development=True,
-        camera_pool_workers=1,
+        camera_workers=1,
+        camera_protocols=[VirtualCamera],
     )
 
     setup_logging(settings)

@@ -306,6 +306,10 @@ class Client(ABC, Generic[TConfig], EventLoopProvider[asyncio.AbstractEventLoop]
     # client methods
 
     async def send(self, msg: ClientMsg[ClientMsgType]):
+        # check dispatch mode + use interval (automatically)
+        if msg.dispatch_mode(self.printer) != DispatchMode.DISPATCH:
+            return
+
         await self.event_bus.emit(ConnectionOutgoingEvent, msg, self.v)
 
     # lifetime methods

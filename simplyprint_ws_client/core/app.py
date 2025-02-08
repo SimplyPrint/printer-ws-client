@@ -57,16 +57,14 @@ class ClientApp(SyncStoppable):
         if settings.sentry_dsn is not None:
             Sentry.initialize_sentry(settings)
 
-        if self.settings.camera_pool_workers is not None:
-            self.camera_pool = CameraPool(self.settings.camera_pool_workers)
+        if self.settings.camera_workers is not None:
+            self.camera_pool = CameraPool(pool_size=self.settings.camera_workers)
+            self.camera_pool.protocols.extend(self.settings.camera_protocols or [])
 
     async def run(self):
         # On start, load all current configs.
         for config in self.config_manager.get_all():
             self.add(config)
-
-        if self.camera_pool is not None:
-            self.camera_pool.spawn_processes()
 
         await self.scheduler.block_until_stopped()
 

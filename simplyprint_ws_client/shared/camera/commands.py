@@ -1,36 +1,32 @@
-from typing import Type, Any, Union, NamedTuple
+from typing import Union, NamedTuple, Optional
 
-from .base import BaseCameraProtocol, TCameraConfig, FrameT
+from .base import FrameT, BaseCameraProtocol
 
 
 class CreateCamera(NamedTuple):
-    protocol: Type[BaseCameraProtocol]
-    config: TCameraConfig
-
-
-class ConfigureCamera(NamedTuple):
-    config: Any
+    id: int
+    protocol: BaseCameraProtocol
+    pause_timeout: Optional[int] = None
 
 
 class PollCamera(NamedTuple):
-    ...
+    id: int
 
 
 class StartCamera(NamedTuple):
-    ...
+    id: int
 
 
 class StopCamera(NamedTuple):
-    ...
+    id: int
 
 
 class DeleteCamera(NamedTuple):
-    ...
+    id: int
 
 
 Request = Union[
     CreateCamera,
-    ConfigureCamera,
     PollCamera,
     StartCamera,
     StopCamera,
@@ -39,8 +35,9 @@ Request = Union[
 
 
 class ReceivedFrame(NamedTuple):
-    ts: float
-    data: FrameT
+    id: int
+    time: float
+    data: Optional[FrameT]
 
 
 Response = Union[

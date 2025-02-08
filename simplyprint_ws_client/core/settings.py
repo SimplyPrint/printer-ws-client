@@ -1,12 +1,13 @@
 __all__ = ["ClientSettings", "ClientFactory"]
 
 from dataclasses import dataclass
-from typing import Optional, Type, Union, Callable, Protocol, TypeVar
+from typing import Optional, Type, Union, Callable, Protocol, TypeVar, List
 
 from .client import Client
 from .config import ConfigManagerType, PrinterConfig
 from .ws_protocol.connection import ConnectionMode
 from ..shared.asyncio.event_loop_runner import EventLoopBackend
+from ..shared.camera.base import BaseCameraProtocol
 from ..shared.sp.url_builder import SimplyPrintBackend
 
 TAnyClient = TypeVar("TAnyClient", bound=Client)
@@ -37,7 +38,8 @@ class ClientSettings:
     tick_rate = 1.0
     reconnect_timeout = 5.0
     sentry_dsn: Optional[str] = None
-    camera_pool_workers: Optional[int] = None
+    camera_workers: Optional[int] = None
+    camera_protocols: Optional[List[Type[BaseCameraProtocol]]] = None
 
     def new_config_manager(self):
         return self.config_manager_t(name=self.name, config_t=self.config_factory)

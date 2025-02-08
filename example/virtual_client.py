@@ -4,11 +4,13 @@ import math
 import random
 import time
 
+from yarl import URL
+
 from simplyprint_ws_client.core.client import DefaultClient
 from simplyprint_ws_client.core.config import PrinterConfig
 from simplyprint_ws_client.core.state import PrinterStatus, FileProgressStateEnum
 from simplyprint_ws_client.core.ws_protocol.messages import GcodeDemandData, FileDemandData
-from simplyprint_ws_client.shared.camera.base import BaseCameraProtocol, FrameT, CameraProtocolPollingMode
+from simplyprint_ws_client.shared.camera.base import BaseCameraProtocol, CameraProtocolPollingMode
 from simplyprint_ws_client.shared.camera.mixin import ClientCameraMixin
 from simplyprint_ws_client.shared.files.file_download import FileDownload
 
@@ -18,32 +20,33 @@ def expt_smooth(target, actual, alpha, dt) -> float:
 
 
 class VirtualConfig(PrinterConfig):
+    """Define extra fields that will be persisted in a config entry"""
     ...
 
 
-class VirtualCamera(BaseCameraProtocol[None, None]):
-    _TEST_IMAGE = "iVBORw0KGgoAAAANSUhEUgAAAeAAAAFoCAIAAAAAVb93AAAFMklEQVR4nOzWQQkCYRhFUZFpYAVzWcAAGsAONnFvJ3FtAZc/fJfhnARvdXnb8/Q4wF68bp/pCbDMcXoAAP8JNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRG3f+3l6AyxzeV+nJ8AyHjRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNEDULwAA//+/JAlAlWQCTwAAAABJRU5ErkJggg=="
+_TEST_IMAGE = "iVBORw0KGgoAAAANSUhEUgAAAeAAAAFoCAIAAAAAVb93AAAFMklEQVR4nOzWQQkCYRhFUZFpYAVzWcAAGsAONnFvJ3FtAZc/fJfhnARvdXnb8/Q4wF68bp/pCbDMcXoAAP8JNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRG3f+3l6AyxzeV+nJ8AyHjRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNECUQANECTRAlEADRAk0QJRAA0QJNEDULwAA//+/JAlAlWQCTwAAAABJRU5ErkJggg=="
 
+
+class VirtualCamera(BaseCameraProtocol):
     @staticmethod
     def polling_mode() -> CameraProtocolPollingMode:
         return CameraProtocolPollingMode.ON_DEMAND
 
     @staticmethod
-    def test(config: None) -> bool:
+    def is_async() -> bool:
+        return False
+
+    @staticmethod
+    def test(uri: URL) -> bool:
+        if uri.scheme != "virtual":
+            return False
+
         return True
 
-    @staticmethod
-    def connect(config: None) -> None:
-        return None
-
-    @staticmethod
-    def disconnect(state: None):
-        return None
-
-    @staticmethod
-    def read(state: None) -> FrameT:
-        time.sleep(0.5)
-        return base64.b64decode(VirtualCamera._TEST_IMAGE)
+    def read(self):
+        while True:
+            time.sleep(0.5)
+            yield base64.b64decode(_TEST_IMAGE)
 
 
 class VirtualClient(DefaultClient[VirtualConfig], ClientCameraMixin):
@@ -51,7 +54,7 @@ class VirtualClient(DefaultClient[VirtualConfig], ClientCameraMixin):
 
     def __init__(self, *args, **kwargs):
         DefaultClient.__init__(self, *args, **kwargs)
-        self.initialize_camera_handle(VirtualCamera, None, **kwargs)
+        self.initialize_camera_mixin(**kwargs)
 
         self.printer.firmware.name = "Virtual Printer Firmware"
         self.printer.firmware.version = "1.0.0"
@@ -59,6 +62,7 @@ class VirtualClient(DefaultClient[VirtualConfig], ClientCameraMixin):
         self.printer.set_info("Virtual Printer", "0.0.1")
         self.printer.set_extruder_count(4)
 
+        self.set_camera_uri(URL("virtual://localhost"))
         self.printer.webcam_info.connected = True
 
         for i, mat in enumerate(self.printer.material_data):
@@ -69,16 +73,16 @@ class VirtualClient(DefaultClient[VirtualConfig], ClientCameraMixin):
 
     async def on_connected(self):
         _ = self
-        print("Yay i am connected :) :) :)")
+        self.logger.info("Yay i am connected :) :) :)")
 
     async def on_gcode(self, data: GcodeDemandData):
-        print("Gcode: %s", data.list)
+        self.logger.info("Gcode: %s", data.list)
 
         for gcode in data.list:
             if gcode[:4] == "M104":
                 target = float(gcode[6:])
 
-                print(f"Setting tool temperature to {target}")
+                self.logger.info(f"Setting tool temperature to {target}")
 
                 if target > 0.0:
                     self.printer.tool_temperatures[0].target = target
@@ -88,7 +92,7 @@ class VirtualClient(DefaultClient[VirtualConfig], ClientCameraMixin):
             if gcode[:4] == "M140":
                 target = float(gcode[6:])
 
-                print(f"Setting bed temperature to {target}")
+                self.logger.info(f"Setting bed temperature to {target}")
 
                 if target > 0.0:
                     self.printer.bed_temperature.target = target

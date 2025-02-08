@@ -1,8 +1,8 @@
 import asyncio
-from typing import TYPE_CHECKING, Type, List, Optional
+from typing import TYPE_CHECKING, List
 
-from .base import FrameT, BaseCameraProtocol, CameraProtocolPollingMode
-from .commands import Request, ConfigureCamera, Response, PollCamera, StartCamera, \
+from .base import FrameT
+from .commands import Response, PollCamera, StartCamera, \
     StopCamera, DeleteCamera, ReceivedFrame
 from ..utils.stoppable import StoppableInterface
 
@@ -11,33 +11,28 @@ if TYPE_CHECKING:
 
 
 class CameraHandle(StoppableInterface):
-    """Command proxy for camera instance"""
-
     pool: 'CameraPool'
-    uuid: str
-    protocol: Type[BaseCameraProtocol]
-    polling_mode: CameraProtocolPollingMode
+    id: int
 
-    _cached_frame: Optional[FrameT] = None
     _waiters: List[asyncio.Future]
+    _frame_time_window: List[float]
 
-    def __init__(self, pool: 'CameraPool', uuid: str, protocol: Type[BaseCameraProtocol]):
+    def __init__(self, pool: 'CameraPool', camera_id: int):
         self.pool = pool
-        self.uuid = uuid
-        self.protocol = protocol
-        self.polling_mode = protocol.polling_mode()
+        self.id = camera_id
+        self._frame_time_window = []
         self._waiters = []
-
-    def submit_request(self, req: Request):
-        self.pool.submit_request(self.uuid, req)
 
     def on_response(self, res: Response):
         # Called from one thread only.
-
         if not isinstance(res, ReceivedFrame):
             return
 
-        self._cached_frame = res.data
+        # Keep track of last 10 frame times
+        self._frame_time_window.append(res.time)
+
+        if len(self._frame_time_window) > 10:
+            self._frame_time_window.pop(0)
 
         while self._waiters:
             fut = self._waiters.pop(0)
@@ -48,30 +43,18 @@ class CameraHandle(StoppableInterface):
             loop = fut.get_loop()
             loop.call_soon_threadsafe(fut.set_result, res.data)
 
-    async def receive_frame(self, allow_cached=False) -> FrameT:
-        if allow_cached and self._cached_frame:
-            return self._cached_frame
-
-        self.submit_request(PollCamera())
+    async def receive_frame(self) -> FrameT:
+        self.pool.submit_request(PollCamera(self.id))
         loop = asyncio.get_running_loop()
         fut = loop.create_future()
         self._waiters.append(fut)
         return await fut
 
-    def configure(self, config):
-        self.submit_request(ConfigureCamera(config))
-
     def start(self):
-        if self.polling_mode == CameraProtocolPollingMode.ON_DEMAND:
-            return
-
-        self.submit_request(StartCamera())
+        self.pool.submit_request(StartCamera(self.id))
 
     def pause(self):
-        if self.polling_mode == CameraProtocolPollingMode.ON_DEMAND:
-            return
-
-        self.submit_request(StopCamera())
+        self.pool.submit_request(StopCamera(self.id))
 
     # Stoppable methods
 
@@ -79,7 +62,7 @@ class CameraHandle(StoppableInterface):
         raise NotImplementedError()
 
     def stop(self) -> None:
-        self.submit_request(DeleteCamera())
+        self.pool.submit_request(DeleteCamera(self.id))
 
     def clear(self) -> None:
         raise NotImplementedError()

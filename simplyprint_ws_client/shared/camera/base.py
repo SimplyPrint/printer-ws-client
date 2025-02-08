@@ -1,14 +1,20 @@
 from abc import ABC, abstractmethod
+from collections.abc import Coroutine
 from enum import Enum, auto
-from typing import TypeVar, Generic, Union
+from typing import TypeVar, Union, Iterator, Iterable, AsyncIterable, AsyncIterator
+
+from yarl import URL
 
 # Typically JPEG bytes.
 FrameT = TypeVar('FrameT', bound=Union[bytes, bytearray, memoryview])
-TCameraConfig = TypeVar('TCameraConfig')
-TCameraState = TypeVar('TCameraState')
 
 
 class CameraProtocolException(Exception):
+    ...
+
+
+class CameraProtocolConnectionError(CameraProtocolException, ConnectionError):
+    """Raise when the connection to the camera fails."""
     ...
 
 
@@ -27,7 +33,12 @@ class CameraProtocolPollingMode(Enum):
     """Snapshot based"""
 
 
-class BaseCameraProtocol(ABC, Generic[TCameraConfig, TCameraState]):
+class BaseCameraProtocol(ABC, Iterable[FrameT], AsyncIterable[FrameT]):
+    uri: URL
+
+    def __init__(self, uri: URL, *args, **kwargs):
+        self.uri = uri
+
     @staticmethod
     @abstractmethod
     def polling_mode() -> CameraProtocolPollingMode:
@@ -36,24 +47,23 @@ class BaseCameraProtocol(ABC, Generic[TCameraConfig, TCameraState]):
 
     @staticmethod
     @abstractmethod
-    def test(config: TCameraConfig) -> bool:
-        """Is the configuration valid?"""
+    def is_async() -> bool:
+        """Is the camera protocol async?"""
         ...
 
     @staticmethod
     @abstractmethod
-    def connect(config: TCameraConfig) -> TCameraState:
-        """Initialize the connection state"""
+    def test(uri: URL) -> Union[bool, Coroutine[None, None, bool]]:
+        """Is the configuration valid for this protocol?"""
         ...
 
-    @staticmethod
     @abstractmethod
-    def disconnect(state: TCameraState):
-        """Cleanup camera state"""
+    def read(self) -> Union[Iterator[FrameT], Coroutine[None, None, AsyncIterator[FrameT]]]:
+        """Read frames from the camera, blocking."""
         ...
 
-    @staticmethod
-    @abstractmethod
-    def read(state: TCameraState) -> FrameT:
-        """Block until an entire frame has been received"""
-        ...
+    def __iter__(self):
+        return self.read()
+
+    def __aiter__(self):
+        return self.read()

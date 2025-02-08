@@ -76,12 +76,10 @@ class Intervals(BaseModel):
         return int(time.monotonic_ns() / 1_000_000)
 
     def time_until_ready(self, t: IntervalT) -> int:
-        timing = getattr(self, t)
-
         if self._usages[t] is None:
-            return timing
+            return 0
 
-        return timing - (self.now() - self._usages[t])
+        return getattr(self, t) - (self.now() - self._usages[t])
 
     def is_ready(self, t: IntervalT):
         if self._usages[t] is None:
@@ -106,13 +104,13 @@ class Intervals(BaseModel):
         return True
 
     async def wait_for(self, t: IntervalT):
-        while not self.is_ready(t):
-            s = self.time_until_ready(t) / 1000
+        while True:
+            time_remaining = self.time_until_ready(t)
 
-            if s <= 0.0:
+            if time_remaining <= 0:
                 break
 
-            await asyncio.sleep(s)
+            await asyncio.sleep(time_remaining / 1000.0)
 
     def set(self, t: IntervalT, value: int):
         setattr(self, t, value)

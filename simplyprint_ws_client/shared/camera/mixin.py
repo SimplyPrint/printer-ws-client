@@ -1,37 +1,61 @@
 import asyncio
 import base64
-from typing import Type, Optional
+from typing import Optional
 
-from .base import BaseCameraProtocol, TCameraConfig, TCameraState
+from yarl import URL
+
 from .handle import CameraHandle
 from .pool import CameraPool
+from ..asyncio.cancelable_lock import CancelableLock
 from ..sp.simplyprint_api import SimplyPrintApi
 from ...core.client import Client
 from ...core.ws_protocol.messages import WebcamSnapshotDemandData, StreamMsg
 
 
 class ClientCameraMixin(Client):
+    _camera_pool: Optional[CameraPool] = None
+    _camera_uri: Optional[URL] = None
     _camera_handle: Optional[CameraHandle] = None
-    _stream_lock: asyncio.Lock
+    _stream_lock: CancelableLock
+    _stream_setup: asyncio.Event
 
-    def initialize_camera_handle(  # noqa
+    def initialize_camera_mixin(
             self,
-            protocol: Type[BaseCameraProtocol[TCameraConfig, TCameraState]],
-            config: TCameraConfig,
             camera_pool: Optional[CameraPool] = None,
-            **kwargs,
+            **_kwargs
     ):
-        if camera_pool is not None:
-            self._camera_handle = camera_pool.create(protocol, config)
-            self.logger.debug(f"Created camera handle for {protocol.__name__}")
+        self._camera_pool = camera_pool
+        self._stream_lock = CancelableLock()
+        self._stream_setup = asyncio.Event()
 
-        self._stream_lock = asyncio.Lock()
+    def set_camera_uri(self, uri: Optional[URL] = None):
+        if self._camera_pool is None:
+            return
+
+        # If the camera URI is the same, don't recreate the camera.
+        if self._camera_uri == uri and self._camera_handle:
+            return
+
+        self._camera_uri = uri
+
+        # Clear out previous camera (if URI is different)
+        if self._camera_handle:
+            self._camera_handle.stop()
+            self._camera_handle = None
+            self.event_loop.call_soon_threadsafe(self._stream_setup.clear)
+
+        # Create a new camera handle
+        if self._camera_uri and self._camera_pool:
+            self._camera_handle = self._camera_pool.create(self._camera_uri)
+            self.event_loop.call_soon_threadsafe(self._stream_setup.set)
 
     def __del__(self):
         if self._camera_handle:
             self._camera_handle.stop()
 
     async def on_stream_on(self):
+        await self._stream_setup.wait()
+
         if not self._camera_handle:
             return
 
@@ -42,34 +66,44 @@ class ClientCameraMixin(Client):
             return
 
         self._camera_handle.pause()
+        self._stream_lock.cancel()
 
     async def on_test_webcam(self):
         await self.on_webcam_snapshot(WebcamSnapshotDemandData())
 
-    async def on_webcam_snapshot(self, data: WebcamSnapshotDemandData):
+    async def on_webcam_snapshot(self, data: WebcamSnapshotDemandData, retries: int = 3, retry_timeout=5):
+        await self._stream_setup.wait()
+
+        # Drop event if no camera is set up.
         if not self._camera_handle:
             return
 
-        is_snapshot_request = data.id is not None
+        # Block until the camera is ready.
+        frame = await self._camera_handle.receive_frame()
 
-        # This blocks asynchronously until the camera is ready.
-        frame = await self._camera_handle.receive_frame(allow_cached=is_snapshot_request)
-
-        # TODO: Retry logic.
+        # Empty frame or none.
         if not frame:
-            print("No frame!!!!")
+            if retries > 0:
+                self.logger.debug(f"Failed to get frame, retrying in {retry_timeout} seconds")
+                await asyncio.sleep(retry_timeout)
+                await self.on_webcam_snapshot(data, retries - 1, retry_timeout)
+            else:
+                self.logger.debug("Failed to get frame, giving up.")
+
             return
 
         # Capture snapshot events and send them to the API
-        if is_snapshot_request:
-            # Post snapshot to API
+        if data.id is not None:
             await SimplyPrintApi.post_snapshot(data.id, frame, endpoint=data.endpoint)
             self.logger.debug(f"Posted snapshot to API with id {data.id}")
             return
 
-        self.printer.webcam_info.connected = True
+        # Mark the webcam as connected if it's not already.
+        if not self.printer.webcam_info.connected:
+            self.printer.webcam_info.connected = True
 
         async with self._stream_lock:
+            # Prevent racing between receiving frames and sending them.
             await self.printer.intervals.wait_for("webcam")
             b64frame = base64.b64encode(frame).decode("utf-8")
             await self.send(StreamMsg(b64frame))
