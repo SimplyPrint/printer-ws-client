@@ -303,11 +303,12 @@ class Client(ABC, Generic[TConfig], EventLoopProvider[asyncio.AbstractEventLoop]
         self.state = State.CONNECTED
         self.signal()
 
-    # client methods
-
-    async def send(self, msg: ClientMsg[ClientMsgType]):
+    async def send(self, msg: ClientMsg[ClientMsgType], skip_dispatch=False):
+        """External send method (applies dispatch mode)."""
         # check dispatch mode + use interval (automatically)
-        if msg.dispatch_mode(self.printer) != DispatchMode.DISPATCH:
+
+        if not skip_dispatch and (dispatch_mode := msg.dispatch_mode(self.printer)) != DispatchMode.DISPATCH:
+            self.logger.warning("Dropped message %s due to dispatch mode %s.", msg, dispatch_mode)
             return
 
         await self.event_bus.emit(ConnectionOutgoingEvent, msg, self.v)
