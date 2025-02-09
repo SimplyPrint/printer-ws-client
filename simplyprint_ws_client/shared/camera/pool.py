@@ -1,5 +1,4 @@
 import logging
-import logging
 import multiprocessing
 import sys
 import threading
