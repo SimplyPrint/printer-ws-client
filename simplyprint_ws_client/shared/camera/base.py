@@ -1,7 +1,6 @@
 from abc import ABC, abstractmethod
-from collections.abc import Coroutine
 from enum import Enum, auto
-from typing import TypeVar, Union, Iterator, Iterable, AsyncIterable, AsyncIterator
+from typing import TypeVar, Union, Iterator, Iterable, AsyncIterable, AsyncIterator, Coroutine
 
 from yarl import URL
 
@@ -33,7 +32,7 @@ class CameraProtocolPollingMode(Enum):
     """Snapshot based"""
 
 
-class BaseCameraProtocol(ABC, Iterable, AsyncIterable):
+class BaseCameraProtocol(ABC, Iterable[FrameT], AsyncIterable[FrameT]):
     uri: URL
 
     def __init__(self, uri: URL, *args, **kwargs):
@@ -58,7 +57,7 @@ class BaseCameraProtocol(ABC, Iterable, AsyncIterable):
         ...
 
     @abstractmethod
-    def read(self) -> Union[Iterator, Coroutine[None, None, AsyncIterator]]:
+    def read(self) -> Union[Iterator[FrameT], Coroutine[None, None, AsyncIterator[FrameT]]]:
         """Read frames from the camera, blocking."""
         ...
 
