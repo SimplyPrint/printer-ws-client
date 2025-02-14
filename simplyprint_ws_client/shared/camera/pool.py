@@ -113,6 +113,11 @@ class CameraWorkerProcess(StoppableProcess, Synchronized):
 
         logging.info("Exiting")
 
+    def stop(self):
+        super().stop()
+        self.command_queue.put(None)
+        self.response_queue.put(None)
+
 
 # How many instances do we allow per process
 _INSTANCES_PER_PROCESS = 10
@@ -176,9 +181,6 @@ class CameraPool(ProcessStoppable, Synchronized):
             for i, process in enumerate(excess):
                 i = value + i
 
-                if process is None:
-                    continue
-
                 # Remove allocation
                 for uuid, (idx, _) in list(self.allocations.items()):
                     if idx != i:
@@ -186,7 +188,7 @@ class CameraPool(ProcessStoppable, Synchronized):
 
                     self.allocations.pop(uuid, None)
 
-                self._stop_process(process)
+                process.stop()
 
     def _start_process(self, process: CameraWorkerProcess):
         with self:
@@ -201,15 +203,6 @@ class CameraPool(ProcessStoppable, Synchronized):
                 daemon=True,
             )
             process.thread.start()
-
-    def _stop_process(self, process: CameraWorkerProcess):
-        with self:
-            if process.is_stopped():
-                return
-
-            process.stop()
-            process.command_queue.put(None)
-            process.response_queue.put(None)
 
     def _next_process_idx(self):
         with self:
