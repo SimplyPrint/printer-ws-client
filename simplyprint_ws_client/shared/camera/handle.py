@@ -1,5 +1,6 @@
 import asyncio
-from typing import TYPE_CHECKING, List
+import time
+from typing import TYPE_CHECKING, List, Tuple, Optional
 
 from .base import FrameT
 from .commands import Response, PollCamera, StartCamera, \
@@ -16,6 +17,8 @@ class CameraHandle(StoppableInterface):
 
     _waiters: List[asyncio.Future]
     _frame_time_window: List[float]
+    _last_poll_time: float
+    _cached_frame: Optional[Tuple[float, FrameT]] = None
 
     def __init__(self, pool: 'CameraPool', camera_id: int):
         self.pool = pool
@@ -34,6 +37,8 @@ class CameraHandle(StoppableInterface):
         if len(self._frame_time_window) > 10:
             self._frame_time_window.pop(0)
 
+        self._cached_frame = (res.time, res.data)
+
         while self._waiters:
             fut = self._waiters.pop(0)
 
@@ -43,8 +48,14 @@ class CameraHandle(StoppableInterface):
             loop = fut.get_loop()
             loop.call_soon_threadsafe(fut.set_result, res.data)
 
-    async def receive_frame(self) -> FrameT:
+    async def receive_frame(self, allow_cached=False) -> FrameT:
+        # Old frame
+        if allow_cached and self._cached_frame is not None:
+            return self._cached_frame[1]
+
+        # New frame
         self.pool.submit_request(PollCamera(self.id))
+        self._last_poll_time = time.time()
         loop = asyncio.get_running_loop()
         fut = loop.create_future()
         self._waiters.append(fut)

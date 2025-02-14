@@ -336,7 +336,7 @@ class DefaultClient(Client[TConfig], ABC):
     """Default prioritized message handling."""
 
     async def send_ping(self) -> None:
-        if not self.printer.intervals.use("ping"):
+        if not self.printer.intervals.is_ready("ping"):
             return
 
         self.printer.latency.ping_now()

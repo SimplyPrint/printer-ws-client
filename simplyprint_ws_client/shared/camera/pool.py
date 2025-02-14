@@ -1,3 +1,4 @@
+import functools
 import logging
 import multiprocessing
 import sys
@@ -8,7 +9,7 @@ from typing import final, List, Dict, Tuple, Optional, Type
 
 from yarl import URL
 
-from .base import BaseCameraProtocol
+from .base import BaseCameraProtocol, FrameT
 from .commands import Request, CreateCamera, Response, PollCamera, \
     StartCamera, StopCamera, DeleteCamera, ReceivedFrame
 from .controller import CameraController
@@ -44,7 +45,7 @@ class CameraWorkerProcess(StoppableProcess, Synchronized):
             if isinstance(req, CreateCamera):
                 with self:
                     self.instances[req.id] = CameraController(
-                        lambda frame: self.response_queue.put(ReceivedFrame(req.id, time.monotonic(), frame)),
+                        functools.partial(self._send_frame, req.id),
                         protocol=req.protocol,
                         pause_timeout=req.pause_timeout,
                     )
@@ -76,6 +77,11 @@ class CameraWorkerProcess(StoppableProcess, Synchronized):
         except Exception as e:
             logging.debug("Error", exc_info=e)
 
+    def _send_frame(self, camera_id: int, frame: Optional[FrameT]):
+        res = ReceivedFrame(camera_id, time.time(), frame)
+        self.response_queue.put(res)
+        logging.debug(f"Sent frame to %s with size %s", camera_id, len(frame) if frame is not None else 0)
+
     def run(self):
         try:
             self._run()
@@ -89,7 +95,7 @@ class CameraWorkerProcess(StoppableProcess, Synchronized):
         self.instances = {}
 
         logging.basicConfig(
-            level=logging.DEBUG,
+            level=logging.INFO,
             format="%(asctime)s [%(process)d] %(message)s", datefmt="%H:%M:%S",
             handlers=[logging.StreamHandler(stream=sys.stdout)]
         )
@@ -124,10 +130,11 @@ class CameraPool(ProcessStoppable, Synchronized):
         ProcessStoppable.__init__(self, **kwargs)
         Synchronized.__init__(self)
 
-        self.processes = [self._create_worker_process() for _ in
-                          range(pool_size or (multiprocessing.cpu_count() - 1))]
+        self.processes = []
         self.protocols = []
         self.allocations = {}
+
+        self.pool_size = pool_size or multiprocessing.cpu_count()
 
     def _create_worker_process(self):
         return CameraWorkerProcess(daemon=True, parent_stoppable=self)
@@ -179,15 +186,13 @@ class CameraPool(ProcessStoppable, Synchronized):
 
                     self.allocations.pop(uuid, None)
 
-                process.stop()
-                process.command_queue.put(None)
-                process.response_queue.put(None)
+                self._stop_process(process)
 
     def _start_process(self, process: CameraWorkerProcess):
-        if process.is_alive() or process.is_stopped():
-            return
-
         with self:
+            if process.is_alive() or process.is_stopped():
+                return
+
             process.start()
 
             process.thread = threading.Thread(
@@ -196,6 +201,16 @@ class CameraPool(ProcessStoppable, Synchronized):
                 daemon=True,
             )
             process.thread.start()
+
+    @staticmethod
+    def _stop_process(process: CameraWorkerProcess):
+        with self:
+            if process.is_stopped():
+                return
+
+            process.stop()
+            process.command_queue.put(None)
+            process.response_queue.put(None)
 
     def _next_process_idx(self):
         with self:

@@ -34,7 +34,7 @@ class ClientSettings:
     event_loop_backend: EventLoopBackend = EventLoopBackend.ASYNCIO
     development: bool = False
     config_manager_t: ConfigManagerType = ConfigManagerType.MEMORY
-    allow_setup: bool = False
+    allow_setup: bool = True
     tick_rate = 1.0
     reconnect_timeout = 5.0
     sentry_dsn: Optional[str] = None

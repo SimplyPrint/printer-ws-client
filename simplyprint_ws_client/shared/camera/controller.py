@@ -76,6 +76,7 @@ class CameraController(SyncStoppable, Synchronized):
 
         if self.pause_timeout:
             self._pause_timer = threading.Timer(self.pause_timeout, self.stop)
+            self._pause_timer.daemon = True
             self._pause_timer.start()
 
     def _read_frame(self):
