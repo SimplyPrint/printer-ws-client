@@ -62,6 +62,7 @@ def autoconfigure(attr: callable):
 
     msg_lookup, msg_data_lookup, demand_lookup = build_autoconfiguration_state()
 
+    # Initially, determine event type based on function name.
     if name.startswith('on_'):
         event_name: str = name[3:]
 

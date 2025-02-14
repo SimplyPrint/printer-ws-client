@@ -179,7 +179,7 @@ class AsyncStoppable(Stoppable[asyncio.Event, asyncio.Condition]):
                 return self.is_stopped()
 
 
-class ProcessStoppable(Stoppable[multiprocessing.Event, multiprocessing.Condition]):
+class ProcessStoppable(Stoppable[Event, multiprocessing.Condition]):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs, default_condition=multiprocessing.Condition())
         self._stop_event_property = self._stop_event_property or multiprocessing.Event()
