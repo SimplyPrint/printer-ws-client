@@ -202,8 +202,7 @@ class CameraPool(ProcessStoppable, Synchronized):
             )
             process.thread.start()
 
-    @staticmethod
-    def _stop_process(process: CameraWorkerProcess):
+    def _stop_process(self, process: CameraWorkerProcess):
         with self:
             if process.is_stopped():
                 return

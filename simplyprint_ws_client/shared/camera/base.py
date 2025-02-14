@@ -33,7 +33,7 @@ class CameraProtocolPollingMode(Enum):
     """Snapshot based"""
 
 
-class BaseCameraProtocol(ABC, Iterable[FrameT], AsyncIterable[FrameT]):
+class BaseCameraProtocol(ABC, Iterable, AsyncIterable):
     uri: URL
 
     def __init__(self, uri: URL, *args, **kwargs):
@@ -58,7 +58,7 @@ class BaseCameraProtocol(ABC, Iterable[FrameT], AsyncIterable[FrameT]):
         ...
 
     @abstractmethod
-    def read(self) -> Union[Iterator[FrameT], Coroutine[None, None, AsyncIterator[FrameT]]]:
+    def read(self) -> Union[Iterator, Coroutine[None, None, AsyncIterator]]:
         """Read frames from the camera, blocking."""
         ...
 
