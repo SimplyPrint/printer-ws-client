@@ -6,6 +6,7 @@ from multiprocessing.synchronize import Event
 from typing import Optional, Union, TypeVar, Generic
 
 from ..asyncio.async_task_scope import AsyncTaskScope
+from ..asyncio.event_loop_provider import EventLoopProvider
 
 TStopEvent = TypeVar("TStopEvent", bound=Union[threading.Event, asyncio.Event, multiprocessing.Condition])
 TCondition = TypeVar("TCondition", bound=Union[threading.Condition, asyncio.Condition, multiprocessing.Condition])
@@ -164,7 +165,7 @@ class AsyncStoppable(Stoppable[asyncio.Event, asyncio.Condition]):
         self._stop_event_property = self._stop_event_property or asyncio.Event()
 
     async def wait(self, timeout: Optional[float] = None) -> bool:
-        with AsyncTaskScope(provider=self) as task_scope:
+        with AsyncTaskScope(provider=EventLoopProvider.default()) as task_scope:
             try:
                 await asyncio.wait(
                     map(task_scope.create_task,
