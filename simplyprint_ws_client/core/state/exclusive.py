@@ -1,13 +1,13 @@
 __all__ = ['Exclusive']
 
-from typing import TypeVar, TYPE_CHECKING, TypeAlias
+from typing import TypeVar, TYPE_CHECKING
 
 from pydantic import RootModel
 
 T = TypeVar('T')
 
 if TYPE_CHECKING:
-    Exclusive: TypeAlias = T
+    Exclusive = T
 else:
     class Exclusive(RootModel[T]):
         root: T
@@ -17,10 +17,7 @@ else:
 
         def __eq__(self, other):
             """An exclusive object is only equal to itself."""
-            if isinstance(other, Exclusive):
-                return self is other
-
-            return False
+            return self is other
 
         def __bool__(self):
             return bool(self.root)
