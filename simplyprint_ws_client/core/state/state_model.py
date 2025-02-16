@@ -9,7 +9,7 @@ from typing import Optional, Dict, Any, TypeVar, TYPE_CHECKING, ClassVar, Type, 
 
 from pydantic import BaseModel, PrivateAttr
 
-from .exclusive_bool import ExclusiveBool
+from .exclusive import Exclusive
 
 TStateModel = TypeVar("TStateModel", bound="StateModel")
 
@@ -24,7 +24,7 @@ class StateModel(BaseModel):
         str,
         int, float,
         bool,
-        ExclusiveBool,
+        Exclusive,
         decimal.Decimal,
         datetime.datetime, datetime.date, datetime.time, datetime.timedelta,
         BaseModel,

@@ -27,9 +27,9 @@ __all__ = [
 import time
 from typing import Optional, Literal, no_type_check, Union, List, Set, ClassVar
 
-from pydantic import Field, field_validator
+from pydantic import Field
 
-from .exclusive_bool import ExclusiveBool
+from .exclusive import Exclusive
 from .models import *
 from .state_model import StateModel
 from ..config import PrinterConfig
@@ -162,23 +162,21 @@ class JobInfoState(StateModel, validate_assignment=True):
     layer: Optional[int] = None
     time: Optional[float] = None
     filament: Optional[float] = None
-    filename: Optional[str] = None
+    filename: Optional[Exclusive[str]] = None
     delay: Optional[float] = None
     # Deprecated.
     # ai: List[int]
 
     # These needs to always trigger a reset.
-    started: Union[ExclusiveBool, bool] = Field(default_factory=ExclusiveBool)
-    finished: Union[ExclusiveBool, bool] = Field(default_factory=ExclusiveBool)
-    cancelled: Union[ExclusiveBool, bool] = Field(default_factory=ExclusiveBool)
-    failed: Union[ExclusiveBool, bool] = Field(default_factory=ExclusiveBool)
+    started: Exclusive[bool] = Field(default_factory=lambda: Exclusive[bool](False))
+    finished: Exclusive[bool] = Field(default_factory=lambda: Exclusive[bool](False))
+    cancelled: Exclusive[bool] = Field(default_factory=lambda: Exclusive[bool](False))
+    failed: Exclusive[bool] = Field(default_factory=lambda: Exclusive[bool](False))
+
+    # Mark a print job as a reprint of a previous (not-cleared) job from the client.
+    reprint: Optional[Exclusive[int]] = None
 
     MUTUALLY_EXCLUSIVE_FIELDS: ClassVar[Set[str]] = {'started', 'finished', 'cancelled', 'failed'}
-
-    @field_validator(*MUTUALLY_EXCLUSIVE_FIELDS, mode='before')
-    @classmethod
-    def convert_to_always_true(cls, value):
-        return ExclusiveBool(value=value)
 
     @no_type_check
     def __setattr__(self, key, value):
