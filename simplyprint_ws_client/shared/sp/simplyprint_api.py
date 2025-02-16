@@ -1,4 +1,5 @@
 import base64
+import json
 from typing import Optional, Union
 
 import aiohttp
@@ -10,8 +11,11 @@ from ...const import VERSION
 
 class SimplyPrintApi:
     @staticmethod
-    async def post_snapshot(snapshot_id: str, image_data: bytes, endpoint: Union[str, URL, None] = None):
-
+    async def post_snapshot(
+            snapshot_id: str,
+            image_data: bytes,
+            endpoint: Union[str, URL, None] = None
+    ):
         if endpoint is None:
             endpoint = SimplyPrintURL().api_url / "jobs" / "ReceiveSnapshot"
 
@@ -61,3 +65,36 @@ class SimplyPrintApi:
                     raise Exception(f"Failed to post logs: {await response.text()}")
 
                 return await response.json()
+
+    @staticmethod
+    async def clear_bed(
+            printer_id: int,
+            action_token: str,
+            success: bool,
+            rating: Optional[int] = None,
+    ):
+        headers = {
+            "X-Action-Token": action_token,
+        }
+
+        # Hacky: extract company_id from action_token itself (jwt)
+        company_id = json.loads(base64.b64decode(action_token.split(".")[1] + "===").decode("utf-8"))["company"]
+
+        endpoint = SimplyPrintURL().api_url / str(company_id) / "printers" / "actions" / "ClearBed" % {
+            "pid": printer_id}
+
+        data = {
+            "success": success,
+            "rating":  rating,
+        }
+
+        async with aiohttp.ClientSession() as session:
+            async with session.post(str(endpoint), json=data, headers=headers, timeout=45) as response:
+                if response.status != 200:
+                    raise Exception(f"Failed to clear bed: {await response.text()}")
+
+                return await response.json()
+
+    @staticmethod
+    async def start_next_print():
+        ...

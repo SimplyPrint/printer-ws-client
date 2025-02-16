@@ -254,7 +254,7 @@ class ErrorMsg(Msg[Literal[ServerMsgType.ERROR], ErrorMsgData]):
 class NewTokenMsgData(BaseModel):
     short_id: str
     token: str
-    no_exist: Union[bool, None] = None
+    no_exist: Optional[bool] = None
 
 
 class NewTokenMsg(Msg[Literal[ServerMsgType.NEW_TOKEN], NewTokenMsgData]):
@@ -265,9 +265,9 @@ class ConnectedMsgData(BaseModel):
     in_setup: bool = False
     intervals: Optional[Intervals] = None
     printer_settings: Optional[PrinterSettings] = None
-    short_id: Union[str, None] = None
-    reconnect_token: Union[str, None] = None
-    name: Union[str, None] = None
+    short_id: Optional[str] = None
+    reconnect_token: Optional[str] = None
+    name: Optional[str] = None
     region: str
 
 
@@ -367,6 +367,7 @@ class FileDemandData(BaseModel):
     start_options: Dict[str, bool] = Field(default_factory=dict)
     zip_printable: Optional[str] = None
     mms_map: Optional[List[Optional[int]]] = None
+    action_token: Optional[str] = None
 
     @field_validator('mms_map', mode='after')
     @classmethod

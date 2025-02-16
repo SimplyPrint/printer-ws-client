@@ -28,6 +28,7 @@ from ..events.event import sync_only
 from ..shared.asyncio.event_loop_provider import EventLoopProvider
 from ..shared.hardware.physical_machine import PhysicalMachine
 from ..shared.logging import ClientName
+from ..shared.sp.simplyprint_api import SimplyPrintApi
 from ..shared.utils.backoff import Backoff, ExponentialBackoff
 
 # Map message producers
@@ -333,7 +334,14 @@ class Client(ABC, Generic[TConfig], EventLoopProvider[asyncio.AbstractEventLoop]
 
 
 class DefaultClient(Client[TConfig], ABC):
-    """Default prioritized message handling."""
+    """
+    Default prioritized message handling.
+
+    Attributes:
+        _file_action_token: File action token
+    """
+
+    _file_action_token: Optional[str] = None
 
     async def send_ping(self) -> None:
         if not self.printer.intervals.is_ready("ping"):
@@ -341,6 +349,12 @@ class DefaultClient(Client[TConfig], ABC):
 
         self.printer.latency.ping_now()
         await self.send(PingMsg())
+
+    async def clear_bed(self, success: bool = True, rating: Optional[int] = None):
+        try:
+            await SimplyPrintApi.clear_bed(self.config.id, self._file_action_token, success, rating)
+        except Exception as e:
+            self.logger.warning("Failed to clear bed: %s", e)
 
     # Default event handling.
 
@@ -396,6 +410,11 @@ class DefaultClient(Client[TConfig], ABC):
     def _on_webcam_snapshot(self, data: WebcamSnapshotDemandData):
         if data.timer is not None:
             self.printer.intervals.webcam = data.timer
+
+    @configure(DemandMsgType.FILE, priority=1)
+    def _on_file_demand(self, data: FileDemandData):
+        """Store file action_token for later use."""
+        self._file_action_token = data.action_token
 
 
 class PhysicalClient(DefaultClient[TConfig], ABC):
