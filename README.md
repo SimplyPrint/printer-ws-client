@@ -7,7 +7,7 @@ This package version v1.0.0 is under major development and is not yet ready for 
 
 ## Usage
 
-TBD
+TBD.
 
 ## TODO
 
@@ -15,3 +15,6 @@ TBD
 - [ ] Add examples
 - [ ] Add tests for event system and reactivity
 - [ ] Unify event bus api with printer events.
+- [ ] Move away from `ClientCli` and integrate with `click` directly
+- [ ] Expand client to a plugin/module based system
+- [ ] Update config backend

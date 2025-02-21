@@ -1,6 +1,6 @@
 import unittest
 
-from simplyprint_ws_client.core.state import Intervals
+from simplyprint_ws_client import Intervals
 
 
 class TimeControlledIntervals(Intervals):

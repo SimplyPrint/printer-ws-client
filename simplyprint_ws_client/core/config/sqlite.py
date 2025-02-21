@@ -1,3 +1,5 @@
+__all__ = ["SQLiteConfigManager"]
+
 import json
 import logging
 import sqlite3

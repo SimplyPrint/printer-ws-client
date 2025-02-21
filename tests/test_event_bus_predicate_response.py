@@ -1,7 +1,7 @@
 import asyncio
 import unittest
 
-from simplyprint_ws_client.core.ws_protocol.messages import MultiPrinterAddedMsg
+from simplyprint_ws_client import MultiPrinterAddedMsg
 from simplyprint_ws_client.events import EventBus
 from simplyprint_ws_client.events.event_bus_middleware import EventBusPredicateResponseMiddleware
 from simplyprint_ws_client.shared.events.predicate import IsInstance, Eq, Extract

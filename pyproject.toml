@@ -1,57 +1,51 @@
-[tool.poetry]
+[project]
 name = "simplyprint-ws-client"
 version = "1.0.1rc10"
-license = "AGPL-3.0-or-later"
-authors = ["SimplyPrint <contact@simplyprint.io>"]
 description = "SimplyPrint Websocket Client"
-homepage = "https://simplyprint.io"
-repository = "https://github.com/SimplyPrint/printer-ws-client"
-keywords = ["simplyprint", "websocket", "client"]
+authors = [{ name = "SimplyPrint", email = "contact@simplyprint.io" }]
+requires-python = "~=3.8"
 readme = "README.md"
-
-packages = [
-    { include = "simplyprint_ws_client" },
+license = "AGPL-3.0-or-later"
+keywords = [
+    "simplyprint",
+    "websocket",
+    "client",
+]
+dependencies = [
+    "click>=8.1.7,<9",
+    "psutil>=6.0.0,<7",
+    "netifaces>=0.11.0,<0.12",
+    "sentry-sdk>=2.19.2,<3",
+    "platformdirs>=4.3.6,<5",
+    "pydantic>2.7",
+    "typing-extensions",
+    "aiohttp>=3.11.12,<4 ; python_version >= '3.9'",
+    "aiohttp>=3.10.11,<4 ; python_version < '3.9'",
+    "yarl>=1.18.3,<2 ; python_version >= '3.9'",
+    "yarl>=1.15.2,<2 ; python_version < '3.9'",
+    "async-timeout ; python_version < '3.11'",
+    "strenum ; python_version < '3.11'",
 ]
 
-[tool.poetry.dependencies]
-click = "^8.1.7"
-psutil = "^6.0.0"
-python = "^3.8"
-netifaces = "^0.11.0"
-sentry-sdk = "^2.19.2"
-platformdirs = "^4.3.6"
-pydantic = ">2.7"
-typing-extensions = "*"
+[project.optional-dependencies]
+uvloop = []
 
-aiohttp = [
-    # Python 3.8 support dropped in 3.11.0
-    { version = "^3.11.12", python = ">=3.9" },
-    { version = "^3.10.11", python = "<3.9" }
-]
-
-yarl = [
-    # Python 3.8 support dropped in 1.15.3
-    { version = "^1.18.3", python = ">=3.9" },
-    { version = "^1.15.2", python = "<3.9" },
-]
-
-# Install async_timeout for python < 3.11
-async-timeout = { version = "*", python = "<3.11" }
-
-# Install strenum for python < 3.11
-strenum = { version = "*", python = "<3.11" }
-
-[tool.poetry.dev-dependencies]
-unittest = "*"
-pylint = "*"
-
-[tool.poetry.extras]
-uvloop = ["uvloop"]
-
-
-[tool.poetry.urls]
+[project.urls]
+Homepage = "https://simplyprint.io"
+Repository = "https://github.com/SimplyPrint/printer-ws-client"
 "Bug Tracker" = "https://github.com/SimplyPrint/printer-ws-client/issues"
 
+[dependency-groups]
+dev = [
+    "pylint",
+]
+
+[tool.hatch.build.targets.sdist]
+include = ["simplyprint_ws_client"]
+
+[tool.hatch.build.targets.wheel]
+include = ["simplyprint_ws_client"]
+
 [build-system]
-requires = ["poetry-core>=1.0.0"]
-build-backend = "poetry.core.masonry.api"
+requires = ["hatchling"]
+build-backend = "hatchling.build"

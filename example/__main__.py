@@ -1,7 +1,4 @@
-from simplyprint_ws_client.core.app import ClientApp
-from simplyprint_ws_client.core.config import ConfigManagerType
-from simplyprint_ws_client.core.settings import ClientSettings
-from simplyprint_ws_client.core.ws_protocol.connection import ConnectionMode
+from simplyprint_ws_client import ClientApp, ConfigManagerType, ClientSettings, ConnectionMode
 from simplyprint_ws_client.shared.cli.cli import ClientCli
 from simplyprint_ws_client.shared.logging import setup_logging
 from .virtual_client import VirtualClient, VirtualConfig, VirtualCamera

@@ -1,3 +1,5 @@
+__all__ = ["MemoryConfigManager"]
+
 from typing import Optional
 
 from .manager import ConfigManager

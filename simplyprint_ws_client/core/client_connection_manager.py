@@ -7,11 +7,14 @@ Supports two functionalities.
 - Deallocate client
 
 """
+
+__all__ = ["ClientConnectionManager"]
+
 import asyncio
 import functools
 from typing import final, Dict, Optional, Set, cast, Iterable
 
-from .client import Client, State
+from .client import Client, ClientState
 from .client_list import ClientList, TUniqueId
 from .client_view import ClientView
 from .config import PrinterConfig
@@ -115,7 +118,7 @@ class ClientConnectionManager(AsyncStoppable, EventLoopProvider[asyncio.Abstract
 
         if connection.connected:
             client.v = connection.v
-            client.state = State.NOT_CONNECTED
+            client.state = ClientState.NOT_CONNECTED
 
         self.client_views[client.unique_id] = view
         view.add(client)

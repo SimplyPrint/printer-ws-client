@@ -1,9 +1,11 @@
+__all__ = ["Scheduler"]
+
 import asyncio
 import logging
 from datetime import datetime, timedelta
 from typing import Dict, Set
 
-from .client import Client, State
+from .client import Client, ClientState
 from .client_connection_manager import ClientConnectionManager, ClientList
 from .settings import ClientSettings
 from ..shared.asyncio.async_task_scope import AsyncTaskScope
@@ -200,7 +202,7 @@ class Scheduler(AsyncStoppable, EventLoopProvider[asyncio.AbstractEventLoop]):
                 self._to_delete.discard(client_id)
                 continue
 
-            if client.active or client.state > State.NOT_CONNECTED:
+            if client.active or client.state > ClientState.NOT_CONNECTED:
                 continue
 
             self._delete(client)

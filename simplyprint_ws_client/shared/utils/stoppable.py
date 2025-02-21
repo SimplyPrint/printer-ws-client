@@ -165,6 +165,12 @@ class AsyncStoppable(Stoppable[asyncio.Event, asyncio.Condition]):
         self._stop_event_property = self._stop_event_property or asyncio.Event()
 
     async def wait(self, timeout: Optional[float] = None) -> bool:
+        """
+        FIXME: Currently AsyncStoppable does not require the implementer to also extend
+        EventLoopProvider, so we have no explicit loop binding *always* although it was
+        previously assumed, for now we always use the `default` loop which currently
+        is the running loop.
+        """
         with AsyncTaskScope(provider=EventLoopProvider.default()) as task_scope:
             try:
                 await asyncio.wait(

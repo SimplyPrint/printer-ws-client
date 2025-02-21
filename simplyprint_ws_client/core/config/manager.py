@@ -1,3 +1,5 @@
+__all__ = ["ConfigManager"]
+
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Generic, List, Optional, Type, TypeVar, Set

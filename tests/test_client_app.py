@@ -1,9 +1,6 @@
 import unittest
 
-from simplyprint_ws_client.core.app import ClientApp
-from simplyprint_ws_client.core.client import DefaultClient
-from simplyprint_ws_client.core.config import PrinterConfig
-from simplyprint_ws_client.core.settings import ClientSettings
+from simplyprint_ws_client import *
 
 
 class TestClientApp(unittest.TestCase):

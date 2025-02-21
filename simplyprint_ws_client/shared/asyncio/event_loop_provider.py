@@ -23,6 +23,7 @@ class EventLoopProvider(Generic[TEventLoop]):
 
     def __init__(self, loop: Optional[TEventLoop] = None, factory: Optional[TEventLoopFactory] = None,
                  provider: Optional[Self] = None, **kwargs):
+        # TODO: raise an error if no loops are provided / no default is used?
         self.__event_loop = loop
         self.__event_loop_factory = factory or (
             (lambda *args, **_: provider.event_loop) if provider is not None else None)

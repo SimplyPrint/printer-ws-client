@@ -1,6 +1,6 @@
 import unittest
 
-from simplyprint_ws_client.core.config import PrinterConfig
+from simplyprint_ws_client import PrinterConfig
 
 
 class TestConfigManager(unittest.TestCase):

@@ -5,12 +5,11 @@ __all__ = ['FakeFileProgress']
 import asyncio
 from typing import Optional
 
-from simplyprint_ws_client.core.client import Client
-from simplyprint_ws_client.core.state import FileProgressStateEnum
-from simplyprint_ws_client.shared.asyncio.continuous_task import ContinuousTask
-from simplyprint_ws_client.shared.asyncio.event_loop_provider import EventLoopProvider
-from simplyprint_ws_client.shared.utils.backoff import Backoff, ConstantBackoff
-from simplyprint_ws_client.shared.utils.stoppable import AsyncStoppable
+from ..asyncio.continuous_task import ContinuousTask
+from ..asyncio.event_loop_provider import EventLoopProvider
+from ..utils.backoff import Backoff, ConstantBackoff
+from ..utils.stoppable import AsyncStoppable
+from ...core import Client, FileProgressStateEnum
 
 
 class FakeFileProgress(AsyncStoppable):

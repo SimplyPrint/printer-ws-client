@@ -1,7 +1,9 @@
+__all__ = ["Config", "PrinterConfig"]
+
 import json
 import uuid
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, fields, is_dataclass
+from dataclasses import dataclass, fields
 from typing import Optional, Tuple
 
 try:
@@ -10,6 +12,7 @@ except ImportError:
     from typing_extensions import Self
 
 TKey = Tuple[int, str]
+
 
 # TODO: Replace with a proper ORM-component
 # And centralize the config management file with tables, versioning, singleton instances (settings)

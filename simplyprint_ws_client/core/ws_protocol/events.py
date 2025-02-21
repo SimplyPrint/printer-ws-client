@@ -2,7 +2,7 @@
 Events sent to and from a connection.
 """
 
-from simplyprint_ws_client.events import Event
+from ...events import Event
 
 
 class ConnectionEvent(Event):
@@ -29,5 +29,3 @@ class ConnectionLostEvent(ConnectionEvent):
 
     def __init__(self, v: int):
         self.v = v
-
-

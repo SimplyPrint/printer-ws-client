@@ -1,3 +1,5 @@
+__all__ = ["ClientApp"]
+
 import asyncio
 import functools
 import logging

@@ -1,3 +1,5 @@
+__all__ = ["JsonConfigManager"]
+
 import json
 import logging
 import threading

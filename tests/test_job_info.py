@@ -1,10 +1,7 @@
 import unittest
 import weakref
 
-from simplyprint_ws_client.core.client import Client
-from simplyprint_ws_client.core.config import PrinterConfig
-from simplyprint_ws_client.core.state import JobInfoState, PrinterState
-from simplyprint_ws_client.core.ws_protocol.messages import JobInfoMsg
+from simplyprint_ws_client import Client, PrinterConfig, JobInfoState, PrinterState, JobInfoMsg
 
 
 def job_state_consistent(state: JobInfoState):

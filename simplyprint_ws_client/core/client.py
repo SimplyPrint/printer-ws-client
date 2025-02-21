@@ -4,7 +4,7 @@ __all__ = [
     'ClientStateChangeEvent',
     'DefaultClient',
     'PhysicalClient',
-    'State',
+    'ClientState',
     'configure',
 ]
 
@@ -58,7 +58,7 @@ class InstrumentClientMeta(ABCMeta):
         return super().__new__(cls, name, bases, class_dict, **kwargs)
 
 
-class State(IntEnum):
+class ClientState(IntEnum):
     """
     CONNECTING -> Connection not established, pending establishment.
     NOT_CONNECTED -> Connection established, not connected.
@@ -78,7 +78,7 @@ class State(IntEnum):
 
 class VersionedState(NamedTuple):
     v: int
-    s: State
+    s: ClientState
 
 
 class ClientConfigChangedEvent(Event):
@@ -131,7 +131,7 @@ class Client(ABC, Generic[TConfig], EventLoopProvider[asyncio.AbstractEventLoop]
         ABC.__init__(self)
         Generic.__init__(self)
         EventLoopProvider.__init__(self, provider=event_loop_provider)
-        self._state = VersionedState(-1, State.CONNECTING)
+        self._state = VersionedState(-1, ClientState.CONNECTING)
         self.printer = PrinterState(config=config)
         self.printer.provide_context(weakref.ref(self))
         self.printer.set_extruder_count(1)
@@ -161,14 +161,14 @@ class Client(ABC, Generic[TConfig], EventLoopProvider[asyncio.AbstractEventLoop]
         self.signal()
 
     @property
-    def state(self) -> State:
+    def state(self) -> ClientState:
         if self.v != self._state.v:
-            return State.CONNECTING
+            return ClientState.CONNECTING
 
         return self._state.s
 
     @state.setter
-    def state(self, value: State):
+    def state(self, value: ClientState):
         self._state = VersionedState(self.v, value)
         self.logger.debug(f"State changed to {self._state}")
         self.signal()
@@ -184,24 +184,24 @@ class Client(ABC, Generic[TConfig], EventLoopProvider[asyncio.AbstractEventLoop]
     # coordination methods
 
     def is_added(self) -> bool:
-        return self.state == State.CONNECTED
+        return self.state == ClientState.CONNECTED
 
     def is_removed(self) -> bool:
-        return self.state <= State.NOT_CONNECTED
+        return self.state <= ClientState.NOT_CONNECTED
 
     async def ensure_added(self, mode: ConnectionMode, allow_setup=False) -> bool:
         """Progress inner state based on mode protocol. Goal: Connected"""
         # For the single connection mode we do not have to perform any
         # additional actions beyond the initial connection.
         if mode == ConnectionMode.SINGLE:
-            return self.state == State.CONNECTED
+            return self.state == ClientState.CONNECTED
 
-        if self.state == State.NOT_CONNECTED and self._can_do_pending():
-            self.state = State.PENDING_ADDED
+        if self.state == ClientState.NOT_CONNECTED and self._can_do_pending():
+            self.state = ClientState.PENDING_ADDED
             await self.send(MultiPrinterAddConnectionMsg(self.config, allow_setup))
             self._do_pending()
 
-        return self.state == State.CONNECTED
+        return self.state == ClientState.CONNECTED
 
     async def ensure_removed(self, mode: ConnectionMode) -> bool:
         """Ensure that the client is removed from the multi printer.
@@ -211,14 +211,14 @@ class Client(ABC, Generic[TConfig], EventLoopProvider[asyncio.AbstractEventLoop]
         """
 
         if mode == ConnectionMode.SINGLE:
-            return self.state == State.CONNECTING
+            return self.state == ClientState.CONNECTING
 
-        if self.state == State.CONNECTED and self._can_do_pending():
-            self.state = State.PENDING_REMOVED
+        if self.state == ClientState.CONNECTED and self._can_do_pending():
+            self.state = ClientState.PENDING_REMOVED
             await self.send(MultiPrinterRemoveConnectionMsg(self.config))
             self._do_pending()
 
-        return self.state <= State.NOT_CONNECTED
+        return self.state <= ClientState.NOT_CONNECTED
 
     def _can_do_pending(self):
         now = datetime.now()
@@ -262,8 +262,8 @@ class Client(ABC, Generic[TConfig], EventLoopProvider[asyncio.AbstractEventLoop]
     def _on_connection_established(self, event: ConnectionEstablishedEvent):
         self.v = event.v
 
-        if self.state == State.CONNECTING:
-            self.state = State.NOT_CONNECTED
+        if self.state == ClientState.CONNECTING:
+            self.state = ClientState.NOT_CONNECTED
 
     @configure(ConnectionLostEvent)
     def _on_connection_lost(self, event: ConnectionLostEvent):
@@ -273,7 +273,7 @@ class Client(ABC, Generic[TConfig], EventLoopProvider[asyncio.AbstractEventLoop]
         # handle connection lost.
         self.v = event.v
         self._pending_action_backoff.reset()
-        self.state = State.CONNECTING
+        self.state = ClientState.CONNECTING
         self.signal()
 
     # important functional event handling
@@ -282,26 +282,26 @@ class Client(ABC, Generic[TConfig], EventLoopProvider[asyncio.AbstractEventLoop]
     async def _on_multi_printer_added(self, msg: MultiPrinterAddedMsg):
         if not msg.data.status:
             self.logger.debug("Failed to add connection. %s", msg)
-            self.state = State.NOT_CONNECTED
+            self.state = ClientState.NOT_CONNECTED
             self.signal()
             return
 
         # A successful addition does not require a backoff.
         self._pending_action_backoff.reset()
         self.config.id = msg.data.pid
-        self.state = State.CONNECTED
+        self.state = ClientState.CONNECTED
         self.signal()
 
     @configure(ServerMsgType.REMOVE_CONNECTION, priority=1)
     async def _on_multi_printer_removed(self, msg: MultiPrinterRemovedMsg):
         self.logger.debug("Connection removed. %s", msg)
-        self.state = State.NOT_CONNECTED
+        self.state = ClientState.NOT_CONNECTED
         self.signal()
 
     @configure(ServerMsgType.CONNECTED, priority=2)
     async def _on_connected_state(self):
         self.printer.mark_common_fields_as_changed()
-        self.state = State.CONNECTED
+        self.state = ClientState.CONNECTED
         self.signal()
 
     async def send(self, msg: ClientMsg[ClientMsgType], skip_dispatch=False):

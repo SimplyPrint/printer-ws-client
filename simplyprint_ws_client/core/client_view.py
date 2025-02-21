@@ -1,3 +1,5 @@
+__all__ = ["ClientView"]
+
 import logging
 from typing import Union, Hashable, Set, MutableSet
 

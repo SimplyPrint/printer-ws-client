@@ -2,7 +2,7 @@ import unittest
 
 from pydantic import Field
 
-from simplyprint_ws_client.core.state import AmbientTemperatureState, StateModel, TemperatureState
+from simplyprint_ws_client import AmbientTemperatureState, StateModel, TemperatureState
 
 
 class TestState(StateModel):
