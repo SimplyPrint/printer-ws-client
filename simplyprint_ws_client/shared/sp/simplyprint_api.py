@@ -96,5 +96,24 @@ class SimplyPrintApi:
                 return await response.json()
 
     @staticmethod
-    async def start_next_print():
-        ...
+    async def start_next_print(printer_id: int, action_token: str):
+        headers = {
+            "X-Action-Token": action_token,
+        }
+
+        # Hacky: extract company_id from action_token itself (jwt)
+        company_id = json.loads(base64.b64decode(action_token.split(".")[1] + "===").decode("utf-8"))["company"]
+
+        data = {
+            "pid":             printer_id,
+            "next_queue_item": True,
+        }
+
+        endpoint = SimplyPrintURL().api_url / str(company_id) / "printers" / "actions" / "CreateJob"
+
+        async with aiohttp.ClientSession() as session:
+            async with session.post(str(endpoint), json=data, headers=headers, timeout=45) as response:
+                if response.status != 200:
+                    raise Exception(f"Failed to start next print: {await response.text()}")
+
+                return await response.json()

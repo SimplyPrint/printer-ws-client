@@ -356,6 +356,12 @@ class DefaultClient(Client[TConfig], ABC):
         except Exception as e:
             self.logger.warning("Failed to clear bed: %s", e)
 
+    async def start_next_print(self):
+        try:
+            await SimplyPrintApi.start_next_print(self.config.id, self._file_action_token)
+        except Exception as e:
+            self.logger.warning("Failed to start next print: %s", e)
+
     # Default event handling.
 
     @configure(ServerMsgType.ERROR, priority=1)
