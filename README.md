@@ -17,4 +17,6 @@ TBD.
 - [ ] Unify event bus api with printer events.
 - [ ] Move away from `ClientCli` and integrate with `click` directly
 - [ ] Expand client to a plugin/module based system
-- [ ] Update config backend
+- [ ] Update config backend (Only pydantic)
+- [ ] Provide nicer interface for sending especially job_info (e.i. job management logic) so we can bundle important
+  steps together for consistency.

@@ -725,6 +725,10 @@ class JobInfoMsg(ClientMsg[Literal[ClientMsgType.JOB_INFO]]):
             if key == "progress":
                 value = round(value)
 
+            # XXX: job_info does not really support "null" values.
+            if value is None:
+                continue
+
             # These values are not allowed to be sent as anything but true.
             if key in JobInfoState.MUTUALLY_EXCLUSIVE_FIELDS and not value:
                 continue

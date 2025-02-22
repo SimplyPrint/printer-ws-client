@@ -54,7 +54,7 @@ class EventBusWorker(Emitter[TEvent], StoppableInterface, ABC):
         try:
             while True:
                 self.event_queue.get_nowait()
-        except Empty:
+        except (Empty, asyncio.QueueEmpty):
             pass
 
         self.event_queue.put_nowait(None)
