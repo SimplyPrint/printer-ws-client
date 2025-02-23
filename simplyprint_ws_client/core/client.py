@@ -338,9 +338,11 @@ class DefaultClient(Client[TConfig], ABC):
     Default prioritized message handling.
 
     Attributes:
+        _have_cleared_bed: Keep track of whether we have called the API successfully to prevent many irrelevant calls.
         _file_action_token: File action token
     """
 
+    _have_cleared_bed: bool = False
     _file_action_token: Optional[str] = None
 
     async def send_ping(self) -> None:
@@ -351,8 +353,12 @@ class DefaultClient(Client[TConfig], ABC):
         await self.send(PingMsg())
 
     async def clear_bed(self, success: bool = True, rating: Optional[int] = None):
+        if self._have_cleared_bed:
+            return
+
         try:
             await SimplyPrintApi.clear_bed(self.config.id, self._file_action_token, success, rating)
+            self._have_cleared_bed = True
         except Exception as e:
             self.logger.warning("Failed to clear bed: %s", e)
 
@@ -421,6 +427,7 @@ class DefaultClient(Client[TConfig], ABC):
     def _on_file_demand(self, data: FileDemandData):
         """Store file action_token for later use."""
         self._file_action_token = data.action_token
+        self._have_cleared_bed = False
 
 
 class PhysicalClient(DefaultClient[TConfig], ABC):
