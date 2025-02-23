@@ -1,6 +1,7 @@
 import functools
 import logging
 import multiprocessing
+import os
 import sys
 import threading
 import time
@@ -95,7 +96,7 @@ class CameraWorkerProcess(StoppableProcess, Synchronized):
         self.instances = {}
 
         logging.basicConfig(
-            level=logging.INFO,
+            level=logging.DEBUG if os.environ.get("SIMPLYPRINT_DEBUG_CAMERA", False) else logging.INFO,
             format="%(asctime)s [%(process)d] %(message)s", datefmt="%H:%M:%S",
             handlers=[logging.StreamHandler(stream=sys.stdout)]
         )
