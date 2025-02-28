@@ -175,7 +175,7 @@ class VirtualClient(DefaultClient[VirtualConfig], ClientCameraMixin):
         else:
             self.printer.tool_temperatures[0].actual = 20.0
 
-        self.printer.ambient_temperature.ambient = 20
+        self.printer.ambient_temperature.tick(self.printer)
 
         if self.printer.status == PrinterStatus.PRINTING and not self.printer.is_heating():
             self.printer.job_info.progress = expt_smooth(

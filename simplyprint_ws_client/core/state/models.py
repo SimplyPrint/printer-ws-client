@@ -37,6 +37,16 @@ class PrinterStatus(StrEnum):
     ERROR = "error"
     NOT_READY = "not_ready"
 
+    @staticmethod
+    def is_printing(*status: Optional['PrinterStatus']) -> bool:
+        return len(set(status).intersection({
+            PrinterStatus.PRINTING,
+            PrinterStatus.PAUSED,
+            PrinterStatus.PAUSING,
+            PrinterStatus.RESUMING,
+            PrinterStatus.CANCELLING,
+        })) > 0
+
 
 class FileProgressStateEnum(StrEnum):
     DOWNLOADING = "downloading"

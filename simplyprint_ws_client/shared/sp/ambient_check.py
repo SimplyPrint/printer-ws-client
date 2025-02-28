@@ -1,5 +1,7 @@
 from typing import Callable, List, Optional, Tuple, TYPE_CHECKING
 
+from ...core.state import PrinterStatus
+
 if TYPE_CHECKING:
     from ...core.state import TemperatureState
 
@@ -14,16 +16,26 @@ class AmbientCheck:
             on_changed: Callable[[int], None],
             tools: List['TemperatureState'],
             initial_sample: Optional[float] = None,
-            ambient: float = 0
+            ambient: float = 0,
+            status: Optional[PrinterStatus] = None,
     ) -> Tuple[Optional[float], int, float]:
+        """
+        By observing the change in temperature of the first tool
+        the ambient temperature is chosen when the average drift of the
+        temperature is less than 2 degrees.
+        """
+
         if len(tools) == 0:
             return None, round(ambient), AmbientCheck.CHECK_INTERVAL
 
         tool0 = tools[0]
 
-        if tool0.target:
+        # Do not detect any ambient temperature if we are printing or heating.
+        # When we are cooling down we rely on the printer cooling down more than 2 degrees per 5 min + 20 sec window.
+        if PrinterStatus.is_printing(status) or tool0.is_heating():
             return None, round(ambient), AmbientCheck.AMBIENT_CHECK_TIME
 
+        # Wait until we can collect a sample (20-seconds)
         if initial_sample is None:
             return tool0.actual, round(ambient), AmbientCheck.SAMPLE_CHECK_TIME
 

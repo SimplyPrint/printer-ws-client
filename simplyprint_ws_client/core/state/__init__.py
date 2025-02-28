@@ -27,7 +27,7 @@ __all__ = [
 import time
 from typing import Optional, Literal, no_type_check, Union, List, Set, ClassVar
 
-from pydantic import Field
+from pydantic import Field, PrivateAttr
 
 from .exclusive import Exclusive
 from .models import *
@@ -42,7 +42,7 @@ class TemperatureState(StateModel):
     actual: Optional[float] = None
     target: Optional[float] = None
 
-    def as_rounded(self, k: Literal['actual', 'target']):
+    def as_rounded(self, k: Literal['actual', 'target']) -> Optional[int]:
         value: Optional[float] = getattr(self, k)
 
         if value is None:
@@ -51,7 +51,9 @@ class TemperatureState(StateModel):
         return round(value)
 
     def is_heating(self) -> bool:
-        return self.as_rounded('actual') != self.as_rounded('target')
+        target = self.as_rounded('target')
+        actual = self.as_rounded('actual')
+        return target not in {None, 0} and target != actual
 
     def to_list(self):
         actual = self.as_rounded('actual')
@@ -68,28 +70,37 @@ class TemperatureState(StateModel):
 
 
 class AmbientTemperatureState(StateModel):
-    initial_sample: Optional[float] = None
     ambient: int = 0
-    update_interval: Optional[float] = None
+
+    _initial_sample: Optional[float] = None
+    _update_interval: float = AmbientCheck.CHECK_INTERVAL
+    _last_update: float = PrivateAttr(default_factory=lambda: time.time())
 
     def on_changed(self, new_ambient: float):
         self.ambient = round(new_ambient)
 
-    def invoke_check(self, tool_temperatures: List['TemperatureState']):
+    def tick(
+            self,
+            state: 'PrinterState'
+    ):
         """
         It is up to the implementation to decide when to invoke the check or respect the update_interval,
         the entire state is self-contained and requires the tool_temperatures to be passed in from the PrinterState,
         but it handles triggering the appropriate events.
         """
-        (
-            self.initial_sample,
-            self.ambient,
-            self.update_interval
-        ) = AmbientCheck.detect(
+        now = time.time()
+
+        if self._last_update is not None and now - self._last_update < self._update_interval:
+            return
+
+        self._last_update = now
+
+        (self._initial_sample, self.ambient, self._update_interval) = AmbientCheck.detect(
             self.on_changed,
-            tool_temperatures,
-            self.initial_sample,
-            self.ambient
+            state.tool_temperatures,
+            self._initial_sample,
+            self.ambient,
+            state.status,
         )
 
 
@@ -301,13 +312,7 @@ class PrinterState(StateModel):
         if len(status) == 0:
             status = (self.status,)
 
-        return len(set(status).intersection({
-            PrinterStatus.PRINTING,
-            PrinterStatus.PAUSED,
-            PrinterStatus.PAUSING,
-            PrinterStatus.RESUMING,
-            PrinterStatus.CANCELLING,
-        })) > 0
+        return PrinterStatus.is_printing(*status)
 
     def is_heating(self) -> bool:
         return any([tool.is_heating() for tool in (self.bed_temperature, *self.tool_temperatures)])
