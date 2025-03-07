@@ -14,12 +14,6 @@ from typing import TYPE_CHECKING, Dict, ClassVar, Optional
 
 from .client_logger import ClientLogger
 from ..utils.slugify import slugify
-
-try:
-    from typing import Self
-except ImportError:
-    from typing_extensions import Self
-
 from ...const import APP_DIRS
 
 if TYPE_CHECKING:

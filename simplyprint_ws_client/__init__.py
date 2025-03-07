@@ -1,2 +1,2 @@
-from . import _polyfill
+from . import _polyfill  # noqa
 from .core import *

@@ -546,7 +546,7 @@ class ClientMsg(Msg[TMsgType, Optional[dict]]):
     @classmethod
     def build(cls, state: PrinterState) -> TClientMsgDataGenerator:
         """Construct a dict with data based on the current state"""
-        raise NotImplemented()
+        raise NotImplementedError()
 
     def reset_changes(self, state: PrinterState, v: Optional[int] = None) -> None:
         """

@@ -108,7 +108,7 @@ def build_autoconfiguration_state():
     for m in set(get_args(ServerMsgKind)):
         type_annotation = m.model_fields['type'].annotation
 
-        if not get_origin(type_annotation) is Literal:
+        if get_origin(type_annotation) is not Literal:
             continue
 
         msg_type = get_args(type_annotation)[0]
@@ -126,7 +126,7 @@ def build_autoconfiguration_state():
     for m in set(get_args(DemandMsgKind)):
         demand_annotation = m.model_fields['demand'].annotation
 
-        if not get_origin(demand_annotation) is Literal:
+        if get_origin(demand_annotation) is not Literal:
             continue
 
         demand_type = get_args(demand_annotation)[0]
@@ -172,14 +172,14 @@ def instrument(client: 'Client'):
     for name in dir(client.__class__):
         attr = getattr(client.__class__, name)
 
-        if not hasattr(attr, f'_event_bus_event'):
+        if not hasattr(attr, '_event_bus_event'):
             continue
 
         e = getattr(attr, '_event_bus_event')
         kwargs = {}
 
-        if hasattr(attr, f'_event_bus_listeners_args'):
-            kwargs = getattr(attr, f'_event_bus_listeners_args')
+        if hasattr(attr, '_event_bus_listeners_args'):
+            kwargs = getattr(attr, '_event_bus_listeners_args')
 
         func = getattr(client, name)
 

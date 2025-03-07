@@ -81,7 +81,7 @@ class CameraWorkerProcess(StoppableProcess, Synchronized):
     def _send_frame(self, camera_id: int, frame: Optional[FrameT]):
         res = ReceivedFrame(camera_id, time.time(), frame)
         self.response_queue.put(res)
-        logging.debug(f"Sent frame to %s with size %s", camera_id, len(frame) if frame is not None else 0)
+        logging.debug("Sent frame to %s with size %s", camera_id, len(frame) if frame is not None else 0)
 
     def run(self):
         try:

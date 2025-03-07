@@ -192,7 +192,7 @@ class JobInfoState(StateModel, validate_assignment=True):
     @no_type_check
     def __setattr__(self, key, value):
         """Only one of the 4 fields can be True at a time."""
-        if not key in self.MUTUALLY_EXCLUSIVE_FIELDS:
+        if key not in self.MUTUALLY_EXCLUSIVE_FIELDS:
             return super().__setattr__(key, value)
 
         # Set all other to false

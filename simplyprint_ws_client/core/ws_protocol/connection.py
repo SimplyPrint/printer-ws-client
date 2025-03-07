@@ -243,7 +243,7 @@ class Connection(AsyncStoppable, EventLoopProvider[asyncio.AbstractEventLoop], H
                             self.logger.info(f"Reconnecting in {delay} seconds.")
                         else:
                             delay = None
-                            self.logger.info(f"Reconnecting (resumed).")
+                            self.logger.info("Reconnecting (resumed).")
 
                         await asyncio.wait([
                             wait_delay_task.schedule(delay),  # wait task with delay (sleep for delay seconds)
@@ -303,7 +303,7 @@ class Connection(AsyncStoppable, EventLoopProvider[asyncio.AbstractEventLoop], H
                 self._state = State.NOT_CONNECTED
                 _ = self.event_bus.emit_task(ConnectionLostEvent(self.v))
                 self.v += 1
-                self.logger.info(f"%s: %s", type(e), e)
+                self.logger.info("%s: %s", type(e), e)
 
             except Exception as e:
                 self.logger.error("Other error.", exc_info=e)
@@ -370,7 +370,7 @@ class Connection(AsyncStoppable, EventLoopProvider[asyncio.AbstractEventLoop], H
         message = await self.ws.receive()
 
         if message.type in (WSMsgType.CLOSE, WSMsgType.CLOSING, WSMsgType.CLOSED, WSMsgType.ERROR):
-            raise ConnectionResetError(f"Connection closed. {message.data} / {message.extra}")
+            raise ConnectionResetError(f"Connection closed. {message}")
 
         try:
             if message.type in (WSMsgType.TEXT, WSMsgType.BINARY):
@@ -379,7 +379,7 @@ class Connection(AsyncStoppable, EventLoopProvider[asyncio.AbstractEventLoop], H
                 _ = self.event_bus.emit_task(ConnectionIncomingEvent, msg, self.v)
                 return
 
-            self.logger.warning(f"Unhandled message: %s", message)
+            self.logger.warning("Unhandled message: %s", message)
 
         except ValidationError as e:
             # Invalid message.
@@ -406,7 +406,7 @@ class Connection(AsyncStoppable, EventLoopProvider[asyncio.AbstractEventLoop], H
         try:
             data = msg.model_dump_json()
             await self.ws.send_str(data)
-            self.logger.debug(f"sent %s", data if len(data) < 512 else msg.msg_type())
+            self.logger.debug("sent %s", data if len(data) < 512 else msg.msg_type())
 
         except (PydanticSerializationError, UnicodeError) as e:
             # Serialization error.

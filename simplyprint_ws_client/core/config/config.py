@@ -83,15 +83,15 @@ class Config(ABC):
     @abstractmethod
     def keys() -> tuple:
         """Return the keys of the config."""
-        raise NotImplemented()
+        raise NotImplementedError()
 
     @abstractmethod
     def is_empty(self) -> bool:
-        raise NotImplemented()
+        raise NotImplementedError()
 
     @abstractmethod
     def as_dict(self) -> dict:
-        raise NotImplemented()
+        raise NotImplementedError()
 
     def as_json(self) -> str:
         return json.dumps(self.as_dict())
@@ -99,7 +99,7 @@ class Config(ABC):
     @classmethod
     @abstractmethod
     def from_dict(cls, data: dict) -> Self:
-        raise NotImplemented()
+        raise NotImplementedError()
 
 
 @dataclass

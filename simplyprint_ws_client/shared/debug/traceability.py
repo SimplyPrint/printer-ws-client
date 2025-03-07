@@ -35,7 +35,7 @@ def traceable_location_from_func(func, *args, **kwargs):
         return args[0], f"__traceability__{func.__name__}", True
 
     # Otherwise, we store it on the function itself
-    return func, f"__traceability__", False
+    return func, "__traceability__", False
 
 
 # Collects traceability information for a function
