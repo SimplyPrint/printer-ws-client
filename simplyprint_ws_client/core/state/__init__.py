@@ -24,9 +24,9 @@ __all__ = [
     'PrinterSettings',
 ]
 
-import time
 from typing import Optional, Literal, no_type_check, Union, List, Set, ClassVar
 
+import time
 from pydantic import Field, PrivateAttr
 
 from .exclusive import Exclusive

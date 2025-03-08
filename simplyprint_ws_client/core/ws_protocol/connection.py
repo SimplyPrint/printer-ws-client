@@ -14,7 +14,9 @@ from pydantic import ValidationError
 from pydantic_core import PydanticSerializationError
 from yarl import URL
 
-from .events import *
+from .events import (ConnectionEvent, ConnectionIncomingEvent, ConnectionOutgoingEvent, ConnectionEstablishedEvent,
+                     ConnectionLostEvent,
+                     ConnectionSuspectEvent)
 from .messages import ClientMsg, ServerMsg, ClientMsgType
 from ..config import PrinterConfig
 from ...events import EventBus
@@ -22,6 +24,7 @@ from ...shared.asyncio.continuous_task import ContinuousTask
 from ...shared.asyncio.event_loop_provider import EventLoopProvider
 from ...shared.sp.url_builder import SimplyPrintURL
 from ...shared.utils.backoff import ConstantBackoff
+from ...shared.utils.bounded_variable import BoundedInterval
 from ...shared.utils.stoppable import AsyncStoppable
 
 
@@ -92,6 +95,8 @@ WsConnectionErrors = (
     WebSocketError
 )
 
+WsSuspectConnectionBoundedInterval = BoundedInterval[int](7, 1)
+
 
 @final
 class Connection(AsyncStoppable, EventLoopProvider[asyncio.AbstractEventLoop], Hashable):
@@ -131,7 +136,7 @@ class Connection(AsyncStoppable, EventLoopProvider[asyncio.AbstractEventLoop], H
             self,
             session: Optional[ClientSession] = None,
             hint: Optional[ConnectionHint] = None,
-            logger: logging.Logger = logging.getLogger("simplyprint_ws"),
+            logger: logging.Logger = logging.getLogger("ws"),
             **kwargs
     ):
         AsyncStoppable.__init__(self, **kwargs)
@@ -183,6 +188,7 @@ class Connection(AsyncStoppable, EventLoopProvider[asyncio.AbstractEventLoop], H
             raise RuntimeError("Connection task already running.")
 
         backoff = ConstantBackoff()
+        suspect_bound = WsSuspectConnectionBoundedInterval.create_variable(0)
         action: Optional[Action] = None
 
         queue_task = ContinuousTask(self._queue.get, provider=self)
@@ -280,6 +286,7 @@ class Connection(AsyncStoppable, EventLoopProvider[asyncio.AbstractEventLoop], H
                     self._state = State.CONNECTED
 
                     backoff.reset()
+                    suspect_bound.reset()
 
                     _ = self.event_bus.emit_task(ConnectionEstablishedEvent(self.v))
 
@@ -305,6 +312,11 @@ class Connection(AsyncStoppable, EventLoopProvider[asyncio.AbstractEventLoop], H
                 self.v += 1
                 self.logger.info("%s: %s", type(e), e)
 
+                # For repeated connection failures, we suspect the ability to connect might be compromised.
+                # This could be due to loss of network connectivity, server issues, etc.
+                # To allow external users to react to this, we emit a suspect event.
+                if suspect_bound.guard_until_bound():
+                    _ = self.event_bus.emit_task(ConnectionSuspectEvent, e)
             except Exception as e:
                 self.logger.error("Other error.", exc_info=e)
 

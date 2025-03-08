@@ -1,7 +1,11 @@
+__all__ = ['ClientCli', 'CommandBag']
+
 from typing import Any, Dict, Optional, Union, get_args, get_origin, Callable
 
 import click
 
+from ..debug.connectivity import ConnectivityReport
+from ...const import APP_DIRS
 from ...core.app import ClientApp
 from ...core.config import PrinterConfig
 
@@ -115,6 +119,57 @@ class ClientCliConfigManager(CommandBag, click.Group):
             click.echo("Configuration not found.")
 
 
+class ClientCliDebugConnectivity(CommandBag, click.Group):
+    """ Commands to debug connectivity. """
+
+    def __init__(self, app: ClientApp) -> None:
+        super().__init__(name="connectivity", help="Debug connectivity commands")
+        self.app = app
+        self.commands = {}
+        self.add_command(click.Command("test", callback=self.test))
+        self.add_command(click.Command("status", callback=self.list_previous_reports))
+        self.add_command(click.Command("clean", callback=self.delete_all_reports))
+
+    @staticmethod
+    def test():
+        path = APP_DIRS.user_log_path / 'connectivity_reports'
+
+        if not path.exists():
+            path.mkdir(parents=True, exist_ok=True)
+
+        r = ConnectivityReport.generate_default()
+        p = r.store_in_path(path)
+        print("Connectivity test suite complete. Report saved to:", p)
+
+    @staticmethod
+    def list_previous_reports():
+        path = APP_DIRS.user_log_path / 'connectivity_reports'
+
+        if not path.exists():
+            path.mkdir(parents=True, exist_ok=True)
+
+        l = ConnectivityReport.read_previous_reports(path)
+
+        print(f"Found {len(l)} reports in {path}.")
+
+        for report in l:
+            print(f"* Report generated on {report.timestamp}:")
+            print("  - " + "\n  - ".join(report.summary().split("\n")).strip('- '))
+
+    @staticmethod
+    def delete_all_reports():
+        path = APP_DIRS.user_log_path / 'connectivity_reports'
+
+        if not path.exists():
+            print("Nothing to delete")
+
+        files = path.rglob("connectivity_report_*.json")
+
+        for file in files:
+            print(f"Deleting {file}")
+            file.unlink()
+
+
 class ClientCli(CommandBag, click.MultiCommand):
     app: ClientApp
     commands: Dict[str, click.Command]
@@ -127,6 +182,7 @@ class ClientCli(CommandBag, click.MultiCommand):
 
         # Register commands
         self.add_command(ClientCliConfigManager(self.app))
+        self.add_command(ClientCliDebugConnectivity(self.app))
         self.add_command(click.Command("start", callback=self.start_client, help="Start the client"))
 
     @property

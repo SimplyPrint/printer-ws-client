@@ -12,6 +12,8 @@ __all__ = ["ClientConnectionManager"]
 
 import asyncio
 import functools
+import logging
+from datetime import datetime, UTC, timedelta
 from typing import final, Dict, Optional, Set, cast, Iterable
 
 from .client import Client, ClientState
@@ -20,34 +22,38 @@ from .client_view import ClientView
 from .config import PrinterConfig
 from .ws_protocol.connection import ConnectionMode, Connection, ConnectionHint
 from .ws_protocol.events import ConnectionOutgoingEvent, ConnectionIncomingEvent, \
-    ConnectionEstablishedEvent, ConnectionLostEvent
+    ConnectionEstablishedEvent, ConnectionLostEvent, ConnectionSuspectEvent
 from .ws_protocol.messages import ClientMsg
+from ..const import APP_DIRS
 from ..events.event_bus_listeners import ListenerUniqueness
 from ..shared.asyncio.event_loop_provider import EventLoopProvider
+from ..shared.debug.connectivity import ConnectivityReport
 from ..shared.utils.stoppable import AsyncStoppable
 
 
 @final
 class ClientConnectionManager(AsyncStoppable, EventLoopProvider[asyncio.AbstractEventLoop]):
     """
-
     Attributes:
         mode: ConnectionMode
         client_list: Global list of clients (immutable from this context)
         client_views: Mapping of client unique_id to client view
         views: Set of all client views
+        logger: Logger instance
     """
 
     mode: ConnectionMode
     client_list: ClientList
     client_views: Dict[TUniqueId, ClientView]
     views: Set[ClientView]
+    logger: logging.Logger
 
     def __init__(
             self,
             mode: ConnectionMode,
             client_list: ClientList,
-            **kwargs
+            logger: logging.Logger = logging.getLogger("ws_manager"),
+            **kwargs,
     ):
         AsyncStoppable.__init__(self, **kwargs)
         EventLoopProvider.__init__(self, **kwargs)
@@ -56,6 +62,31 @@ class ClientConnectionManager(AsyncStoppable, EventLoopProvider[asyncio.Abstract
         self.client_list = client_list
         self.client_views = {}
         self.views = set()
+        self.logger = logger
+
+    def _suspect_connection(self, connection: Connection, _):
+        """Called when a connection suspects its ability to connect is compromised."""
+        self.logger.info(
+            "Connection %s suspects it is unable to connect. Running connectivity test suite and generating log file",
+            connection.url)
+
+        path = APP_DIRS.user_log_path / 'connectivity_reports'
+
+        if not path.exists():
+            path.mkdir(parents=True, exist_ok=True)
+
+        previous_reports = ConnectivityReport.read_previous_reports(path)
+
+        if previous_reports and previous_reports[0].timestamp - datetime.now(UTC) < timedelta(minutes=20):
+            self.logger.info("Last connectivity test was run less than 20 minute ago, skipping.")
+            return
+
+        # Perform various checks, do we have internet, is the server down, etc.
+        report = ConnectivityReport.generate_default()
+
+        path = report.store_in_path(path)
+
+        self.logger.info("Connectivity test suite complete. Report saved to %s", path)
 
     def _allocate_new_connection(self) -> ClientView:
         if self.is_stopped():
@@ -80,6 +111,9 @@ class ClientConnectionManager(AsyncStoppable, EventLoopProvider[asyncio.Abstract
                                 unique=ListenerUniqueness.EXCLUSIVE_WITH_ERROR)
 
         connection.event_bus.on(ConnectionLostEvent, client_view.emit,
+                                unique=ListenerUniqueness.EXCLUSIVE_WITH_ERROR)
+
+        connection.event_bus.on(ConnectionSuspectEvent, functools.partial(self._suspect_connection, connection),
                                 unique=ListenerUniqueness.EXCLUSIVE_WITH_ERROR)
 
         return client_view

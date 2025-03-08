@@ -29,3 +29,7 @@ class ConnectionLostEvent(ConnectionEvent):
 
     def __init__(self, v: int):
         self.v = v
+
+
+class ConnectionSuspectEvent(ConnectionEvent):
+    ...

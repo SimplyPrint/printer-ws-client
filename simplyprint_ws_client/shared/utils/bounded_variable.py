@@ -17,7 +17,12 @@ class BoundedInterval(Generic[TIntervalValue]):
         self.default = default
 
     def create_variable(self, value: Optional[TIntervalValue] = None) -> "BoundedVariable":
-        return BoundedVariable(value or self.default, self)
+        default = self.default if value is None else value
+
+        if default is None:
+            raise ValueError(f"Cannot create bounded variable {self.__class__.__name__} with default value None")
+
+        return BoundedVariable(default, self)
 
 
 class BoundedVariable(Generic[TIntervalValue]):
