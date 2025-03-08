@@ -1,11 +1,11 @@
 __all__ = ["ConnectivityReport"]
 
 import asyncio
+import datetime
 import logging
 import queue
 import socket
 import threading
-from datetime import datetime, UTC
 from pathlib import Path
 from typing import List, Optional, Dict
 
@@ -52,11 +52,15 @@ class LocalNetworkInfo(BaseModel):
 
 
 class ConnectivityReport(BaseModel):
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    timestamp: datetime.datetime = Field(default_factory=lambda: ConnectivityReport.utc_now())
     dns_results: List[DNSResolutionResult] = []
     websocket_results: List[WebSocketTestResult] = []
     http_results: List[HTTPTestResult] = []
     local_network_info: LocalNetworkInfo
+
+    @staticmethod
+    def utc_now() -> datetime.datetime:
+        return datetime.datetime.now(datetime.timezone.utc)
 
     @staticmethod
     def get_local_network_info() -> LocalNetworkInfo:
@@ -95,10 +99,10 @@ class ConnectivityReport(BaseModel):
         def test_ws():
             async def inner():
                 async with aiohttp.ClientSession() as session:
-                    start_time = datetime.now(UTC)
+                    start_time = ConnectivityReport.utc_now()
                     try:
                         async with session.ws_connect(url, timeout=websocket_timeout) as ws:
-                            latency = (datetime.now(UTC) - start_time).total_seconds() * 1000
+                            latency = (ConnectivityReport.utc_now() - start_time).total_seconds() * 1000
                             logger.info(f"Websocket connection successful to {url} (latency: {latency:.2f}ms)")
                             return WebSocketTestResult(
                                 url=url,

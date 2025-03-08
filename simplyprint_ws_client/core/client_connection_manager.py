@@ -13,7 +13,7 @@ __all__ = ["ClientConnectionManager"]
 import asyncio
 import functools
 import logging
-from datetime import datetime, UTC, timedelta
+from datetime import timedelta
 from typing import final, Dict, Optional, Set, cast, Iterable
 
 from .client import Client, ClientState
@@ -77,7 +77,8 @@ class ClientConnectionManager(AsyncStoppable, EventLoopProvider[asyncio.Abstract
 
         previous_reports = ConnectivityReport.read_previous_reports(path)
 
-        if previous_reports and previous_reports[0].timestamp - datetime.now(UTC) < timedelta(minutes=20):
+        # TODO Make this configurable, and be able to hook into real-time data (network events etc.)
+        if previous_reports and previous_reports[0].timestamp - ConnectivityReport.utc_now() < timedelta(minutes=20):
             self.logger.info("Last connectivity test was run less than 20 minute ago, skipping.")
             return
 
