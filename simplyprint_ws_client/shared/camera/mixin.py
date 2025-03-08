@@ -1,6 +1,6 @@
 import asyncio
 import base64
-from typing import Optional
+from typing import Optional, Literal
 
 from yarl import URL
 
@@ -31,13 +31,14 @@ class ClientCameraMixin(Client):
         self._stream_setup = asyncio.Event()
         self._camera_pause_timeout = pause_timeout
 
-    def set_camera_uri(self, uri: Optional[URL] = None):
+    def set_camera_uri(self, uri: Optional[URL] = None) -> Literal['err', 'ok', 'new']:
+        """Returns whether it has changed the camera URI"""
         if self._camera_pool is None:
-            return
+            return 'err'
 
         # If the camera URI is the same, don't recreate the camera.
         if self._camera_uri == uri and self._camera_handle:
-            return
+            return 'ok'
 
         self._camera_uri = uri
 
@@ -51,6 +52,8 @@ class ClientCameraMixin(Client):
         if self._camera_uri and self._camera_pool:
             self._camera_handle = self._camera_pool.create(self._camera_uri, pause_timeout=self._camera_pause_timeout)
             self.event_loop.call_soon_threadsafe(self._stream_setup.set)
+
+        return 'new'
 
     def __del__(self):
         self.set_camera_uri(None)
