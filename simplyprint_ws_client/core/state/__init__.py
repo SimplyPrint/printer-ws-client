@@ -234,7 +234,7 @@ class MaterialState(StateModel):
     color: Optional[str] = None
     hex: Optional[str] = None
     ext: Optional[int] = None
-
+    raw: Optional[dict] = None
 
 class PrinterState(StateModel):
     config: PrinterConfig

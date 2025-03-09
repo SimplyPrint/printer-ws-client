@@ -9,10 +9,10 @@ __all__ = [
 ]
 
 import asyncio
-import time
 from enum import IntEnum, StrEnum
 from typing import Optional, Dict, Any, Literal
 
+import time
 from pydantic import BaseModel, PrivateAttr
 
 try:
@@ -34,6 +34,7 @@ class PrinterStatus(StrEnum):
     PAUSING = "pausing"
     CANCELLING = "cancelling"
     RESUMING = "resuming"
+    DOWNLOADING = "downloading"
     ERROR = "error"
     NOT_READY = "not_ready"
 

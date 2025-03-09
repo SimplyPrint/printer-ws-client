@@ -2,6 +2,7 @@ import unittest
 import weakref
 
 from simplyprint_ws_client import Client, PrinterConfig, JobInfoState, PrinterState, JobInfoMsg
+from simplyprint_ws_client.core.state import Exclusive
 
 
 def job_state_consistent(state: JobInfoState):
@@ -95,3 +96,10 @@ class TestJobInfo(unittest.TestCase):
 
         msg.reset_changes(printer)
         self.assertEqual(state.model_changed_fields, set())
+
+    def test_exclusive_field_auto_conv(self):
+        s = JobInfoState()
+        s.filename = "Hello"
+
+        self.assertTrue(isinstance(s.filename, Exclusive))
+        self.assertEqual(s.filename.root, "Hello")

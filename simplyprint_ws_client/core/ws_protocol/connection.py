@@ -418,7 +418,7 @@ class Connection(AsyncStoppable, EventLoopProvider[asyncio.AbstractEventLoop], H
         try:
             data = msg.model_dump_json()
             await self.ws.send_str(data)
-            self.logger.debug("sent %s", data if len(data) < 512 else msg.msg_type())
+            self.logger.debug("sent %s", data if len(data) < 1024 else msg.msg_type())
 
         except (PydanticSerializationError, UnicodeError) as e:
             # Serialization error.

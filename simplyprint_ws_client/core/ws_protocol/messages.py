@@ -358,9 +358,10 @@ class WebcamSnapshotDemandData(BaseModel):
 
 class FileDemandData(BaseModel):
     demand: Literal[DemandMsgType.FILE] = DemandMsgType.FILE
-    auto_start: bool = False
+    job_id: Optional[int] = None
     url: Optional[str] = None
     cdn_url: Optional[str] = None
+    auto_start: bool = False
     file_name: Optional[str] = None
     file_id: Optional[str] = None
     file_size: Optional[int] = None
@@ -789,6 +790,15 @@ class FileProgressMsg(ClientMsg[Literal[ClientMsgType.FILE_PROGRESS]]):
 
         yield "state", state.file_progress.state
 
+        # Emit job_id
+        ctx = state.ctx()
+
+        # Circular import
+        from ..client import DefaultClient
+
+        if isinstance(ctx, DefaultClient) and ctx.current_job_id is not None:
+            yield "job_id", ctx.current_job_id
+
         if state.file_progress.state == FileProgressStateEnum.ERROR:
             yield "message", state.file_progress.message or "Unknown error"
             return
@@ -847,7 +857,8 @@ class MaterialDataMsg(ClientMsg[Literal[ClientMsgType.MATERIAL_DATA]]):
             return
 
         if any(m.model_has_changed for m in state.material_data):
-            yield "materials", [m.model_dump(mode='json') if m.type is not None else None for m in state.material_data]
+            yield "materials", [m.model_dump(exclude_none=True, mode='json') if m.type is not None else None for m in
+                                state.material_data]
 
     def reset_changes(self, state: PrinterState, v: Optional[int] = None) -> None:
         for material in state.material_data:

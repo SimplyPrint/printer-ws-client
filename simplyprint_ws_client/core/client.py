@@ -343,7 +343,16 @@ class DefaultClient(Client[TConfig], ABC):
     """
 
     _have_cleared_bed: bool = False
+    _current_job_id: Optional[int] = None
     _file_action_token: Optional[str] = None
+
+    @property
+    def current_job_id(self):
+        return self._current_job_id
+
+    @property
+    def file_action_token(self):
+        return self._file_action_token
 
     async def send_ping(self) -> None:
         if not self.printer.intervals.is_ready("ping"):
@@ -426,6 +435,7 @@ class DefaultClient(Client[TConfig], ABC):
     @configure(DemandMsgType.FILE, priority=1)
     def _on_file_demand(self, data: FileDemandData):
         """Store file action_token for later use."""
+        self._current_job_id = data.job_id
         self._file_action_token = data.action_token
         self._have_cleared_bed = False
 
