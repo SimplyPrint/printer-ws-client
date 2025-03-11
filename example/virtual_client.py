@@ -97,7 +97,7 @@ class VirtualClient(DefaultClient[VirtualConfig], ClientCameraMixin):
                     self.printer.bed_temperature.target = 0.0
 
     async def on_file(self, data: FileDemandData):
-        downloader = FileDownload(self)
+        self.printer.status = PrinterStatus.DOWNLOADING
 
         # fake self.printer.file_progress.percent using event.file_size
         self.printer.file_progress.state = FileProgressStateEnum.DOWNLOADING
