@@ -14,7 +14,7 @@ import weakref
 from abc import ABC, ABCMeta
 from datetime import timedelta, datetime
 from enum import IntEnum
-from typing import NamedTuple, Optional, Union, Generic, TypeVar
+from typing import NamedTuple, Optional, Union, Generic, TypeVar, cast
 
 from ._event_instrumentation import autoconfigure_class_dict, produce, configure, instrument, consume
 from .config import PrinterConfig
@@ -127,7 +127,7 @@ class Client(ABC, Generic[TConfig], EventLoopProvider[asyncio.AbstractEventLoop]
     _pending_action_ts: datetime = datetime.min
     _pending_action_log_ts: datetime = datetime.min
 
-    def __init__(self, config: PrinterConfig, *, event_loop_provider: Optional[EventLoopProvider] = None, **kwargs):
+    def __init__(self, config: TConfig, *, event_loop_provider: Optional[EventLoopProvider] = None, **kwargs):
         ABC.__init__(self)
         Generic.__init__(self)
         EventLoopProvider.__init__(self, provider=event_loop_provider)
@@ -149,7 +149,7 @@ class Client(ABC, Generic[TConfig], EventLoopProvider[asyncio.AbstractEventLoop]
 
     @property
     def config(self) -> TConfig:
-        return self.printer.config
+        return cast(TConfig, self.printer.config)
 
     @property
     def active(self):

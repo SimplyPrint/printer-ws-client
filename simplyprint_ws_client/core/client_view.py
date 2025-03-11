@@ -72,7 +72,7 @@ class ClientView(Emitter, MutableSet[Client], Hashable):
 
             return
 
-        if is_multi_mode and event == ConnectionEstablishedEvent:
+        if is_multi_mode and isinstance(event, ConnectionEstablishedEvent):
             self.logger.debug(
                 "Dropped ConnectionEstablishedEvent for multi-mode connection with v: %d in favor of ConnectedMsg",
                 event.v)

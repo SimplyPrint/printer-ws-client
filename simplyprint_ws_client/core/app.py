@@ -1,5 +1,6 @@
 __all__ = ["ClientApp"]
 
+import atexit
 import asyncio
 import functools
 import logging
@@ -85,6 +86,9 @@ class ClientApp(SyncStoppable):
 
             self._app_instance = threading.Thread(target=self.run_blocking, args=args, kwargs=kwargs)
             self._app_instance.start()
+
+            # Register atexit handler to prevent spamming of "Cannot schedule new futures after shutdown" errors.
+            atexit.register(self.stop)
 
     def add(self, config: PrinterConfig) -> Client:
         with self._app_lock:
