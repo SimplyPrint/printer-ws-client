@@ -7,7 +7,7 @@ This package version v1.0.0 is under major development and is not yet ready for 
 
 ## Usage
 
-TBD.
+See [docs/index.md](docs/index.md) to get started.
 
 ## TODO
 

@@ -1,0 +1,31 @@
+site_name: simplyprint-ws-client documentation
+theme:
+  name: material
+  palette:
+    primary: blue
+    accent: light blue
+  features:
+    - content.code.copy
+    - content.code.annotate
+    - navigation.footer
+nav:
+  - Introduction: index.md
+  - Getting Started:
+      - Installation: setup.md
+      - Tutorial: tutorial.md
+  - Concepts:
+      - Overview: concepts/overview.md
+      - Configuration: concepts/configuration.md
+      - Command line: concepts/cli.md
+      - Config Manager: concepts/config_manager.md
+      - Client & Config class: concepts/client.md
+      - WebSocket Messages: concepts/messages.md
+
+markdown_extensions:
+  - pymdownx.superfences
+  - pymdownx.highlight
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.critic
+  - pymdownx.details
+  - pymdownx.keys

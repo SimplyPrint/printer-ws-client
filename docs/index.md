@@ -1,0 +1,1 @@
+Follow the [installation guide](setup.md) to get started!
