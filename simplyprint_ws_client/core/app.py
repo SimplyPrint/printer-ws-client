@@ -1,7 +1,7 @@
 __all__ = ["ClientApp"]
 
-import atexit
 import asyncio
+import atexit
 import functools
 import logging
 import threading
@@ -130,7 +130,10 @@ class ClientApp(SyncStoppable):
         super().stop()
 
         with self._app_lock:
-            self.scheduler.stop()
+            if self.scheduler.event_loop_is_running():
+                self.scheduler.event_loop.call_soon_threadsafe(self.scheduler.stop)
+            else:
+                self.scheduler.stop()
 
             if self._app_instance is not None:
                 self._app_instance.join()

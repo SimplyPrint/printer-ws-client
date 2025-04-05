@@ -8,6 +8,7 @@ from .handle import CameraHandle
 from .pool import CameraPool
 from ..asyncio.cancelable_lock import CancelableLock
 from ..sp.simplyprint_api import SimplyPrintApi
+from ... import configure, DemandMsgType
 from ...core.client import Client
 from ...core.ws_protocol.messages import WebcamSnapshotDemandData, StreamMsg
 
@@ -19,6 +20,7 @@ class ClientCameraMixin(Client):
     _camera_pause_timeout: Optional[int] = None
     _stream_lock: CancelableLock
     _stream_setup: asyncio.Event
+    _request_count: int = 0
 
     def initialize_camera_mixin(
             self,
@@ -53,6 +55,13 @@ class ClientCameraMixin(Client):
             self._camera_handle = self._camera_pool.create(self._camera_uri, pause_timeout=self._camera_pause_timeout)
             self.event_loop.call_soon_threadsafe(self._stream_setup.set)
 
+        # Check if we left off with a request that needs to be sent.
+        if self._request_count > 0:
+            asyncio.run_coroutine_threadsafe(
+                self.on_webcam_snapshot(),
+                loop=self.event_loop
+            )
+
         return 'new'
 
     def __del__(self):
@@ -70,11 +79,23 @@ class ClientCameraMixin(Client):
 
         self._camera_handle.pause()
         self._stream_lock.cancel()
+        self._request_count = 0
 
     async def on_test_webcam(self):
-        await self.on_webcam_snapshot(WebcamSnapshotDemandData())
+        await self.on_webcam_snapshot()
 
-    async def on_webcam_snapshot(self, data: WebcamSnapshotDemandData, retries: int = 3, retry_timeout=5):
+    @configure(DemandMsgType.WEBCAM_SNAPSHOT, priority=2)
+    def _before_webcam_snapshot(self, data: WebcamSnapshotDemandData):
+        # Pure stream request, not a snapshot event.
+        if data.id is None:
+            self._request_count += 1
+
+    async def on_webcam_snapshot(
+            self,
+            data: WebcamSnapshotDemandData = WebcamSnapshotDemandData(),
+            attempt=0,
+            retry_timeout=5
+    ):
         if not self._camera_handle:
             await self._stream_setup.wait()
 
@@ -85,10 +106,10 @@ class ClientCameraMixin(Client):
 
         # Empty frame or none.
         if not frame:
-            if retries > 0:
+            if attempt <= 3:
                 self.logger.debug(f"Failed to get frame, retrying in {retry_timeout} seconds")
                 await asyncio.sleep(retry_timeout)
-                await self.on_webcam_snapshot(data, retries - 1, retry_timeout)
+                await self.on_webcam_snapshot(data, attempt + 1, retry_timeout)
             else:
                 self.logger.debug("Failed to get frame, giving up.")
 
@@ -105,7 +126,17 @@ class ClientCameraMixin(Client):
             self.printer.webcam_info.connected = True
 
         async with self._stream_lock:
+            # Try to at most send request count frames.
+            if self._request_count <= 0:
+                self.logger.debug("No requests left, dropping frame.")
+                return
+
             # Prevent racing between receiving frames and sending them.
             await self.printer.intervals.wait_for("webcam")
             b64frame = base64.b64encode(frame).decode("utf-8")
             await self.send(StreamMsg(b64frame))
+            self._request_count -= 1
+
+        # Keep sending frames until the request count is 0.
+        if len(self._stream_lock) == 0 and self._request_count > 0:
+            await self.on_webcam_snapshot()
