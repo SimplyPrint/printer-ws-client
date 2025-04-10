@@ -42,6 +42,7 @@ __all__ = [
     'StreamOnDemandData',
     'StreamOffDemandData',
     'SetPrinterProfileDemandData',
+    'SetMaterialDataDemandData',
     'GetGcodeScriptBackupsDemandData',
     'HasGcodeChangesDemandData',
     'PsuKeepaliveDemandData',
@@ -95,7 +96,7 @@ from typing import Generic, TypeVar, Union, Literal, Optional, List, Dict, Any, 
 from pydantic import BaseModel, Field, field_validator, RootModel, model_serializer
 
 from ..config import PrinterConfig
-from ..state import Intervals, PrinterSettings, FileProgressStateEnum, PrinterState, JobInfoState
+from ..state import Intervals, PrinterSettings, FileProgressStateEnum, PrinterState, JobInfoState, BasicMaterialState
 
 try:
     from typing import Annotated
@@ -145,6 +146,8 @@ class DemandMsgType(StrEnum):
     STREAM_ON = "stream_on"
     STREAM_OFF = "stream_off"
     SET_PRINTER_PROFILE = "set_printer_profile"
+    SET_MATERIAL_DATA = "set_material_data"
+    REFRESH_MATERIAL_DATA = "refresh_material_data"
     GET_GCODE_SCRIPT_BACKUPS = "get_gcode_script_backups"
     HAS_GCODE_CHANGES = "has_gcode_changes"
     PSU_KEEPALIVE = "psu_keepalive"
@@ -443,6 +446,15 @@ class SetPrinterProfileDemandData(BaseModel):
     printer_profile: Optional[Any] = None
 
 
+class SetMaterialDataDemandData(BaseModel):
+    demand: Literal[DemandMsgType.SET_MATERIAL_DATA] = DemandMsgType.SET_MATERIAL_DATA
+    materials: List[BasicMaterialState] = Field(default_factory=list)
+
+
+class RefreshMaterialDataDemandData(BaseModel):
+    demand: Literal[DemandMsgType.REFRESH_MATERIAL_DATA] = DemandMsgType.REFRESH_MATERIAL_DATA
+
+
 class GetGcodeScriptBackupsDemandData(BaseModel):
     demand: Literal[DemandMsgType.GET_GCODE_SCRIPT_BACKUPS] = DemandMsgType.GET_GCODE_SCRIPT_BACKUPS
     force: bool = False
@@ -502,9 +514,9 @@ DemandMsgKind = Union[
     WebcamSnapshotDemandData, FileDemandData, StartPrintDemandData, ConnectPrinterDemandData, DisconnectPrinterDemandData,
     SystemRestartDemandData, SystemShutdownDemandData, ApiRestartDemandData, ApiShutdownDemandData, UpdateDemandData,
     PluginInstallDemandData, PluginUninstallDemandData, WebcamSettingsUpdatedDemandData, StreamOnDemandData,
-    StreamOffDemandData, SetPrinterProfileDemandData, GetGcodeScriptBackupsDemandData, HasGcodeChangesDemandData,
-    PsuKeepaliveDemandData, PsuOnDemandData, PsuOffDemandData, DisableWebsocketsDemandData, GotoWsProdDemandData,
-    GotoWsTestDemandData, SendLogsDemandData]
+    StreamOffDemandData, SetPrinterProfileDemandData, SetMaterialDataDemandData, RefreshMaterialDataDemandData,
+    GetGcodeScriptBackupsDemandData, HasGcodeChangesDemandData, PsuKeepaliveDemandData, PsuOnDemandData, PsuOffDemandData,
+    DisableWebsocketsDemandData, GotoWsProdDemandData, GotoWsTestDemandData, SendLogsDemandData]
 
 
 class DemandMsg(Msg[Literal[ServerMsgType.DEMAND], Annotated[DemandMsgKind, Field(discriminator='demand')]]):
@@ -852,17 +864,32 @@ class LogsSentMsg(ClientMsg[Literal[ClientMsgType.LOGS_SENT]]):
 
 class MaterialDataMsg(ClientMsg[Literal[ClientMsgType.MATERIAL_DATA]]):
     @classmethod
-    def build(cls, state: PrinterState) -> TClientMsgDataGenerator:
-        if len(state.material_data) == 0:
-            return
+    def build(cls, state: PrinterState, is_refresh=False) -> TClientMsgDataGenerator:
+        if is_refresh:
+            yield "refresh", True
 
-        if any(m.model_has_changed for m in state.material_data):
-            yield "materials", [m.model_dump(exclude_none=True, mode='json') if m.type is not None else None for m in
-                                state.material_data]
+        if is_refresh or state.bed.model_has_changed:
+            yield "bed", state.bed.model_dump(exclude_none=True, mode='json')
+
+        if is_refresh or any(m.model_has_changed for m in state.nozzles):
+            yield "nozzles", [m.model_dump(exclude_none=True, mode='json') for m in state.nozzles if
+                              m.model_has_changed or is_refresh]
+
+        if is_refresh or "mms_layout" in state.model_self_changed_fields or any(
+                m.model_has_changed for m in state.mms_layout):
+            yield "layout", [m.model_dump(exclude_none=True, mode='json') for m in state.mms_layout]
+
+        if is_refresh or any(m.model_has_changed for m in state.materials):
+            yield "materials", {m.ext: m.model_dump(exclude_none=True, mode='json') for m in state.materials if
+                                m.model_has_changed or is_refresh}
 
     def reset_changes(self, state: PrinterState, v: Optional[int] = None) -> None:
-        for material in state.material_data:
-            material.model_reset_changed()
+        state.model_reset_changed('mms_layout', 'nozzles', 'materials', 'bed', v=v)
+
+        state.bed.model_reset_changed(v=v)
+
+        for m in state.nozzles + state.mms_layout + state.materials:
+            m.model_reset_changed(v=v)
 
 
 class NotificationDataMsg(ClientMsg[Literal[ClientMsgType.NOTIFICATION]]):

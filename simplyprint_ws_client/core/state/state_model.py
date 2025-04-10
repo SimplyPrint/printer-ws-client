@@ -2,6 +2,7 @@ __all__ = ["StateModel"]
 
 import datetime
 import decimal
+import enum
 import functools
 import weakref
 from typing import Optional, Dict, Any, TypeVar, TYPE_CHECKING, ClassVar, Type, get_origin, List, Set, Tuple, Mapping, \
@@ -25,6 +26,7 @@ class StateModel(BaseModel):
         int, float,
         bool,
         Exclusive,
+        enum.Enum,
         decimal.Decimal,
         datetime.datetime, datetime.date, datetime.time, datetime.timedelta,
         BaseModel,
@@ -80,6 +82,7 @@ class StateModel(BaseModel):
 
     def __init__(self, ctx=lambda: None, **kwargs: Any) -> None:
         super().__init__(**kwargs)
+        # Default to static no-context to prevent unnecessary errors
         object.__setattr__(self, "ctx", ctx)
         self.model_reset_changed()
 
@@ -299,6 +302,17 @@ class StateModel(BaseModel):
     def model_post_init(self, __context: Any) -> None:
         super().model_post_init(__context)
         self.model_reset_changed()
+
+    def model_update(self, other: TStateModel) -> None:
+        # Set all fields from other to self
+        for field_name, model_field in self.model_fields.items():
+            if field_name in other.model_fields:
+                field_value = getattr(other, field_name)
+
+                if isinstance(field_value, StateModel):
+                    field_value.provide_context(self)
+
+                setattr(self, field_name, field_value)
 
     def __copy__(self: TStateModel) -> TStateModel:
         clone = cast(

@@ -204,15 +204,27 @@ def consume(state: PrinterState) -> Tuple[List[ClientMsg], int]:
     """Consume state from mappings"""
     changes = state.model_recursive_changeset
 
-    # Sort by v
-    msg_kinds = sorted(
-        ((_client_msg_map[k], v) for k, v in changes.items() if k in _client_msg_map), key=lambda x: x[1])
+    msg_kinds = {}
+
+    # Build unique map of message kinds together with their highest version.
+    for k, v in changes.items():
+        if k not in _client_msg_map:
+            continue
+
+        msg_kind = _client_msg_map.get(k)
+        current = msg_kinds.get(msg_kind)
+
+        if current is None:
+            msg_kinds[msg_kind] = v
+            continue
+
+        msg_kinds[msg_kind] = v if v > current else current
 
     is_pending = state.config.is_pending()
 
     msgs = []
 
-    for msg_kind, v in msg_kinds:
+    for msg_kind, v in msg_kinds.items():
         # Skip over messages that are not allowed to be sent when pending.
         if is_pending and not msg_kind.msg_type().when_pending():
             continue

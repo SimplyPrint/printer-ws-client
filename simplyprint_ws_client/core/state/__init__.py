@@ -13,7 +13,6 @@ __all__ = [
     'PingPongState',
     'WebcamState',
     'WebcamSettings',
-    'MaterialState',
     'PrinterState',
     'PrinterCpuFlag',
     'PrinterStatus',
@@ -22,15 +21,21 @@ __all__ = [
     'Intervals',
     'DisplaySettings',
     'PrinterSettings',
+    'BasicMaterialState',
+    'BasicMMSState',
+    'BasicBedState',
+    'BasicNozzleState',
+    'MultiMaterialSolution',
 ]
 
-from typing import Optional, Literal, no_type_check, Union, List, Set, ClassVar
-
 import time
+from typing import Optional, Literal, no_type_check, Union, List, Set, ClassVar, TypeVar, Callable
+
 from pydantic import Field, PrivateAttr
 
 from .exclusive import Exclusive
 from .models import *
+from .models import MultiMaterialSolution
 from .state_model import StateModel
 from ..config import PrinterConfig
 from ...const import VERSION
@@ -229,12 +234,32 @@ class WebcamSettings(StateModel):
     rotate90: bool = False
 
 
-class MaterialState(StateModel):
+class BasicBedState(StateModel):
+    type: Optional[str] = None
+
+
+class BasicMMSState(StateModel):
+    mms: Optional[MultiMaterialSolution] = None
+    nozzle: Optional[int] = None
+    size: Optional[int] = None
+    chains: Optional[int] = None
+
+
+class BasicNozzleState(StateModel):
+    nozzle: int
+    size: Optional[float] = None
+
+
+class BasicMaterialState(StateModel):
+    ext: int
     type: Union[str, int, None] = None
     color: Optional[str] = None
     hex: Optional[str] = None
-    ext: Optional[int] = None
     raw: Optional[dict] = None
+
+
+_T = TypeVar('_T', bound=StateModel)
+
 
 class PrinterState(StateModel):
     config: PrinterConfig
@@ -253,7 +278,10 @@ class PrinterState(StateModel):
     firmware_warning: PrinterFirmwareWarning = Field(default_factory=PrinterFirmwareWarning)
 
     active_tool: Optional[int] = None
-    material_data: List[MaterialState] = Field(default_factory=list)
+    bed: BasicBedState = Field(default_factory=BasicBedState)
+    nozzles: List[BasicNozzleState] = Field(default_factory=list)
+    mms_layout: List[BasicMMSState] = Field(default_factory=list)
+    materials: List[BasicMaterialState] = Field(default_factory=list)
     filament_sensor: PrinterFilamentSensorState = Field(default_factory=PrinterFilamentSensorState)
 
     bed_temperature: TemperatureState = Field(default_factory=TemperatureState)
@@ -276,36 +304,44 @@ class PrinterState(StateModel):
         self.info.ui = ui
         self.info.ui_version = ui_version
 
-    def set_nozzle_count(self, count: int) -> None:
+    def _resize_state_inplace(self, target: List[_T], size: int, default: Callable[[int], _T]):
+        if len(target) == size:
+            return
+
+        if size > len(target):
+            for _ in range(size - len(target)):
+                target.append(model := default(len(target)))
+                model.provide_context(self)
+        else:
+            del target[size:]
+
+    @property
+    def nozzle_count(self) -> int:
+        return len(self.tool_temperatures)
+
+    @nozzle_count.setter
+    def nozzle_count(self, count: int) -> None:
         if count < 1:
             raise ValueError("Nozzle count must be at least 1")
 
-        if len(self.tool_temperatures) == count:
-            return
+        self._resize_state_inplace(self.nozzles, count, lambda idx: BasicNozzleState(nozzle=idx))
+        assert all(i == n.nozzle for i, n in enumerate(self.nozzles)), "Nozzle must match index"
+        self._resize_state_inplace(self.tool_temperatures, count, lambda _: TemperatureState())
 
-        if count > len(self.tool_temperatures):
-            for _ in range(count - len(self.tool_temperatures)):
-                self.tool_temperatures.append(model := TemperatureState())
-                model.provide_context(self)
-        else:
-            self.tool_temperatures = self.tool_temperatures[:count]
+    @property
+    def material_count(self) -> int:
+        return len(self.materials)
 
-    def set_extruder_count(self, count: int) -> None:
+    @material_count.setter
+    def material_count(self, count: int) -> None:
         if count < 1:
-            raise ValueError("Extruder count must be at least 1")
+            raise ValueError("Material count must be at least 1")
 
         if self.active_tool is not None and self.active_tool >= count:
             self.active_tool = None
 
-        if len(self.material_data) == count:
-            return
-
-        if count > len(self.material_data):
-            for _ in range(count - len(self.material_data)):
-                self.material_data.append(model := MaterialState())
-                model.provide_context(self)
-        else:
-            self.material_data = self.material_data[:count]
+        self._resize_state_inplace(self.materials, count, lambda idx: BasicMaterialState(ext=idx))
+        assert all(i == m.ext for i, m in enumerate(self.materials)), "Material ext must match index"
 
     def is_printing(self, *status) -> bool:
         """If any of the statuses are printing, return True. Default behavior is to check own status."""
@@ -328,6 +364,6 @@ class PrinterState(StateModel):
     def mark_common_fields_as_changed(self):
         # Mark non-default fields as changed so they will be sent to the client.
         # In theory, we could store this information, but this is easier.
-        self.model_set_changed('status')
+        self.model_set_changed('status', 'materials')
         self.info.model_set_changed('sp_version')
         self.firmware.model_set_changed('name')

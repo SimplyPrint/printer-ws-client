@@ -9,7 +9,6 @@ from yarl import URL
 from simplyprint_ws_client import *
 from simplyprint_ws_client.shared.camera.base import BaseCameraProtocol, CameraProtocolPollingMode
 from simplyprint_ws_client.shared.camera.mixin import ClientCameraMixin
-from simplyprint_ws_client.shared.files.file_download import FileDownload
 
 
 def expt_smooth(target, actual, alpha, dt) -> float:
@@ -57,13 +56,13 @@ class VirtualClient(DefaultClient[VirtualConfig], ClientCameraMixin):
         self.printer.firmware.version = "1.0.0"
 
         self.printer.set_info("Virtual Printer", "0.0.1")
-        self.printer.set_extruder_count(4)
+        self.printer.nozzle_count = 1
+        self.printer.material_count = 4
 
         self.set_camera_uri(URL("virtual://localhost"))
         self.printer.webcam_info.connected = True
 
-        for i, mat in enumerate(self.printer.material_data):
-            mat.ext = i
+        for i, mat in enumerate(self.printer.materials):
             mat.type = "PLA" if i in (0, 1) else "PETG"
             mat.color = "Black"
             mat.hex = "#000000"

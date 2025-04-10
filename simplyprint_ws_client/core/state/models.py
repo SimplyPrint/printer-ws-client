@@ -6,13 +6,14 @@ __all__ = [
     'Intervals',
     'DisplaySettings',
     'PrinterSettings',
+    'MultiMaterialSolution',
 ]
 
 import asyncio
-from enum import IntEnum, StrEnum
+import time
+from enum import IntEnum, StrEnum, Enum
 from typing import Optional, Dict, Any, Literal
 
-import time
 from pydantic import BaseModel, PrivateAttr
 
 try:
@@ -142,3 +143,16 @@ class PrinterSettings(BaseModel):
     has_psu: bool = False
     has_filament_settings: bool = False
     display: Optional[DisplaySettings] = None
+
+
+class MultiMaterialSolution(Enum):
+    BAMBU_AMS = "bambu_ams"
+    BAMBU_AMS_2_PRO = "bambu_ams_2_pro"
+    BAMBU_AMS_HT = "bambu_ams_ht"
+    BAMBU_AMS_LITE = "bambu_ams_lite"
+    PRUSA_MMU3 = "prusa_mmu3"
+    MOSAICPALETTE2S = "mosaic_palette2s"
+    MOSAICPALETTE2 = "mosaic_palette2"
+    BOXTURTLE = "boxturtle"
+    CREALITY_CFS = "creality_cfs"
+    CUSTOM = "custom"

@@ -99,22 +99,21 @@ from simplyprint_ws_client import *
 
 class MyPrinterClient(DefaultClient[PrinterConfig]):
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs) 
+        super().__init__(*args, **kwargs)
         # Set basic information
         self.printer.set_info('MyPrinterClient', "0.0.1")
-        self.printer.set_nozzle_count(1)
-        self.printer.set_extruder_count(1)
+        self.printer.nozzle_count = 1
+        self.printer.material_count = 1
         self.printer.populate_info_from_physical_machine()
-    
+
     def on_connected(self, msg: ConnectedMsg):
         print("Connected to SimplyPrint! Setup code is: ", msg.data.short_id)
-        
+
     def on_gcode(self, data: GcodeDemandData):
         print("Got GCODE from SimplyPrint to run", data.list)
-        
+
     def on_file(self, data: FileDemandData):
         print("Got file to start from SimplyPrint", data)
-
 
 # main entrypoint code below
 ```

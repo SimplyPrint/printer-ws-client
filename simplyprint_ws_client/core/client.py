@@ -23,6 +23,7 @@ from .ws_protocol.connection import ConnectionMode
 from .ws_protocol.events import ConnectionOutgoingEvent, ConnectionEstablishedEvent, ConnectionLostEvent, \
     ConnectionIncomingEvent
 from .ws_protocol.messages import *
+from .ws_protocol.messages import SetMaterialDataDemandData
 from ..events import EventBus, Event
 from ..events.event import sync_only
 from ..shared.asyncio.event_loop_provider import EventLoopProvider
@@ -47,7 +48,7 @@ produce(FileProgressMsg, 'file_progress')
 produce(FilamentSensorMsg, 'filament_sensor')
 produce(PowerControllerMsg, 'psu_info')
 produce(CpuInfoMsg, 'cpu_info')
-produce(MaterialDataMsg, 'material_data')
+produce(MaterialDataMsg, 'materials', 'bed', 'mms_layout', 'nozzles')
 
 
 class InstrumentClientMeta(ABCMeta):
@@ -132,13 +133,13 @@ class Client(ABC, Generic[TConfig], EventLoopProvider[asyncio.AbstractEventLoop]
         Generic.__init__(self)
         EventLoopProvider.__init__(self, provider=event_loop_provider)
         self._state = VersionedState(-1, ClientState.CONNECTING)
+        self._pending_action_backoff = ExponentialBackoff(10, 600, 3600)
+        self.event_bus = EventBus(event_loop_provider=self)
         self.printer = PrinterState(config=config)
         self.printer.provide_context(weakref.ref(self))
-        self.printer.set_extruder_count(1)
-        self.printer.set_nozzle_count(1)
-        self.event_bus = EventBus(event_loop_provider=self)
+        self.printer.nozzle_count = 1
+        self.printer.material_count = 1
         self.logger = logging.getLogger(ClientName(self))
-        self._pending_action_backoff = ExponentialBackoff(10, 600, 3600)
         instrument(self)
 
     @property
@@ -438,6 +439,19 @@ class DefaultClient(Client[TConfig], ABC):
         self._current_job_id = data.job_id
         self._file_action_token = data.action_token
         self._have_cleared_bed = False
+
+    @configure(DemandMsgType.SET_MATERIAL_DATA, priority=1)
+    def _on_set_material_data(self, data: SetMaterialDataDemandData):
+        for material in data.materials:
+            if material.ext not in self.printer.materials:
+                continue
+
+            self.printer.materials[material.ext].model_update(material)
+            self.printer.materials[material.ext].model_reset_changed()
+
+    @configure(DemandMsgType.REFRESH_MATERIAL_DATA, priority=1)
+    async def _on_refresh_material_data(self):
+        await self.send(MaterialDataMsg(data=dict(MaterialDataMsg.build(self.printer, is_refresh=True))))
 
 
 class PhysicalClient(DefaultClient[TConfig], ABC):
