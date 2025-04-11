@@ -62,6 +62,10 @@ class ClientCameraMixin(Client):
                 loop=self.event_loop
             )
 
+        # Mark the webcam as connected if it's not already.
+        if not self.printer.webcam_info.connected:
+            self.printer.webcam_info.connected = True
+
         return 'new'
 
     def __del__(self):
