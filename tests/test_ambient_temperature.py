@@ -39,7 +39,7 @@ class TestAmbientTemperature(unittest.TestCase):
         custom_time = CustomTime()
         time.time = lambda: custom_time.time()
         self.state = TestState(time=custom_time)
-        self.state.set_nozzle_count(1)
+        self.state.nozzle_count = 1
 
     def test_simple(self):
         tool0 = self.state.tool_temperatures[0]
