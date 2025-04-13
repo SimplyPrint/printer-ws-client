@@ -148,16 +148,13 @@ class ClientCameraMixin(Client):
             self.printer.webcam_info.connected = True
 
         async with self._stream_lock:
-            # Try to at most send request count frames.
-            if self._request_count <= 0:
-                self.logger.debug("No requests left, dropping frame.")
-                return
-
             # Prevent racing between receiving frames and sending them.
             await self.printer.intervals.wait_for("webcam")
             b64frame = base64.b64encode(frame).decode("utf-8")
             await self.send(StreamMsg(b64frame))
-            self._request_count -= 1
+
+            if self._request_count > 0:
+                self._request_count -= 1
 
         # Keep sending frames until the request count is 0.
         if len(self._stream_lock) == 0 and self._request_count > 0:
