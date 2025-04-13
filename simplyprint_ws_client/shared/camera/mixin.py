@@ -1,5 +1,6 @@
 import asyncio
 import base64
+import datetime
 from typing import Optional, Literal
 
 from yarl import URL
@@ -17,7 +18,9 @@ class ClientCameraMixin(Client):
     _camera_pool: Optional[CameraPool] = None
     _camera_uri: Optional[URL] = None
     _camera_handle: Optional[CameraHandle] = None
+    _camera_max_cache_age: Optional[datetime.timedelta] = None
     _camera_pause_timeout: Optional[int] = None
+    _camera_debug: bool = False
     _stream_lock: CancelableLock
     _stream_setup: asyncio.Event
     _request_count: int = 0
@@ -26,12 +29,16 @@ class ClientCameraMixin(Client):
             self,
             camera_pool: Optional[CameraPool] = None,
             pause_timeout: Optional[int] = None,
+            max_cache_age: Optional[datetime.timedelta] = None,
+            camera_debug=False,
             **_kwargs
     ):
         self._camera_pool = camera_pool
         self._stream_lock = CancelableLock()
         self._stream_setup = asyncio.Event()
         self._camera_pause_timeout = pause_timeout
+        self._camera_max_cache_age = max_cache_age
+        self._camera_debug = camera_debug
 
     def set_camera_uri(self, uri: Optional[URL] = None) -> Literal['err', 'ok', 'new']:
         """Returns whether it has changed the camera URI"""
@@ -105,8 +112,12 @@ class ClientCameraMixin(Client):
 
         is_snapshot_event = data.id is not None
 
-        # Block until the camera is ready.
-        frame = await self._camera_handle.receive_frame(allow_cached=is_snapshot_event)
+        st = datetime.datetime.now()
+
+        # Block until the camera is ready, but we will sometimes allow snapshot events
+        # to use existing images if they are new enough but only once.
+        frame = await self._camera_handle.receive_frame(
+            allow_cache_age=self._camera_max_cache_age if is_snapshot_event else None)
 
         # Empty frame or none.
         if not frame:
@@ -118,6 +129,13 @@ class ClientCameraMixin(Client):
                 self.logger.debug("Failed to get frame, giving up.")
 
             return
+
+        if self._camera_debug:
+            self.logger.debug(
+                f"Received frame from camera with size {len(frame) if frame else 0} bytes "
+                f"with an fps of {self._camera_handle.fps or 'N/A'} in "
+                f"{datetime.datetime.now() - st}."
+            )
 
         # Capture snapshot events and send them to the API
         if is_snapshot_event:
