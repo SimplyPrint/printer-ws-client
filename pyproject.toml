@@ -1,6 +1,6 @@
 [project]
 name = "simplyprint-ws-client"
-version = "1.0.1rc18"
+version = "1.0.1rc19"
 description = "SimplyPrint Websocket Client"
 authors = [{ name = "SimplyPrint", email = "contact@simplyprint.io" }]
 requires-python = "~=3.8"
