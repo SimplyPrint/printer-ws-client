@@ -735,7 +735,7 @@ class JobInfoMsg(ClientMsg[Literal[ClientMsgType.JOB_INFO]]):
 
             # Progress is a float, but for simplicity we'll round it here.
             # TODO: For diff checking it might be smart to keep it as an int always.
-            if key == "progress":
+            if key == "progress" and value is not None:
                 value = round(value)
 
             # XXX: job_info does not really support "null" values.
