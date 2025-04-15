@@ -17,7 +17,7 @@ dependencies = [
     "netifaces>=0.11.0,<0.12",
     "sentry-sdk>=2.19.2,<3",
     "platformdirs>=4.3.6,<5",
-    "pydantic>2.7",
+    "pydantic>=2.10",
     "typing-extensions",
     "aiohttp>=3.11.12,<4 ; python_version >= '3.9'",
     "aiohttp>=3.10.11,<4 ; python_version < '3.9'",

@@ -215,16 +215,18 @@ def consume(state: PrinterState) -> Tuple[List[ClientMsg], int]:
         current = msg_kinds.get(msg_kind)
 
         if current is None:
-            msg_kinds[msg_kind] = v
+            msg_kinds[msg_kind] = (v, v)
             continue
 
-        msg_kinds[msg_kind] = v if v > current else current
+        lowest, highest = current
+        msg_kinds[msg_kind] = (min(lowest, v), max(highest, v))
 
     is_pending = state.config.is_pending()
 
     msgs = []
 
-    for msg_kind, v in msg_kinds.items():
+    # Sort by lowest version.
+    for msg_kind, (lowest, highest) in sorted(msg_kinds.items(), key=lambda item: item[1][0]):
         # Skip over messages that are not allowed to be sent when pending.
         if is_pending and not msg_kind.msg_type().when_pending():
             continue
@@ -241,6 +243,6 @@ def consume(state: PrinterState) -> Tuple[List[ClientMsg], int]:
             continue
 
         msgs.append(msg)
-        msg.reset_changes(state, v=v)
+        msg.reset_changes(state, v=highest)
 
     return msgs, -1  # max(v for _, v in msg_kinds)
