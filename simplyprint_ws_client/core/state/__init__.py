@@ -28,6 +28,7 @@ __all__ = [
     'MultiMaterialSolution',
 ]
 
+import threading
 import time
 from typing import Optional, Literal, no_type_check, Union, List, Set, ClassVar, TypeVar, Callable
 
@@ -291,8 +292,14 @@ class PrinterState(StateModel):
     settings: PrinterSettings = Field(default_factory=PrinterSettings)
     webcam_settings: WebcamSettings = Field(default_factory=WebcamSettings)
 
+    # Locks for complex assignment manipulation
+    # this object must be threadsafe to fulfill its api
+    # XXX: Consider a better approach.
+    __nozzle_count_lock: threading.Lock = PrivateAttr(default_factory=threading.Lock)
+    __material_count_lock: threading.Lock = PrivateAttr(default_factory=threading.Lock)
+
     def set_info(self, name, version="0.0.1"):
-        """ Set same info for all fields, both for UI / API and the client. """
+        """ Set the same info for all fields, both for UI / API and the client. """
         self.set_api_info(name, version)
         self.set_ui_info(name, version)
 
@@ -324,9 +331,13 @@ class PrinterState(StateModel):
         if count < 1:
             raise ValueError("Nozzle count must be at least 1")
 
-        self._resize_state_inplace(self.nozzles, count, lambda idx: BasicNozzleState(nozzle=idx))
-        assert all(i == n.nozzle for i, n in enumerate(self.nozzles)), "Nozzle must match index"
-        self._resize_state_inplace(self.tool_temperatures, count, lambda _: TemperatureState())
+        if self.nozzle_count == count:
+            return
+
+        with self.__nozzle_count_lock:
+            self._resize_state_inplace(self.nozzles, count, lambda idx: BasicNozzleState(nozzle=idx))
+            assert all(i == n.nozzle for i, n in enumerate(self.nozzles)), "Nozzle must match index"
+            self._resize_state_inplace(self.tool_temperatures, count, lambda _: TemperatureState())
 
     @property
     def material_count(self) -> int:
@@ -337,11 +348,15 @@ class PrinterState(StateModel):
         if count < 1:
             raise ValueError("Material count must be at least 1")
 
-        if self.active_tool is not None and self.active_tool >= count:
-            self.active_tool = None
+        if self.material_count == count:
+            return
 
-        self._resize_state_inplace(self.materials, count, lambda idx: BasicMaterialState(ext=idx))
-        assert all(i == m.ext for i, m in enumerate(self.materials)), "Material ext must match index"
+        with self.__material_count_lock:
+            if self.active_tool is not None and self.active_tool >= count:
+                self.active_tool = None
+
+            self._resize_state_inplace(self.materials, count, lambda idx: BasicMaterialState(ext=idx))
+            assert all(i == m.ext for i, m in enumerate(self.materials)), "Material ext must match index"
 
     def is_printing(self, *status) -> bool:
         """If any of the statuses are printing, return True. Default behavior is to check own status."""

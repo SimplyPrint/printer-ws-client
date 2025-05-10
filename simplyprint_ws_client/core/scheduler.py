@@ -2,6 +2,7 @@ __all__ = ["Scheduler"]
 
 import asyncio
 import logging
+import threading
 from datetime import datetime, timedelta
 from typing import Dict, Set
 
@@ -40,6 +41,7 @@ class Scheduler(AsyncStoppable, EventLoopProvider[asyncio.AbstractEventLoop]):
     _to_delete: Set[str]
     _schedule_task: ContinuousTask
     _pending_signals: Set[asyncio.Future]
+    _signal_lock: threading.Lock
 
     def __init__(
             self,
@@ -62,6 +64,7 @@ class Scheduler(AsyncStoppable, EventLoopProvider[asyncio.AbstractEventLoop]):
         self._to_delete = set()
         self._schedule_task = ContinuousTask(self._schedule_loop, provider=self)
         self._pending_signals = set()
+        self._signal_lock = threading.Lock()
 
     def submit(self, client: Client):
         if client.unique_id in self.client_list:
@@ -90,20 +93,21 @@ class Scheduler(AsyncStoppable, EventLoopProvider[asyncio.AbstractEventLoop]):
         self.signal()
 
     def signal(self):
-        # Optimization: No one to wake.
-        if len(self._cond._waiters) == 0:
-            return
+        with self._signal_lock:
+            # Optimization: No one to wake.
+            if len(self._cond._waiters) == 0:
+                return
 
-        # Optimization: No need to signal if there are pending signals.
-        if len(self._pending_signals) > 0:
-            return
+            # Optimization: No need to signal if there are pending signals.
+            if len(self._pending_signals) > 0:
+                return
 
-        if not self.event_loop_is_running():
-            return
+            if not self.event_loop_is_running():
+                return
 
-        fut = asyncio.run_coroutine_threadsafe(cond_notify_all(self._cond), self.event_loop)
-        fut.add_done_callback(self._pending_signals.discard)
-        self._pending_signals.add(fut)
+            fut = asyncio.run_coroutine_threadsafe(cond_notify_all(self._cond), self.event_loop)
+            fut.add_done_callback(self._pending_signals.discard)
+            self._pending_signals.add(fut)
 
     def _should_schedule_client(self, client: Client, when: datetime):
         # Always schedule clients that have changes.
