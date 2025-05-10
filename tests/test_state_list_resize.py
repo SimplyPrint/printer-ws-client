@@ -9,6 +9,8 @@ from simplyprint_ws_client import PrinterState, PrinterConfig
 class TestStateListResize(unittest.TestCase):
     def setUp(self):
         self.printer = PrinterState(config=PrinterConfig.get_new())
+        self.printer.nozzle_count = 1
+        self.printer.material_count = 1
 
     def _test_state_list_resize_by_property(self, property_name: str, n=1024, m=16):
         # Fuzz material_count and nozzle_count properties
@@ -23,7 +25,7 @@ class TestStateListResize(unittest.TestCase):
 
             if i % 2 == 0:
                 # Size up
-                s = safe_rand(s, m)
+                s = safe_rand(s or 1, m)
             else:
                 # Size down
                 s = safe_rand(1, s)
