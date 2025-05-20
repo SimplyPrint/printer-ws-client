@@ -368,7 +368,7 @@ class FileDemandData(BaseModel):
     file_name: Optional[str] = None
     file_id: Optional[str] = None
     file_size: Optional[int] = None
-    start_options: Dict[str, bool] = Field(default_factory=dict)
+    start_options: Dict[str, Union[bool, str]] = Field(default_factory=dict)
     zip_printable: Optional[str] = None
     mms_map: Optional[List[Optional[int]]] = None
     action_token: Optional[str] = None
