@@ -14,9 +14,9 @@ if TYPE_CHECKING:
     from ...core.settings import ClientSettings
 
 # This cannot be 0.
+MAX_UNIQUE_EXCEPTIONS = 100
+MAX_SAMPLES_PER_EXC = 5
 DEFAULT_SAMPLE_RATE = 0.1
-
-assert DEFAULT_SAMPLE_RATE != 0, "Default sample rate cannot be 0"
 
 
 class Sentry:
@@ -81,21 +81,23 @@ class Sentry:
 
     @classmethod
     def _get_sample_rate_from_hash(cls, exception_hash: int) -> float:
+        if len(cls.__seen_exceptions) > MAX_UNIQUE_EXCEPTIONS:
+            # We have too many unique exceptions, we will not send any additional exceptions.
+            return 0.0
+
         seen_times = cls.__seen_exceptions.get(exception_hash, 0)
-        # Increment seen times
         cls.__seen_exceptions[exception_hash] = seen_times + 1
 
         # Based on the sample rate, we will send the exception
         # enough times to be able to see it in the logs.
-        if seen_times > 1 / DEFAULT_SAMPLE_RATE:
+        if seen_times > MAX_SAMPLES_PER_EXC:
             return 0.0
-
-        if seen_times > 0:
-            return DEFAULT_SAMPLE_RATE
 
         # Always send unique exceptions
         if seen_times == 0:
             return 1.0
+
+        return DEFAULT_SAMPLE_RATE
 
     @classmethod
     def _error_sampler(cls, context: dict, hint: dict) -> float:
@@ -110,8 +112,8 @@ class Sentry:
                 return cls._get_sample_rate_from_hash(hash((exc_type, exc_value, traceback_string)))
         except (AttributeError, Exception):
             pass
-        finally:
-            return DEFAULT_SAMPLE_RATE
+
+        return DEFAULT_SAMPLE_RATE
 
     @classmethod
     def _traces_sampler(cls, context: dict) -> float:
