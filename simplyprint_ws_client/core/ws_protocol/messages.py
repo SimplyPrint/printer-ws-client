@@ -553,7 +553,7 @@ class ClientMsg(Msg[TMsgType, Optional[dict]]):
 
     @classmethod
     def msg_type(cls) -> TMsgType:
-        """Return literal type of the message"""
+        """Return a literal type of the message"""
         return get_args(cls.model_fields['type'].annotation)[0]
 
     @classmethod
@@ -730,6 +730,14 @@ class StateChangeMsg(ClientMsg[Literal[ClientMsgType.STATUS]]):
 class JobInfoMsg(ClientMsg[Literal[ClientMsgType.JOB_INFO]]):
     @classmethod
     def build(cls, state: PrinterState) -> TClientMsgDataGenerator:
+        ctx = state.ctx()
+
+        # Circular import
+        from ..client import DefaultClient
+
+        if isinstance(ctx, DefaultClient) and ctx.current_job_id is not None:
+            yield "job_id", ctx.current_job_id
+
         for key in state.job_info.model_changed_fields:
             value = getattr(state.job_info, key)
 

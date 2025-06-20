@@ -1,7 +1,7 @@
 import asyncio
 import base64
 import datetime
-from typing import Optional, Literal
+from typing import Optional, Literal, TypeVar
 
 from yarl import URL
 
@@ -9,12 +9,13 @@ from .handle import CameraHandle
 from .pool import CameraPool
 from ..asyncio.cancelable_lock import CancelableLock
 from ..sp.simplyprint_api import SimplyPrintApi
-from ... import configure, DemandMsgType
+from ... import configure, DemandMsgType, PrinterConfig
 from ...core.client import Client
 from ...core.ws_protocol.messages import WebcamSnapshotDemandData, StreamMsg
 
+_T = TypeVar('_T', bound=PrinterConfig)
 
-class ClientCameraMixin(Client):
+class ClientCameraMixin(Client[_T]):
     _camera_pool: Optional[CameraPool] = None
     _camera_uri: Optional[URL] = None
     _camera_handle: Optional[CameraHandle] = None
