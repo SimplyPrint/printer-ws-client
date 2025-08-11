@@ -1,4 +1,4 @@
-__all__ = ['ClientName']
+__all__ = ["ClientName"]
 
 from typing import TYPE_CHECKING, List, Optional, Union
 
@@ -13,7 +13,7 @@ if TYPE_CHECKING:
 
     TClientContext = Union[Client, PrinterConfig]
 else:
-    TClientContext = Union['Client', 'PrinterConfig']
+    TClientContext = Union["Client", "PrinterConfig"]
 
 
 class ClientName(str):

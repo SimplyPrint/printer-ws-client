@@ -15,7 +15,7 @@ class GcodeCommand(NamedTuple):
     def __str__(self):
         s = f"{self.cmd}"
 
-        for (c, v) in self.args:
+        for c, v in self.args:
             if isinstance(v, bool):
                 s += f" {c}{int(v)}"
             else:
@@ -26,10 +26,10 @@ class GcodeCommand(NamedTuple):
     @staticmethod
     def arg_cast(c: str, s: str) -> Any:
         try:
-            if c == 'F':
-                if s == '0':
+            if c == "F":
+                if s == "0":
                     return False
-                if s == '1':
+                if s == "1":
                     return True
 
             if "." in s:
@@ -66,9 +66,7 @@ class GcodeCommand(NamedTuple):
                 item = args[idx]
                 args[idx] = (item[0], item[1] + c)
 
-        args = [
-            (arg[0], cls.arg_cast(*arg)) for arg in args
-        ]
+        args = [(arg[0], cls.arg_cast(*arg)) for arg in args]
 
         return GcodeCommand(command, args)
 
@@ -76,7 +74,6 @@ class GcodeCommand(NamedTuple):
 class GcodeParser:
     @staticmethod
     def _cleanup_gcode_line(s: str) -> str:
-
         if (comment_idx := s.find(";")) != -1:
             s = s[:comment_idx]
 

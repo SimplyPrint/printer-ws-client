@@ -4,8 +4,11 @@ from typing import Optional
 
 from simplyprint_ws_client.events.event import Event
 from simplyprint_ws_client.events.event_bus import EventBus, EventBusListeners
-from simplyprint_ws_client.events.event_bus_listeners import ListenerUniqueness, ListenerLifetimeForever, \
-    ListenerLifetimeOnce
+from simplyprint_ws_client.events.event_bus_listeners import (
+    ListenerUniqueness,
+    ListenerLifetimeForever,
+    ListenerLifetimeOnce,
+)
 
 
 class CustomEvent(Event):
@@ -17,20 +20,16 @@ class CustomEvent(Event):
         return "custom"
 
 
-class CustomEventBus(EventBus[CustomEvent]):
-    ...
+class CustomEventBus(EventBus[CustomEvent]): ...
 
 
-class DefaultEventBus(EventBus[Event]):
-    ...
+class DefaultEventBus(EventBus[Event]): ...
 
 
-class ClientEvent(Event):
-    ...
+class ClientEvent(Event): ...
 
 
-class ServerEvent(Event):
-    ...
+class ServerEvent(Event): ...
 
 
 class ConnectEvent(Event):
@@ -180,8 +179,18 @@ class TestEventBus(unittest.IsolatedAsyncioTestCase):
         def func2():
             pass
 
-        event_listeners.add(func1, lifetime=ListenerLifetimeForever(**{}), priority=0, unique=ListenerUniqueness.NONE)
-        event_listeners.add(func2, lifetime=ListenerLifetimeForever(**{}), priority=0, unique=ListenerUniqueness.NONE)
+        event_listeners.add(
+            func1,
+            lifetime=ListenerLifetimeForever(**{}),
+            priority=0,
+            unique=ListenerUniqueness.NONE,
+        )
+        event_listeners.add(
+            func2,
+            lifetime=ListenerLifetimeForever(**{}),
+            priority=0,
+            unique=ListenerUniqueness.NONE,
+        )
 
         self.assertEqual(len(event_listeners), 2)
 

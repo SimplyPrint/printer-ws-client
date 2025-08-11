@@ -31,7 +31,11 @@ def traceable_location_from_func(func, *args, **kwargs):
 
     # For property functions if the first argument is a class
     # and that class has the property, we store it on the class
-    if args and hasattr(args[0], '__class__') and hasattr(args[0].__class__, func.__name__):
+    if (
+        args
+        and hasattr(args[0], "__class__")
+        and hasattr(args[0].__class__, func.__name__)
+    ):
         return args[0], f"__traceability__{func.__name__}", True
 
     # Otherwise, we store it on the function itself
@@ -40,8 +44,15 @@ def traceable_location_from_func(func, *args, **kwargs):
 
 # Collects traceability information for a function
 # Into an object that can be used to trace the function call
-def traceable(*args, record_calls=False, with_stack=False, with_args=False, with_retval=False, record_count=10,
-              **kwargs):
+def traceable(
+    *args,
+    record_calls=False,
+    with_stack=False,
+    with_args=False,
+    with_retval=False,
+    record_count=10,
+    **kwargs,
+):
     """
     :param record_calls: Whether to record the number of calls to the function
     :param with_stack: Whether to record the stack of the function
@@ -57,10 +68,14 @@ def traceable(*args, record_calls=False, with_stack=False, with_args=False, with
             raise ValueError("traceable decorator must be used on a callable")
 
         # Required as property is mirrored by @wraps so we can reference "func" in this context
-        setattr(func, "__traceability__", Traceability(
-            last_called=None,
-            call_record=deque(maxlen=record_count) if should_record_calls else None
-        ))
+        setattr(
+            func,
+            "__traceability__",
+            Traceability(
+                last_called=None,
+                call_record=deque(maxlen=record_count) if should_record_calls else None,
+            ),
+        )
 
         @wraps(func)
         def wrapper(*fargs, **fkwargs):
@@ -69,14 +84,16 @@ def traceable(*args, record_calls=False, with_stack=False, with_args=False, with
             if not _traceability_enabled.get():
                 return func(*fargs, **fkwargs)
 
-            obj, trace_key, remove_first_arg = traceable_location_from_func(func, *fargs, **fkwargs)
+            obj, trace_key, remove_first_arg = traceable_location_from_func(
+                func, *fargs, **fkwargs
+            )
 
             if hasattr(obj, trace_key):
                 traceability = getattr(obj, trace_key)
             else:
                 traceability = Traceability(
                     last_called=None,
-                    call_record=deque(maxlen=10) if should_record_calls else None
+                    call_record=deque(maxlen=10) if should_record_calls else None,
                 )
 
                 setattr(obj, trace_key, traceability)
@@ -92,7 +109,9 @@ def traceable(*args, record_calls=False, with_stack=False, with_args=False, with
                 if should_record_calls:
                     record = TraceabilityRecord(
                         called_at=traceability.last_called,
-                        args=(fargs[1:] if remove_first_arg else fargs) if with_args else None,
+                        args=(fargs[1:] if remove_first_arg else fargs)
+                        if with_args
+                        else None,
                         kwargs=fkwargs if with_args else None,
                         retval=retval if with_retval else None,
                         stack=None,
@@ -134,27 +153,26 @@ def from_property(prop: property):
 def from_class_instance(cls):
     # Find all properties starting with __traceability__
     traces = {
-        name[len("__traceability__"):]: value for name, value in cls.__dict__.items()
+        name[len("__traceability__") :]: value
+        for name, value in cls.__dict__.items()
         if name.startswith("__traceability__")
     }
 
     # Return name: Traceability
     return {
-        name: value for name, value in traces.items()
-        if isinstance(value, Traceability)
+        name: value for name, value in traces.items() if isinstance(value, Traceability)
     }
 
 
 def from_class_static(cls):
     # Find all callables that have the property __traceability__
     traces = {
-        name: value for name, value in cls.__dict__.items()
+        name: value
+        for name, value in cls.__dict__.items()
         if hasattr(value, "__traceability__")
     }
 
-    return {
-        name: from_func(value) for name, value in traces.items()
-    }
+    return {name: from_func(value) for name, value in traces.items()}
 
 
 @exception_as_value(return_default=True)
@@ -186,8 +204,8 @@ class Traceability:
 
     def stats(self):
         return {
-            "last_called":  self.last_called,
-            "delta_called": time.time() - self.last_called
+            "last_called": self.last_called,
+            "delta_called": time.time() - self.last_called,
         }
 
     def get_call_record(self):
@@ -201,5 +219,5 @@ __all__ = [
     "from_property",
     "from_class",
     "Traceability",
-    "TraceabilityRecord"
+    "TraceabilityRecord",
 ]

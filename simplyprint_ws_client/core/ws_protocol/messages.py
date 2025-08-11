@@ -1,102 +1,130 @@
 __all__ = [
-    'ServerMsgType',
-    'DemandMsgType',
-    'ClientMsgType',
-    'DispatchMode',
-    'Msg',
-    'ErrorMsgData',
-    'ErrorMsg',
-    'NewTokenMsgData',
-    'NewTokenMsg',
-    'ConnectedMsgData',
-    'ConnectedMsg',
-    'CompleteSetupMsgData',
-    'CompleteSetupMsg',
-    'IntervalChangeMsg',
-    'PongMsg',
-    'StreamReceivedMsg',
-    'PrinterSettingsMsg',
-    'MultiPrinterAddedMsgData',
-    'MultiPrinterAddedMsg',
-    'MultiPrinterRemovedMsgData',
-    'MultiPrinterRemovedMsg',
-    'PauseDemandData',
-    'ResumeDemandData',
-    'CancelDemandData',
-    'TerminalDemandData',
-    'GcodeDemandData',
-    'WebcamTestDemandData',
-    'WebcamSnapshotDemandData',
-    'FileDemandData',
-    'StartPrintDemandData',
-    'ConnectPrinterDemandData',
-    'DisconnectPrinterDemandData',
-    'SystemRestartDemandData',
-    'SystemShutdownDemandData',
-    'ApiRestartDemandData',
-    'ApiShutdownDemandData',
-    'UpdateDemandData',
-    'PluginInstallDemandData',
-    'PluginUninstallDemandData',
-    'WebcamSettingsUpdatedDemandData',
-    'StreamOnDemandData',
-    'StreamOffDemandData',
-    'SetPrinterProfileDemandData',
-    'SetMaterialDataDemandData',
-    'GetGcodeScriptBackupsDemandData',
-    'HasGcodeChangesDemandData',
-    'PsuKeepaliveDemandData',
-    'PsuOnDemandData',
-    'PsuOffDemandData',
-    'DisableWebsocketsDemandData',
-    'GotoWsProdDemandData',
-    'GotoWsTestDemandData',
-    'SendLogsDemandData',
-    'DemandMsgKind',
-    'DemandMsg',
-    'ServerMsgKind',
-    'ServerMsg',
-    'TClientMsgDataGenerator',
-    'ClientMsg',
-    'MultiPrinterAddConnectionMsg',
-    'MultiPrinterRemoveConnectionMsg',
-    'GcodeScriptsMsg',
-    'MachineDataMsg',
-    'WebcamStatusMsg',
-    'WebcamMsg',
-    'InstalledPluginsMsg',
-    'SoftwareUpdatesMsg',
-    'FirmwareMsg',
-    'FirmwareWarningMsg',
-    'ToolMsg',
-    'TemperatureMsg',
-    'AmbientTemperatureMsg',
-    'ConnectionMsg',
-    'StateChangeMsg',
-    'JobInfoMsg',
-    'AiRespMsg',
-    'PrinterErrorMsg',
-    'ShutdownMsg',
-    'StreamMsg',
-    'PingMsg',
-    'LatencyMsg',
-    'FileProgressMsg',
-    'FilamentSensorMsg',
-    'PowerControllerMsg',
-    'CpuInfoMsg',
-    'MeshDataMsg',
-    'LogsSentMsg',
-    'MaterialDataMsg',
-    'NotificationDataMsg',
+    "ServerMsgType",
+    "DemandMsgType",
+    "ClientMsgType",
+    "DispatchMode",
+    "Msg",
+    "ErrorMsgData",
+    "ErrorMsg",
+    "NewTokenMsgData",
+    "NewTokenMsg",
+    "ConnectedMsgData",
+    "ConnectedMsg",
+    "CompleteSetupMsgData",
+    "CompleteSetupMsg",
+    "IntervalChangeMsg",
+    "PongMsg",
+    "StreamReceivedMsg",
+    "PrinterSettingsMsg",
+    "MultiPrinterAddedMsgData",
+    "MultiPrinterAddedMsg",
+    "MultiPrinterRemovedMsgData",
+    "MultiPrinterRemovedMsg",
+    "PauseDemandData",
+    "ResumeDemandData",
+    "CancelDemandData",
+    "TerminalDemandData",
+    "GcodeDemandData",
+    "WebcamTestDemandData",
+    "WebcamSnapshotDemandData",
+    "FileDemandData",
+    "StartPrintDemandData",
+    "ConnectPrinterDemandData",
+    "DisconnectPrinterDemandData",
+    "SystemRestartDemandData",
+    "SystemShutdownDemandData",
+    "ApiRestartDemandData",
+    "ApiShutdownDemandData",
+    "UpdateDemandData",
+    "PluginInstallDemandData",
+    "PluginUninstallDemandData",
+    "WebcamSettingsUpdatedDemandData",
+    "StreamOnDemandData",
+    "StreamOffDemandData",
+    "SetPrinterProfileDemandData",
+    "SetMaterialDataDemandData",
+    "GetGcodeScriptBackupsDemandData",
+    "HasGcodeChangesDemandData",
+    "PsuKeepaliveDemandData",
+    "PsuOnDemandData",
+    "PsuOffDemandData",
+    "DisableWebsocketsDemandData",
+    "GotoWsProdDemandData",
+    "GotoWsTestDemandData",
+    "SendLogsDemandData",
+    "DemandMsgKind",
+    "DemandMsg",
+    "ServerMsgKind",
+    "ServerMsg",
+    "TClientMsgDataGenerator",
+    "ClientMsg",
+    "MultiPrinterAddConnectionMsg",
+    "MultiPrinterRemoveConnectionMsg",
+    "GcodeScriptsMsg",
+    "MachineDataMsg",
+    "WebcamStatusMsg",
+    "WebcamMsg",
+    "InstalledPluginsMsg",
+    "SoftwareUpdatesMsg",
+    "FirmwareMsg",
+    "FirmwareWarningMsg",
+    "ToolMsg",
+    "TemperatureMsg",
+    "AmbientTemperatureMsg",
+    "ConnectionMsg",
+    "StateChangeMsg",
+    "JobInfoMsg",
+    "AiRespMsg",
+    "PrinterErrorMsg",
+    "ShutdownMsg",
+    "StreamMsg",
+    "PingMsg",
+    "LatencyMsg",
+    "FileProgressMsg",
+    "FilamentSensorMsg",
+    "PowerControllerMsg",
+    "CpuInfoMsg",
+    "MeshDataMsg",
+    "LogsSentMsg",
+    "MaterialDataMsg",
+    "NotificationDataMsg",
 ]
 
 from enum import StrEnum, IntEnum
-from typing import Generic, TypeVar, Union, Literal, Optional, List, Dict, Any, Tuple, Generator, get_args
+from itertools import chain
+from typing import (
+    Generic,
+    TypeVar,
+    Union,
+    Literal,
+    Optional,
+    List,
+    Dict,
+    Any,
+    Tuple,
+    Generator,
+    get_args,
+    ClassVar,
+)
 
-from pydantic import BaseModel, Field, field_validator, RootModel, model_serializer
+from pydantic import (
+    BaseModel,
+    Field,
+    field_validator,
+    RootModel,
+    model_serializer,
+    model_validator,
+)
 
 from ..config import PrinterConfig
-from ..state import Intervals, PrinterSettings, FileProgressStateEnum, PrinterState, JobInfoState, BasicMaterialState
+from ..state import (
+    Intervals,
+    PrinterSettings,
+    FileProgressStateEnum,
+    PrinterState,
+    JobInfoState,
+    MaterialEntry,
+)
 
 try:
     from typing import Annotated
@@ -218,13 +246,14 @@ class DispatchMode(IntEnum):
     """Either do nothing, or provide a reason
     for not sending the message.
     """
+
     DISPATCH = 0
     RATELIMIT = 1
     CANCEL = 2
 
 
-TMsgType = TypeVar('TMsgType', bound=str)
-TMsgData = TypeVar('TMsgData')
+TMsgType = TypeVar("TMsgType", bound=str)
+TMsgData = TypeVar("TMsgData")
 
 
 class Msg(BaseModel, Generic[TMsgType, TMsgData], populate_by_name=True):
@@ -232,12 +261,14 @@ class Msg(BaseModel, Generic[TMsgType, TMsgData], populate_by_name=True):
     data: TMsgData
     for_client: Union[int, str, None] = Field(None, alias="for")
 
-    @model_serializer(mode='plain', when_used='json')
+    @model_serializer(mode="plain", when_used="json")
     def model_serializer(self):
         """Waiting for https://github.com/pydantic/pydantic-core/pull/1535"""
         serialized = {"type": self.type}
 
-        if self.data is not None and (not isinstance(self.data, (dict, list)) or len(self.data) > 0):
+        if self.data is not None and (
+            not isinstance(self.data, (dict, list)) or len(self.data) > 0
+        ):
             serialized["data"] = self.data
 
         if self.for_client is not None:
@@ -250,8 +281,7 @@ class ErrorMsgData(BaseModel):
     msg: str
 
 
-class ErrorMsg(Msg[Literal[ServerMsgType.ERROR], ErrorMsgData]):
-    ...
+class ErrorMsg(Msg[Literal[ServerMsgType.ERROR], ErrorMsgData]): ...
 
 
 class NewTokenMsgData(BaseModel):
@@ -260,8 +290,7 @@ class NewTokenMsgData(BaseModel):
     no_exist: Optional[bool] = None
 
 
-class NewTokenMsg(Msg[Literal[ServerMsgType.NEW_TOKEN], NewTokenMsgData]):
-    ...
+class NewTokenMsg(Msg[Literal[ServerMsgType.NEW_TOKEN], NewTokenMsgData]): ...
 
 
 class ConnectedMsgData(BaseModel):
@@ -282,12 +311,12 @@ class CompleteSetupMsgData(BaseModel):
     printer_id: int
 
 
-class CompleteSetupMsg(Msg[Literal[ServerMsgType.COMPLETE_SETUP], CompleteSetupMsgData]):
-    ...
+class CompleteSetupMsg(
+    Msg[Literal[ServerMsgType.COMPLETE_SETUP], CompleteSetupMsgData]
+): ...
 
 
-class IntervalChangeMsg(Msg[Literal[ServerMsgType.INTERVAL_CHANGE], Intervals]):
-    ...
+class IntervalChangeMsg(Msg[Literal[ServerMsgType.INTERVAL_CHANGE], Intervals]): ...
 
 
 class PongMsg(Msg[Literal[ServerMsgType.PONG], NoneType]):
@@ -298,8 +327,9 @@ class StreamReceivedMsg(Msg[Literal[ServerMsgType.STREAM_RECEIVED], NoneType]):
     data: NoneType = None
 
 
-class PrinterSettingsMsg(Msg[Literal[ServerMsgType.PRINTER_SETTINGS], PrinterSettings]):
-    ...
+class PrinterSettingsMsg(
+    Msg[Literal[ServerMsgType.PRINTER_SETTINGS], PrinterSettings]
+): ...
 
 
 class MultiPrinterAddedMsgData(BaseModel):
@@ -309,8 +339,9 @@ class MultiPrinterAddedMsgData(BaseModel):
     reason: Optional[str] = None
 
 
-class MultiPrinterAddedMsg(Msg[Literal[ServerMsgType.ADD_CONNECTION], MultiPrinterAddedMsgData]):
-    ...
+class MultiPrinterAddedMsg(
+    Msg[Literal[ServerMsgType.ADD_CONNECTION], MultiPrinterAddedMsgData]
+): ...
 
 
 class MultiPrinterRemovedMsgData(BaseModel):
@@ -322,8 +353,9 @@ class MultiPrinterRemovedMsgData(BaseModel):
     reason: Optional[str] = None
 
 
-class MultiPrinterRemovedMsg(Msg[Literal[ServerMsgType.REMOVE_CONNECTION], MultiPrinterRemovedMsgData]):
-    ...
+class MultiPrinterRemovedMsg(
+    Msg[Literal[ServerMsgType.REMOVE_CONNECTION], MultiPrinterRemovedMsgData]
+): ...
 
 
 class PauseDemandData(BaseModel):
@@ -359,6 +391,24 @@ class WebcamSnapshotDemandData(BaseModel):
     endpoint: Optional[str] = None
 
 
+class MMSMapEntry(BaseModel):
+    nozzle: int
+    ext: Optional[int]
+
+    @model_validator(mode="before")
+    @classmethod
+    def _validate_mms_map_entry(
+        cls, v: Union[int, dict, None]
+    ) -> Dict[str, Union[int, None]]:
+        """Coerce the MMS map entry to a dict with 'nozzle' and 'ext' keys."""
+        if isinstance(v, dict):
+            return v
+        elif isinstance(v, int):
+            return {"nozzle": 0, "ext": v}
+        else:
+            return {"nozzle": 0, "ext": None}
+
+
 class FileDemandData(BaseModel):
     demand: Literal[DemandMsgType.FILE] = DemandMsgType.FILE
     job_id: Optional[int] = None
@@ -370,13 +420,8 @@ class FileDemandData(BaseModel):
     file_size: Optional[int] = None
     start_options: Dict[str, Union[bool, str]] = Field(default_factory=dict)
     zip_printable: Optional[str] = None
-    mms_map: Optional[List[Optional[int]]] = None
+    mms_map: Optional[List[MMSMapEntry]] = None
     action_token: Optional[str] = None
-
-    @field_validator('mms_map', mode='after')
-    @classmethod
-    def convert_mms_map(cls, v):
-        return list(map(lambda n: -1 if n is None else n, v)) if v is not None else None
 
 
 class StartPrintDemandData(BaseModel):
@@ -422,7 +467,9 @@ class PluginUninstallDemandData(BaseModel):
 
 
 class WebcamSettingsUpdatedDemandData(BaseModel):
-    demand: Literal[DemandMsgType.WEBCAM_SETTINGS_UPDATED] = DemandMsgType.WEBCAM_SETTINGS_UPDATED
+    demand: Literal[DemandMsgType.WEBCAM_SETTINGS_UPDATED] = (
+        DemandMsgType.WEBCAM_SETTINGS_UPDATED
+    )
     settings: Optional[Dict[str, Any]] = None
 
 
@@ -431,7 +478,7 @@ class StreamOnDemandData(BaseModel):
     interval: Optional[float] = None
 
     # Default to 300 and always divide by 1000
-    @field_validator('interval', mode='before')
+    @field_validator("interval", mode="before")
     @classmethod
     def convert_interval(cls, v):
         return v / 1000 if v is not None else 300 / 1000
@@ -442,21 +489,27 @@ class StreamOffDemandData(BaseModel):
 
 
 class SetPrinterProfileDemandData(BaseModel):
-    demand: Literal[DemandMsgType.SET_PRINTER_PROFILE] = DemandMsgType.SET_PRINTER_PROFILE
+    demand: Literal[DemandMsgType.SET_PRINTER_PROFILE] = (
+        DemandMsgType.SET_PRINTER_PROFILE
+    )
     printer_profile: Optional[Any] = None
 
 
 class SetMaterialDataDemandData(BaseModel):
     demand: Literal[DemandMsgType.SET_MATERIAL_DATA] = DemandMsgType.SET_MATERIAL_DATA
-    materials: List[BasicMaterialState] = Field(default_factory=list)
+    materials: List[MaterialEntry] = Field(default_factory=list)
 
 
 class RefreshMaterialDataDemandData(BaseModel):
-    demand: Literal[DemandMsgType.REFRESH_MATERIAL_DATA] = DemandMsgType.REFRESH_MATERIAL_DATA
+    demand: Literal[DemandMsgType.REFRESH_MATERIAL_DATA] = (
+        DemandMsgType.REFRESH_MATERIAL_DATA
+    )
 
 
 class GetGcodeScriptBackupsDemandData(BaseModel):
-    demand: Literal[DemandMsgType.GET_GCODE_SCRIPT_BACKUPS] = DemandMsgType.GET_GCODE_SCRIPT_BACKUPS
+    demand: Literal[DemandMsgType.GET_GCODE_SCRIPT_BACKUPS] = (
+        DemandMsgType.GET_GCODE_SCRIPT_BACKUPS
+    )
     force: bool = False
 
 
@@ -510,17 +563,48 @@ class SendLogsDemandData(BaseModel):
 
 
 DemandMsgKind = Union[
-    PauseDemandData, ResumeDemandData, CancelDemandData, TerminalDemandData, GcodeDemandData, WebcamTestDemandData,
-    WebcamSnapshotDemandData, FileDemandData, StartPrintDemandData, ConnectPrinterDemandData, DisconnectPrinterDemandData,
-    SystemRestartDemandData, SystemShutdownDemandData, ApiRestartDemandData, ApiShutdownDemandData, UpdateDemandData,
-    PluginInstallDemandData, PluginUninstallDemandData, WebcamSettingsUpdatedDemandData, StreamOnDemandData,
-    StreamOffDemandData, SetPrinterProfileDemandData, SetMaterialDataDemandData, RefreshMaterialDataDemandData,
-    GetGcodeScriptBackupsDemandData, HasGcodeChangesDemandData, PsuKeepaliveDemandData, PsuOnDemandData, PsuOffDemandData,
-    DisableWebsocketsDemandData, GotoWsProdDemandData, GotoWsTestDemandData, SendLogsDemandData]
+    PauseDemandData,
+    ResumeDemandData,
+    CancelDemandData,
+    TerminalDemandData,
+    GcodeDemandData,
+    WebcamTestDemandData,
+    WebcamSnapshotDemandData,
+    FileDemandData,
+    StartPrintDemandData,
+    ConnectPrinterDemandData,
+    DisconnectPrinterDemandData,
+    SystemRestartDemandData,
+    SystemShutdownDemandData,
+    ApiRestartDemandData,
+    ApiShutdownDemandData,
+    UpdateDemandData,
+    PluginInstallDemandData,
+    PluginUninstallDemandData,
+    WebcamSettingsUpdatedDemandData,
+    StreamOnDemandData,
+    StreamOffDemandData,
+    SetPrinterProfileDemandData,
+    SetMaterialDataDemandData,
+    RefreshMaterialDataDemandData,
+    GetGcodeScriptBackupsDemandData,
+    HasGcodeChangesDemandData,
+    PsuKeepaliveDemandData,
+    PsuOnDemandData,
+    PsuOffDemandData,
+    DisableWebsocketsDemandData,
+    GotoWsProdDemandData,
+    GotoWsTestDemandData,
+    SendLogsDemandData,
+]
 
 
-class DemandMsg(Msg[Literal[ServerMsgType.DEMAND], Annotated[DemandMsgKind, Field(discriminator='demand')]]):
-    ...
+class DemandMsg(
+    Msg[
+        Literal[ServerMsgType.DEMAND],
+        Annotated[DemandMsgKind, Field(discriminator="demand")],
+    ]
+): ...
 
 
 ServerMsgKind = Union[
@@ -534,13 +618,13 @@ ServerMsgKind = Union[
     PrinterSettingsMsg,
     MultiPrinterAddedMsg,
     MultiPrinterRemovedMsg,
-    DemandMsg
+    DemandMsg,
 ]
 
 
 # Incoming Msgs from the server
 class ServerMsg(RootModel):
-    root: Annotated[ServerMsgKind, Field(discriminator='type')]
+    root: Annotated[ServerMsgKind, Field(discriminator="type")]
 
 
 TClientMsgDataGenerator = Generator[Tuple[str, Any], None, None]
@@ -554,7 +638,7 @@ class ClientMsg(Msg[TMsgType, Optional[dict]]):
     @classmethod
     def msg_type(cls) -> TMsgType:
         """Return a literal type of the message"""
-        return get_args(cls.model_fields['type'].annotation)[0]
+        return get_args(cls.model_fields["type"].annotation)[0]
 
     @classmethod
     def build(cls, state: PrinterState) -> TClientMsgDataGenerator:
@@ -581,25 +665,30 @@ class ClientMsg(Msg[TMsgType, Optional[dict]]):
 
 class MultiPrinterAddConnectionMsg(ClientMsg[Literal[ClientMsgType.ADD_CONNECTION]]):
     def __init__(self, config: PrinterConfig, allow_setup: bool = False):
-        super().__init__(data={
-            "pid":         int(config.id if not config.in_setup else 0),
-            "token":       config.token,
-            "unique_id":   config.unique_id,
-            "allow_setup": bool(allow_setup or False),
-            "client_ip":   config.public_ip
-        })
+        super().__init__(
+            data={
+                "pid": int(config.id if not config.in_setup else 0),
+                "token": config.token,
+                "unique_id": config.unique_id,
+                "allow_setup": bool(allow_setup or False),
+                "client_ip": config.public_ip,
+            }
+        )
 
 
-class MultiPrinterRemoveConnectionMsg(ClientMsg[Literal[ClientMsgType.REMOVE_CONNECTION]]):
+class MultiPrinterRemoveConnectionMsg(
+    ClientMsg[Literal[ClientMsgType.REMOVE_CONNECTION]]
+):
     def __init__(self, config: PrinterConfig):
-        super().__init__(data={
-            "pid":       int(config.id if not config.in_setup else 0),
-            "unique_id": config.unique_id
-        })
+        super().__init__(
+            data={
+                "pid": int(config.id if not config.in_setup else 0),
+                "unique_id": config.unique_id,
+            }
+        )
 
 
-class GcodeScriptsMsg(ClientMsg[Literal[ClientMsgType.GCODE_SCRIPTS]]):
-    ...
+class GcodeScriptsMsg(ClientMsg[Literal[ClientMsgType.GCODE_SCRIPTS]]): ...
 
 
 class MachineDataMsg(ClientMsg[Literal[ClientMsgType.INFO]]):
@@ -631,12 +720,10 @@ class WebcamMsg(ClientMsg[Literal[ClientMsgType.WEBCAM]]):
         state.webcam_settings.model_reset_changed()
 
 
-class InstalledPluginsMsg(ClientMsg[Literal[ClientMsgType.INSTALLED_PLUGINS]]):
-    ...
+class InstalledPluginsMsg(ClientMsg[Literal[ClientMsgType.INSTALLED_PLUGINS]]): ...
 
 
-class SoftwareUpdatesMsg(ClientMsg[Literal[ClientMsgType.SOFTWARE_UPDATES]]):
-    ...
+class SoftwareUpdatesMsg(ClientMsg[Literal[ClientMsgType.SOFTWARE_UPDATES]]): ...
 
 
 class FirmwareMsg(ClientMsg[Literal[ClientMsgType.FIRMWARE]]):
@@ -646,9 +733,16 @@ class FirmwareMsg(ClientMsg[Literal[ClientMsgType.FIRMWARE]]):
         Construct a dict "fw" with all fields prefixed with firmware,
         except for name which is just supposed to be firmware.
         """
-        yield "fw", (
-            {(f"firmware_{key}" if key != "name" else "firmware"): value for key in
-             state.firmware.model_fields if (value := getattr(state.firmware, key)) is not None})
+        yield (
+            "fw",
+            (
+                {
+                    (f"firmware_{key}" if key != "name" else "firmware"): value
+                    for key in state.firmware.model_fields
+                    if (value := getattr(state.firmware, key)) is not None
+                }
+            ),
+        )
 
     def reset_changes(self, state: PrinterState, v: Optional[int] = None) -> None:
         state.firmware.model_reset_changed()
@@ -676,29 +770,38 @@ class ToolMsg(ClientMsg[Literal[ClientMsgType.TOOL]]):
 class TemperatureMsg(ClientMsg[Literal[ClientMsgType.TEMPERATURES]]):
     @classmethod
     def build(cls, state: PrinterState) -> TClientMsgDataGenerator:
-        if state.bed_temperature.model_has_changed:
-            yield "bed", state.bed_temperature.to_list()
+        if state.bed.temperature.model_has_changed:
+            yield "bed", state.bed.temperature.to_list()
 
-        for i, tool in enumerate(state.tool_temperatures):
-            if not tool.model_has_changed:
+        for i, tool in enumerate(state.tools):
+            if not tool.temperature.model_has_changed:
                 continue
 
-            yield f"tool{i}", tool.to_list()
+            yield f"tool{i}", tool.temperature.to_list()
 
     def reset_changes(self, state: PrinterState, v: Optional[int] = None) -> None:
-        state.bed_temperature.model_reset_changed()
+        state.bed.model_reset_changed("temperature")
+        state.bed.temperature.model_reset_changed()
 
-        for tool in state.tool_temperatures:
-            tool.model_reset_changed()
+        for tool in state.tools:
+            tool.model_reset_changed("temperature")
+            tool.temperature.model_reset_changed()
 
     def dispatch_mode(self, state: PrinterState) -> DispatchMode:
         # If any target has been set, we need to send the message.
-        if any("target" in x.model_self_changed_fields for x in [state.bed_temperature, *state.tool_temperatures]):
+        if any(
+            "target" in x.model_self_changed_fields
+            for x in chain(
+                (state.bed.temperature,), map(lambda t: t.temperature, state.tools)
+            )
+        ):
             return DispatchMode.DISPATCH
 
         # For normal temperature changes, report more often if we are heating up or down.
         # TODO: StrEnum
-        interval_t: Literal["temps_target", "temps"] = "temps_target" if state.is_heating() else "temps"
+        interval_t: Literal["temps_target", "temps"] = (
+            "temps_target" if state.is_heating() else "temps"
+        )
         return state.intervals.dispatch_mode(interval_t)
 
 
@@ -711,8 +814,7 @@ class AmbientTemperatureMsg(ClientMsg[Literal[ClientMsgType.AMBIENT]]):
         state.ambient_temperature.model_reset_changed()
 
 
-class ConnectionMsg(ClientMsg[Literal[ClientMsgType.CONNECTION]]):
-    ...
+class ConnectionMsg(ClientMsg[Literal[ClientMsgType.CONNECTION]]): ...
 
 
 class StateChangeMsg(ClientMsg[Literal[ClientMsgType.STATUS]]):
@@ -761,23 +863,22 @@ class JobInfoMsg(ClientMsg[Literal[ClientMsgType.JOB_INFO]]):
 
     def dispatch_mode(self, state: PrinterState) -> DispatchMode:
         # Check if there is an intersection between the changed fields and the boolean fields
-        if JobInfoState.MUTUALLY_EXCLUSIVE_FIELDS.intersection(state.job_info.model_changed_fields):
+        if JobInfoState.MUTUALLY_EXCLUSIVE_FIELDS.intersection(
+            state.job_info.model_changed_fields
+        ):
             return DispatchMode.DISPATCH
 
         return state.intervals.dispatch_mode("job")
 
 
 # Deprecated.
-class AiRespMsg(ClientMsg[Literal[ClientMsgType.AI_RESP]]):
-    ...
+class AiRespMsg(ClientMsg[Literal[ClientMsgType.AI_RESP]]): ...
 
 
-class PrinterErrorMsg(ClientMsg[Literal[ClientMsgType.PRINTER_ERROR]]):
-    ...
+class PrinterErrorMsg(ClientMsg[Literal[ClientMsgType.PRINTER_ERROR]]): ...
 
 
-class ShutdownMsg(ClientMsg[Literal[ClientMsgType.SHUTDOWN]]):
-    ...
+class ShutdownMsg(ClientMsg[Literal[ClientMsgType.SHUTDOWN]]): ...
 
 
 class StreamMsg(ClientMsg[Literal[ClientMsgType.STREAM]]):
@@ -824,7 +925,10 @@ class FileProgressMsg(ClientMsg[Literal[ClientMsgType.FILE_PROGRESS]]):
             return
 
         # Always send progress when we are downloading.
-        if state.file_progress.state in (FileProgressStateEnum.DOWNLOADING, FileProgressStateEnum.STARTED):
+        if state.file_progress.state in (
+            FileProgressStateEnum.DOWNLOADING,
+            FileProgressStateEnum.STARTED,
+        ):
             yield "percent", state.file_progress.percent
 
     def reset_changes(self, state: PrinterState, v: Optional[int] = None) -> None:
@@ -862,44 +966,80 @@ class CpuInfoMsg(ClientMsg[Literal[ClientMsgType.CPU_INFO]]):
         return state.intervals.dispatch_mode("cpu")
 
 
-class MeshDataMsg(ClientMsg[Literal[ClientMsgType.MESH_DATA]]):
-    ...
+class MeshDataMsg(ClientMsg[Literal[ClientMsgType.MESH_DATA]]): ...
 
 
-class LogsSentMsg(ClientMsg[Literal[ClientMsgType.LOGS_SENT]]):
-    ...
+class LogsSentMsg(ClientMsg[Literal[ClientMsgType.LOGS_SENT]]): ...
 
 
 class MaterialDataMsg(ClientMsg[Literal[ClientMsgType.MATERIAL_DATA]]):
+    _BED_FIELDS: ClassVar = {"type"}
+    _TOOL_FIELDS: ClassVar = {"nozzle", "type", "size"}
+
     @classmethod
     def build(cls, state: PrinterState, is_refresh=False) -> TClientMsgDataGenerator:
         if is_refresh:
             yield "refresh", True
 
-        if is_refresh or state.bed.model_has_changed:
-            yield "bed", state.bed.model_dump(exclude_none=True, mode='json')
+        if is_refresh or state.bed.model_has_changes(*cls._BED_FIELDS):
+            yield (
+                "bed",
+                state.bed.model_dump(
+                    exclude_none=True, include=cls._BED_FIELDS, mode="json"
+                ),
+            )
 
-        if is_refresh or any(m.model_has_changed for m in state.nozzles):
-            yield "nozzles", [m.model_dump(exclude_none=True, mode='json') for m in state.nozzles if
-                              m.model_has_changed or is_refresh]
+        if is_refresh or any(
+            m.model_has_changes(*cls._TOOL_FIELDS) for m in state.tools
+        ):
+            yield (
+                "nozzles",
+                [
+                    m.model_dump(
+                        exclude_none=True, include=cls._TOOL_FIELDS, mode="json"
+                    )
+                    for m in state.tools
+                    if m.model_has_changes(*cls._TOOL_FIELDS) or is_refresh
+                ],
+            )
 
-        if is_refresh or "mms_layout" in state.model_self_changed_fields or any(
-                m.model_has_changed for m in state.mms_layout):
-            yield "layout", [m.model_dump(exclude_none=True, mode='json') for m in state.mms_layout]
+        if (
+            is_refresh
+            or "mms_layout" in state.model_self_changed_fields
+            or any(m.model_has_changed for m in state.mms_layout)
+        ):
+            yield (
+                "layout",
+                [
+                    m.model_dump(exclude_none=True, mode="json")
+                    for m in state.mms_layout
+                ],
+            )
 
-        if is_refresh or any(m.model_has_changed for m in state.materials):
-            yield "materials", {m.ext: m.model_dump(exclude_none=True, mode='json') for m in state.materials if
-                                m.model_has_changed or is_refresh}
+        materials = chain.from_iterable(map(lambda t: t.materials, state.tools))
+
+        if is_refresh or any(m.model_has_changed for m in materials):
+            yield (
+                "materials",
+                [
+                    m.model_dump(exclude_none=True, mode="json")
+                    for m in materials
+                    if m.model_has_changed or is_refresh
+                ],
+            )
 
     def reset_changes(self, state: PrinterState, v: Optional[int] = None) -> None:
-        state.model_reset_changed('mms_layout', 'nozzles', 'materials', 'bed', v=v)
+        # Mirror of producer side.
+        state.model_reset_changed("mms_layout", v=v)
+        state.bed.model_reset_changed("type", v=v)
 
-        state.bed.model_reset_changed(v=v)
+        for t in state.tools:
+            t.model_reset_changed("materials", "size", "type", v=v)
 
-        for m in state.nozzles + state.mms_layout + state.materials:
-            m.model_reset_changed(v=v)
+            for m in t.materials:
+                m.model_reset_changed(v=v)
 
 
 class NotificationDataMsg(ClientMsg[Literal[ClientMsgType.NOTIFICATION]]):
-    def __init__(self, notification_type: Literal['simple'], contents: dict):
+    def __init__(self, notification_type: Literal["simple"], contents: dict):
         super().__init__(data={"type": notification_type, "contents": contents})

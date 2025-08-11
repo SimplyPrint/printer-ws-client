@@ -4,7 +4,7 @@ from typing import Optional, Callable, Coroutine, Any, Generic, TypeVar
 
 from .event_loop_provider import EventLoopProvider
 
-T = TypeVar('T')
+T = TypeVar("T")
 
 
 class ContinuousTask(Generic[T], EventLoopProvider[AbstractEventLoop]):
@@ -12,6 +12,7 @@ class ContinuousTask(Generic[T], EventLoopProvider[AbstractEventLoop]):
     A continuous task manages a single asyncio task that is created on the first invocation of the task.
     Once it has completed it is created anew. Simply put it is a task container.
     """
+
     task: Optional[asyncio.Task]
     coro_factory: Callable[..., Coroutine[T, Any, Any]]
 

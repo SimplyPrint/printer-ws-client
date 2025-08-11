@@ -2,13 +2,30 @@ import asyncio
 import functools
 import inspect
 from functools import partial
-from typing import Type, get_origin, Hashable, Dict, Optional, get_args, \
-    Literal, Tuple, List, TYPE_CHECKING
+from typing import (
+    Type,
+    get_origin,
+    Hashable,
+    Dict,
+    Optional,
+    get_args,
+    Literal,
+    Tuple,
+    List,
+    TYPE_CHECKING,
+)
 
 from pydantic import BaseModel
 
 from .state import PrinterState
-from .ws_protocol.messages import ClientMsg, DemandMsgType, DispatchMode, ServerMsgType, ServerMsgKind, DemandMsgKind
+from .ws_protocol.messages import (
+    ClientMsg,
+    DemandMsgType,
+    DispatchMode,
+    ServerMsgType,
+    ServerMsgKind,
+    DemandMsgKind,
+)
 from ..events.event_bus_listeners import EventBusListenerOptions
 
 if TYPE_CHECKING:
@@ -22,17 +39,19 @@ except ImportError:
 _client_msg_map: Dict[str, Type[ClientMsg]] = {}
 
 
-def configure(event: Optional[Hashable] = None, **kwargs: Unpack[EventBusListenerOptions]):
+def configure(
+    event: Optional[Hashable] = None, **kwargs: Unpack[EventBusListenerOptions]
+):
     """Map a function as a callback for an event."""
 
     def decorator(func):
-        if not hasattr(func, '_event_bus_event'):
+        if not hasattr(func, "_event_bus_event"):
             func._event_bus_event = None
 
-        if not hasattr(func, '_event_bus_wrap'):
+        if not hasattr(func, "_event_bus_wrap"):
             func._event_bus_wrap = False
 
-        if not hasattr(func, '_event_bus_listeners_args'):
+        if not hasattr(func, "_event_bus_listeners_args"):
             func._event_bus_listeners_args = {}
 
         func._event_bus_listeners_args.update(kwargs)
@@ -53,7 +72,7 @@ def autoconfigure(attr: callable):
 
     signature = inspect.signature(attr)
     parameters = dict(signature.parameters.copy())
-    parameters.pop('self', None)
+    parameters.pop("self", None)
 
     if len(parameters) == 0:
         attr._event_bus_wrap = True
@@ -63,7 +82,7 @@ def autoconfigure(attr: callable):
     msg_lookup, msg_data_lookup, demand_lookup = build_autoconfiguration_state()
 
     # Initially, determine event type based on function name.
-    if name.startswith('on_'):
+    if name.startswith("on_"):
         event_name: str = name[3:]
 
         if event_name.upper() in ServerMsgType.__members__:
@@ -106,7 +125,7 @@ def build_autoconfiguration_state():
     msg_data_lookup: Dict[Type[BaseModel], ServerMsgType] = {}
 
     for m in set(get_args(ServerMsgKind)):
-        type_annotation = m.model_fields['type'].annotation
+        type_annotation = m.model_fields["type"].annotation
 
         if get_origin(type_annotation) is not Literal:
             continue
@@ -118,13 +137,13 @@ def build_autoconfiguration_state():
 
         msg_lookup[m] = msg_type
 
-        data_annotation = m.model_fields['data'].annotation
+        data_annotation = m.model_fields["data"].annotation
 
         if isinstance(data_annotation, type) and issubclass(data_annotation, BaseModel):
             msg_data_lookup[data_annotation] = msg_type
 
     for m in set(get_args(DemandMsgKind)):
-        demand_annotation = m.model_fields['demand'].annotation
+        demand_annotation = m.model_fields["demand"].annotation
 
         if get_origin(demand_annotation) is not Literal:
             continue
@@ -155,7 +174,7 @@ def autoconfigure_class_dict(class_dict: dict):
         autoconfigure(attr)
 
 
-def debug(cls: Type['Client']):
+def debug(cls: Type["Client"]):
     # Show all configured functions
     for name in dir(cls):
         attr = getattr(cls, name)
@@ -163,31 +182,36 @@ def debug(cls: Type['Client']):
         if not inspect.isfunction(attr):
             continue
 
-        if hasattr(attr, '_event_bus_event'):
+        if hasattr(attr, "_event_bus_event"):
             print(f"{name} => {getattr(attr, '_event_bus_event')}")
 
 
-def instrument(client: 'Client'):
+def instrument(client: "Client"):
     """Instrument and instance of a client based on its methods."""
     for name in dir(client.__class__):
         attr = getattr(client.__class__, name)
 
-        if not hasattr(attr, '_event_bus_event'):
+        if not hasattr(attr, "_event_bus_event"):
             continue
 
-        e = getattr(attr, '_event_bus_event')
+        e = getattr(attr, "_event_bus_event")
         kwargs = {}
 
-        if hasattr(attr, '_event_bus_listeners_args'):
-            kwargs = getattr(attr, '_event_bus_listeners_args')
+        if hasattr(attr, "_event_bus_listeners_args"):
+            kwargs = getattr(attr, "_event_bus_listeners_args")
 
         func = getattr(client, name)
 
-        if hasattr(attr, '_event_bus_wrap') and getattr(attr, '_event_bus_wrap') is True:
+        if (
+            hasattr(attr, "_event_bus_wrap")
+            and getattr(attr, "_event_bus_wrap") is True
+        ):
             if asyncio.iscoroutinefunction(func):
+
                 async def func(*args, inner_func=func, **_):
                     return await inner_func()
             else:
+
                 def func(*args, inner_func=func, **_):
                     return inner_func()
 
@@ -226,7 +250,9 @@ def consume(state: PrinterState) -> Tuple[List[ClientMsg], int]:
     msgs = []
 
     # Sort by lowest version.
-    for msg_kind, (lowest, highest) in sorted(msg_kinds.items(), key=lambda item: item[1][0]):
+    for msg_kind, (lowest, highest) in sorted(
+        msg_kinds.items(), key=lambda item: item[1][0]
+    ):
         # Skip over messages that are not allowed to be sent when pending.
         if is_pending and not msg_kind.msg_type().when_pending():
             continue

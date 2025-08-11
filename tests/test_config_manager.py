@@ -36,10 +36,18 @@ class TestConfigManager(unittest.TestCase):
         self.assertEqual(config_manager.by_token("token2"), config2)
         self.assertEqual(config_manager.by_token("token3"), config3)
 
-        self.assertEqual(config_manager.find(PrinterConfig(id=1, token="token1")), config1)
-        self.assertEqual(config_manager.find(PrinterConfig(id=2, token="token2")), config2)
-        self.assertEqual(config_manager.find(PrinterConfig(id=3, token="token3")), config3)
-        self.assertNotEqual(config_manager.find(PrinterConfig(id=3, token="token4")), config3)
+        self.assertEqual(
+            config_manager.find(PrinterConfig(id=1, token="token1")), config1
+        )
+        self.assertEqual(
+            config_manager.find(PrinterConfig(id=2, token="token2")), config2
+        )
+        self.assertEqual(
+            config_manager.find(PrinterConfig(id=3, token="token3")), config3
+        )
+        self.assertNotEqual(
+            config_manager.find(PrinterConfig(id=3, token="token4")), config3
+        )
 
     def _test_manager(self, config_manager: ConfigManager):
         config_manager.delete_storage()

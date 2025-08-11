@@ -28,7 +28,6 @@ class CancelableLock(asyncio.Lock):
 if __name__ == "__main__":
     lock = CancelableLock()
 
-
     async def npc(i):
         await asyncio.sleep(0.1)
         print(f"npc {i} is trying to get lock")
@@ -41,7 +40,6 @@ if __name__ == "__main__":
         except asyncio.CancelledError:
             print(f"npc {i} was canceled")
 
-
     async def sigma():
         async with lock:
             print("sigma got lock")
@@ -50,9 +48,7 @@ if __name__ == "__main__":
             lock.cancel()
             print("sigma done")
 
-
     async def main():
         await asyncio.gather(*(npc(i) for i in range(10)), sigma())
-
 
     asyncio.run(main())

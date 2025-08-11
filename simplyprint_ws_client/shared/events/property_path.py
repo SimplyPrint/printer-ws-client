@@ -8,6 +8,7 @@ except ImportError:
 
 class _Attribute(str):
     """A part of a path - field name"""
+
     ...
 
 
@@ -30,7 +31,7 @@ class PropertyPath(object):
     Can be used to query objects for values. Immutable builder functions.
     """
 
-    __slots__ = ('__path', '__hash')
+    __slots__ = ("__path", "__hash")
 
     __path: List[Shard]
     __hash: int
@@ -40,10 +41,12 @@ class PropertyPath(object):
         self.__hash = hash(str(self))
 
     def __str__(self) -> str:
-        return ''.join([
-            f".{shard}" if isinstance(shard, _Attribute) else f"[{repr(shard)}]"
-            for shard in self.__path
-        ])
+        return "".join(
+            [
+                f".{shard}" if isinstance(shard, _Attribute) else f"[{repr(shard)}]"
+                for shard in self.__path
+            ]
+        )
 
     def __repr__(self) -> str:
         return f"<{self.__class__.__name__} {str(self)}>"

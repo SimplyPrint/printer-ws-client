@@ -41,7 +41,7 @@ class Sentry:
         return sentry_sdk.Hub.current.client is not None
 
     @classmethod
-    def initialize_sentry(cls, settings: 'ClientSettings'):
+    def initialize_sentry(cls, settings: "ClientSettings"):
         if settings.sentry_dsn is None:
             return
 
@@ -49,10 +49,12 @@ class Sentry:
             return
 
         # Default integrations
-        cls.add_integration(LoggingIntegration(
-            level=logging.INFO,
-            event_level=logging.ERROR,
-        ))
+        cls.add_integration(
+            LoggingIntegration(
+                level=logging.INFO,
+                event_level=logging.ERROR,
+            )
+        )
 
         cls.add_integration(ThreadingIntegration(propagate_hub=True))
         cls.add_integration(AsyncioIntegration())
@@ -66,15 +68,18 @@ class Sentry:
                 profiles_sampler=cls._profiles_sampler,
                 integrations=cls.integrations,
                 release=f"{settings.name}@{settings.version}",
-                environment=("production" if not settings.development else "development"),
+                environment=(
+                    "production" if not settings.development else "development"
+                ),
             )
 
             sentry_sdk.set_tag("lib_version", VERSION)
 
-            printer_ids = set([str(config.id) for config in settings.new_config_manager().get_all()])
+            printer_ids = set(
+                [str(config.id) for config in settings.new_config_manager().get_all()]
+            )
 
-            sentry_sdk.set_extra("printer_ids",
-                                 ",".join(list(printer_ids)))
+            sentry_sdk.set_extra("printer_ids", ",".join(list(printer_ids)))
 
         except Exception as e:
             logging.exception(e)
@@ -102,14 +107,18 @@ class Sentry:
     @classmethod
     def _error_sampler(cls, context: dict, hint: dict) -> float:
         try:
-            if 'log_record' in hint:
-                record: logging.LogRecord = hint['log_record']
-                return cls._get_sample_rate_from_hash(hash((record.levelno, record.msg)))
+            if "log_record" in hint:
+                record: logging.LogRecord = hint["log_record"]
+                return cls._get_sample_rate_from_hash(
+                    hash((record.levelno, record.msg))
+                )
 
-            if 'exc_info' in hint:
-                exc_type, exc_value, tb = hint['exc_info']
+            if "exc_info" in hint:
+                exc_type, exc_value, tb = hint["exc_info"]
                 traceback_string = "".join(traceback.format_tb(tb))
-                return cls._get_sample_rate_from_hash(hash((exc_type, exc_value, traceback_string)))
+                return cls._get_sample_rate_from_hash(
+                    hash((exc_type, exc_value, traceback_string))
+                )
         except (AttributeError, Exception):
             pass
 

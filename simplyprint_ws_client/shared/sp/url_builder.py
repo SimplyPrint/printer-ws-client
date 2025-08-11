@@ -21,31 +21,31 @@ class SimplyPrintURLCollection(NamedTuple):
 PRODUCTION_URLS = SimplyPrintURLCollection(
     URL("https://simplyprint.io"),
     URL("https://api.simplyprint.io"),
-    URL("wss://ws.simplyprint.io")
+    URL("wss://ws.simplyprint.io"),
 )
 
 TESTING_URLS = SimplyPrintURLCollection(
     URL("https://test.simplyprint.io"),
     URL("https://testapi.simplyprint.io"),
-    URL("wss://testws3.simplyprint.io")
+    URL("wss://testws3.simplyprint.io"),
 )
 
 STAGING_URLS = SimplyPrintURLCollection(
     URL("https://staging.simplyprint.io"),
     URL("https://apistaging.simplyprint.io"),
-    URL("wss://wsstaging.simplyprint.io")
+    URL("wss://wsstaging.simplyprint.io"),
 )
 
 PILOT_URLS = SimplyPrintURLCollection(
     URL("https://pilot.simplyprint.io"),
     URL("https://pilotapi.simplyprint.io"),
-    URL("wss://pilotws.simplyprint.io")
+    URL("wss://pilotws.simplyprint.io"),
 )
 
 LOCALHOST_URLS = SimplyPrintURLCollection(
     URL("http://localhost:8080"),
     URL("http://localhost:8080/api"),
-    URL("ws://localhost:8081")
+    URL("ws://localhost:8081"),
 )
 
 
@@ -61,7 +61,7 @@ def get_custom_urls() -> SimplyPrintURLCollection:
     return SimplyPrintURLCollection(
         URL(environ.get("SIMPLYPRINT_MAIN_URL", "http://localhost:8080")),
         URL(environ.get("SIMPLYPRINT_API_URL", "http://localhost:8080/api")),
-        URL(environ.get("SIMPLYPRINT_WS_URL", "ws://localhost:8081"))
+        URL(environ.get("SIMPLYPRINT_WS_URL", "ws://localhost:8081")),
     )
 
 
@@ -79,10 +79,10 @@ class SimplyPrintBackend(Enum):
 
         if urls := {
             SimplyPrintBackend.PRODUCTION: PRODUCTION_URLS,
-            SimplyPrintBackend.TESTING:    TESTING_URLS,
-            SimplyPrintBackend.STAGING:    STAGING_URLS,
-            SimplyPrintBackend.LOCALHOST:  LOCALHOST_URLS,
-            SimplyPrintBackend.PILOT:      PILOT_URLS,
+            SimplyPrintBackend.TESTING: TESTING_URLS,
+            SimplyPrintBackend.STAGING: STAGING_URLS,
+            SimplyPrintBackend.LOCALHOST: LOCALHOST_URLS,
+            SimplyPrintBackend.PILOT: PILOT_URLS,
         }.get(self):
             return urls
 
@@ -115,7 +115,11 @@ class SimplyPrintURL:
 
 if value := environ.get("SIMPLYPRINT_BACKEND"):
     SimplyPrintURL.set_backend(SimplyPrintBackend(value))
-elif {"SIMPLYPRINT_WS_URL", "SIMPLYPRINT_API_URL", "SIMPLYPRINT_MAIN_URL"} & environ.keys():
+elif {
+    "SIMPLYPRINT_WS_URL",
+    "SIMPLYPRINT_API_URL",
+    "SIMPLYPRINT_MAIN_URL",
+} & environ.keys():
     # If custom urls are set, use them
     SimplyPrintURL.set_backend(SimplyPrintBackend.CUSTOM)
 elif IS_TESTING:

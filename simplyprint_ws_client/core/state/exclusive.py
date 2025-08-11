@@ -1,14 +1,15 @@
-__all__ = ['Exclusive']
+__all__ = ["Exclusive"]
 
 from typing import TypeVar, TYPE_CHECKING, Union
 
 from pydantic import RootModel
 
-T = TypeVar('T')
+T = TypeVar("T")
 
 if TYPE_CHECKING:
     Exclusive = Union[T, RootModel[T]]
 else:
+
     class Exclusive(RootModel[T]):
         root: T
 

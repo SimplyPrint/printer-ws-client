@@ -16,15 +16,18 @@ class TestConfigManager(unittest.TestCase):
 
         self.assertDictEqual(config1.as_dict(), config2.as_dict())
 
-        self.assertDictEqual(config1.as_dict(), {
-            'id':        0,
-            'token':     "0",
-            'name':      None,
-            'in_setup':  None,
-            'short_id':  None,
-            'unique_id': config1.unique_id,
-            'public_ip': None,
-        })
+        self.assertDictEqual(
+            config1.as_dict(),
+            {
+                "id": 0,
+                "token": "0",
+                "name": None,
+                "in_setup": None,
+                "short_id": None,
+                "unique_id": config1.unique_id,
+                "public_ip": None,
+            },
+        )
 
         config1.id = 1
 
@@ -45,11 +48,27 @@ class TestConfigManager(unittest.TestCase):
         self.assertTrue(config2.partial_eq(token="super_cool_token"))
 
         config3 = PrinterConfig(
-            **{'id':        None, 'in_setup': None, 'short_id': None, 'name': None, 'public_ip': None, 'token': None,
-               'unique_id': None})
+            **{
+                "id": None,
+                "in_setup": None,
+                "short_id": None,
+                "name": None,
+                "public_ip": None,
+                "token": None,
+                "unique_id": None,
+            }
+        )
         self.assertTrue(config3.is_empty())
 
         config4 = PrinterConfig(
-            **{'id':        None, 'in_setup': None, 'short_id': None, 'name': None, 'public_ip': None, 'token': None,
-               'unique_id': '140686326013968'})
+            **{
+                "id": None,
+                "in_setup": None,
+                "short_id": None,
+                "name": None,
+                "public_ip": None,
+                "token": None,
+                "unique_id": "140686326013968",
+            }
+        )
         self.assertFalse(config4.is_empty())

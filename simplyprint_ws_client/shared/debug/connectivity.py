@@ -52,7 +52,9 @@ class LocalNetworkInfo(BaseModel):
 
 
 class ConnectivityReport(BaseModel):
-    timestamp: datetime.datetime = Field(default_factory=lambda: ConnectivityReport.utc_now())
+    timestamp: datetime.datetime = Field(
+        default_factory=lambda: ConnectivityReport.utc_now()
+    )
     dns_results: List[DNSResolutionResult] = []
     websocket_results: List[WebSocketTestResult] = []
     http_results: List[HTTPTestResult] = []
@@ -72,12 +74,14 @@ class ConnectivityReport(BaseModel):
             iface_addrs = netifaces.ifaddresses(interface)
             for family in (netifaces.AF_INET, netifaces.AF_INET6):
                 if family in iface_addrs:
-                    addrs.extend(addr_info['addr'] for addr_info in iface_addrs[family])
+                    addrs.extend(addr_info["addr"] for addr_info in iface_addrs[family])
 
             iface_stats = psutil.net_if_stats().get(interface)
             is_up = iface_stats.isup if iface_stats else False
 
-            interfaces.append(NetworkInterface(name=interface, addresses=addrs, is_up=is_up))
+            interfaces.append(
+                NetworkInterface(name=interface, addresses=addrs, is_up=is_up)
+            )
 
         return LocalNetworkInfo(hostname=local_hostname, network_interfaces=interfaces)
 
@@ -85,15 +89,23 @@ class ConnectivityReport(BaseModel):
     def resolve_dns(host: str, logger: logging.Logger) -> DNSResolutionResult:
         logger.info(f"Resolving DNS for host: {host}")
         try:
-            resolved_ips = list(set(res[4][0] for res in socket.getaddrinfo(host, None)))
+            resolved_ips = list(
+                set(res[4][0] for res in socket.getaddrinfo(host, None))
+            )
             logger.info(f"Resolved {host} to IPs: {resolved_ips}")
-            return DNSResolutionResult(host=host, resolved_ips=resolved_ips, success=True)
+            return DNSResolutionResult(
+                host=host, resolved_ips=resolved_ips, success=True
+            )
         except socket.gaierror as e:
             logger.error(f"Failed DNS resolution for {host}: {e}")
-            return DNSResolutionResult(host=host, resolved_ips=[], success=False, error_message=str(e))
+            return DNSResolutionResult(
+                host=host, resolved_ips=[], success=False, error_message=str(e)
+            )
 
     @staticmethod
-    def websocket_test(url: str, websocket_timeout: int, logger: logging.Logger) -> WebSocketTestResult:
+    def websocket_test(
+        url: str, websocket_timeout: int, logger: logging.Logger
+    ) -> WebSocketTestResult:
         result_queue = queue.Queue()
 
         def test_ws():
@@ -101,22 +113,26 @@ class ConnectivityReport(BaseModel):
                 async with aiohttp.ClientSession() as session:
                     start_time = ConnectivityReport.utc_now()
                     try:
-                        async with session.ws_connect(url, timeout=websocket_timeout) as ws:
-                            latency = (ConnectivityReport.utc_now() - start_time).total_seconds() * 1000
-                            logger.info(f"Websocket connection successful to {url} (latency: {latency:.2f}ms)")
+                        async with session.ws_connect(
+                            url, timeout=websocket_timeout
+                        ) as ws:
+                            latency = (
+                                ConnectivityReport.utc_now() - start_time
+                            ).total_seconds() * 1000
+                            logger.info(
+                                f"Websocket connection successful to {url} (latency: {latency:.2f}ms)"
+                            )
                             return WebSocketTestResult(
                                 url=url,
                                 success=True,
                                 response_headers=dict(ws._response.headers),
-                                latency_ms=latency
+                                latency_ms=latency,
                             )
                     except Exception as e:
                         logger.error(f"Websocket connection failed to {url}: {e}")
 
                         return WebSocketTestResult(
-                            url=url,
-                            success=False,
-                            error_message=str(e)
+                            url=url, success=False, error_message=str(e)
                         )
 
             try:
@@ -140,16 +156,20 @@ class ConnectivityReport(BaseModel):
                         async with session.get(url, timeout=timeout) as response:
                             text = await response.text()
                             snippet = text[:100]
-                            logger.info(f"HTTP request successful to {url} with status {response.status}")
+                            logger.info(
+                                f"HTTP request successful to {url} with status {response.status}"
+                            )
                             return HTTPTestResult(
                                 url=url,
                                 success=True,
                                 status_code=response.status,
-                                response_snippet=snippet
+                                response_snippet=snippet,
                             )
                     except Exception as e:
                         logger.error(f"HTTP request failed to {url}: {e}")
-                        return HTTPTestResult(url=url, success=False, error_message=str(e))
+                        return HTTPTestResult(
+                            url=url, success=False, error_message=str(e)
+                        )
 
             try:
                 result_queue.put(asyncio.run(inner()))
@@ -163,27 +183,33 @@ class ConnectivityReport(BaseModel):
 
     @staticmethod
     def generate(
-            urls: List[str],
-            http_urls: List[str],
-            additional_dns_tests: List[str],
-            logger: logging.Logger = logging.getLogger("connection_debugger"),
-            websocket_timeout: int = 10,
-            http_timeout: int = 10,
-    ) -> 'ConnectivityReport':
+        urls: List[str],
+        http_urls: List[str],
+        additional_dns_tests: List[str],
+        logger: logging.Logger = logging.getLogger("connection_debugger"),
+        websocket_timeout: int = 10,
+        http_timeout: int = 10,
+    ) -> "ConnectivityReport":
         logger.info("Beginning connectivity test suite")
 
         local_info = ConnectivityReport.get_local_network_info()
         report = ConnectivityReport(local_network_info=local_info)
 
         dns_hosts_to_test = list(
-            set(url.replace("ws://", "").replace("wss://", "").split('/')[0] for url in urls) | set(
-                additional_dns_tests))
+            set(
+                url.replace("ws://", "").replace("wss://", "").split("/")[0]
+                for url in urls
+            )
+            | set(additional_dns_tests)
+        )
         for host in dns_hosts_to_test:
             dns_result = ConnectivityReport.resolve_dns(host, logger)
             report.dns_results.append(dns_result)
 
         for url in urls:
-            websocket_result = ConnectivityReport.websocket_test(url, websocket_timeout, logger)
+            websocket_result = ConnectivityReport.websocket_test(
+                url, websocket_timeout, logger
+            )
             report.websocket_results.append(websocket_result)
 
         for url in http_urls:
@@ -193,7 +219,7 @@ class ConnectivityReport(BaseModel):
         return report
 
     @staticmethod
-    def generate_default(**kwargs) -> 'ConnectivityReport':
+    def generate_default(**kwargs) -> "ConnectivityReport":
         return ConnectivityReport.generate(
             [
                 str(SimplyPrintBackend.PRODUCTION.urls().ws),
@@ -206,13 +232,15 @@ class ConnectivityReport(BaseModel):
                 str(SimplyPrintBackend.TESTING.urls().api),
             ],
             ["1.1.1.1", "google.com"],
-            **kwargs
+            **kwargs,
         )
 
     @staticmethod
-    def read_previous_reports(path: Path) -> List['ConnectivityReport']:
+    def read_previous_reports(path: Path) -> List["ConnectivityReport"]:
         report_files = sorted(path.glob("connectivity_report_*.json"), reverse=True)
-        return [ConnectivityReport.model_validate_json(f.read_text()) for f in report_files]
+        return [
+            ConnectivityReport.model_validate_json(f.read_text()) for f in report_files
+        ]
 
     def summary(self) -> str:
         """Returns a string with a count of all tests, and how many failed."""
@@ -231,10 +259,12 @@ class ConnectivityReport(BaseModel):
         path.mkdir(parents=True, exist_ok=True)
 
         report_files = sorted(path.glob("connectivity_report_*.json"), reverse=True)
-        for old_file in report_files[max_reports - 1:]:
+        for old_file in report_files[max_reports - 1 :]:
             old_file.unlink()
 
-        filename = f"connectivity_report_{self.timestamp.strftime('%Y%m%d_%H%M%S')}.json"
+        filename = (
+            f"connectivity_report_{self.timestamp.strftime('%Y%m%d_%H%M%S')}.json"
+        )
         full_path = path / filename
 
         with open(full_path, "w") as f:
@@ -243,7 +273,7 @@ class ConnectivityReport(BaseModel):
         return full_path
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     r = ConnectivityReport.generate_default()
     p = r.store_in_path(Path.cwd())

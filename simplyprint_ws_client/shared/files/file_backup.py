@@ -5,11 +5,15 @@ from typing import Optional
 
 
 class FileBackup:
-    """ Small wrapper for count based file backups, used for configs """
+    """Small wrapper for count based file backups, used for configs"""
 
     @staticmethod
-    def backup_file(file: Path, max_count: int = 5, min_age_interval: Optional[datetime.timedelta] = None,
-                    max_age: Optional[datetime.timedelta] = None):
+    def backup_file(
+        file: Path,
+        max_count: int = 5,
+        min_age_interval: Optional[datetime.timedelta] = None,
+        max_age: Optional[datetime.timedelta] = None,
+    ):
         """Backup a file with a count based system
 
         :param file: The file to back up
@@ -44,7 +48,11 @@ class FileBackup:
                 backups.remove(backup)
 
         # If the last backup is too recent, don't create a new one and stop this function
-        if min_age_interval and latest_backup and datetime.datetime.now() - latest_backup < min_age_interval:
+        if (
+            min_age_interval
+            and latest_backup
+            and datetime.datetime.now() - latest_backup < min_age_interval
+        ):
             return
 
         for j, backup in enumerate(backups):

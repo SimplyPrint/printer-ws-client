@@ -5,7 +5,7 @@ from ..shared.events.predicate import Predicate, Constant
 
 class PredicateTreeNode(NamedTuple):
     predicate: Predicate
-    predicates: List['PredicateTreeNode']
+    predicates: List["PredicateTreeNode"]
     resources: Set[int]
 
     def contains(self, item: Predicate):
@@ -36,7 +36,7 @@ class PredicateTreeNode(NamedTuple):
         entry.push(resource_id, *predicates)
 
 
-_TResource = TypeVar('_TResource')
+_TResource = TypeVar("_TResource")
 
 
 class EventBusPredicateTree(Generic[_TResource]):
@@ -91,7 +91,11 @@ class EventBusPredicateTree(Generic[_TResource]):
                 entry.predicates.pop(i)
 
     def get_resources(self, *resources) -> Iterable[_TResource]:
-        return [self.resources[resource] for resource in resources if resource in self.resources]
+        return [
+            self.resources[resource]
+            for resource in resources
+            if resource in self.resources
+        ]
 
     def evaluate(self, *args, **kwargs) -> Iterator[int]:
         b = self.root

@@ -27,25 +27,34 @@ class EventBusWorker(Emitter[TEvent], StoppableInterface, ABC):
     logger: logging.Logger = logging.getLogger(__name__)
     maxsize: int
 
-    def __init__(self, event_bus: EventBus[TEvent], *args, maxsize=_MAX_QUEUE_SIZE,
-                 logger: Optional[logging.Logger] = None, **kwargs) -> None:
+    def __init__(
+        self,
+        event_bus: EventBus[TEvent],
+        *args,
+        maxsize=_MAX_QUEUE_SIZE,
+        logger: Optional[logging.Logger] = None,
+        **kwargs,
+    ) -> None:
         self.event_bus = event_bus
         self.logger = logger or self.logger
         self.maxsize = maxsize
 
     @abstractmethod
-    def emit_sync(self, event: Union[Hashable, TEvent], *args, **kwargs) -> Union[None, Coroutine[Any, Any, None]]:
-        ...
+    def emit_sync(
+        self, event: Union[Hashable, TEvent], *args, **kwargs
+    ) -> Union[None, Coroutine[Any, Any, None]]: ...
 
     @abstractmethod
-    def emit(self, event: Union[Hashable, TEvent], *args, **kwargs) -> Union[None, Coroutine[Any, Any, None]]:
-        ...
+    def emit(
+        self, event: Union[Hashable, TEvent], *args, **kwargs
+    ) -> Union[None, Coroutine[Any, Any, None]]: ...
 
     def _full_warning(self):
         if self.event_queue.full():
             self.logger.warning(
                 f"Event queue worker is full, {self.event_queue.qsize()} events are pending!!! Expect degraded "
-                f"performance.")
+                f"performance."
+            )
 
     def stop(self):
         super().stop()
@@ -97,7 +106,9 @@ class ThreadedEventBusWorker(EventBusWorker[TEvent], StoppableThread):
                 else:
                     self.event_bus.emit_sync(item.event, *item.args, **item.kwargs)
             except Exception as e:
-                self.logger.error(f"Error while processing event {item.event}", exc_info=e)
+                self.logger.error(
+                    f"Error while processing event {item.event}", exc_info=e
+                )
 
 
 class AsyncEventBusWorker(EventBusWorker[TEvent], AsyncStoppable):
@@ -137,4 +148,6 @@ class AsyncEventBusWorker(EventBusWorker[TEvent], AsyncStoppable):
                 else:
                     self.event_bus.emit_sync(item.event, *item.args, **item.kwargs)
             except Exception as e:
-                self.logger.error(f"Error while processing event {item.event}", exc_info=e)
+                self.logger.error(
+                    f"Error while processing event {item.event}", exc_info=e
+                )

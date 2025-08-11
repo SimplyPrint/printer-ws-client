@@ -1,6 +1,9 @@
 import unittest
 
-from simplyprint_ws_client.shared.sp.url_builder import SimplyPrintURL, SimplyPrintBackend
+from simplyprint_ws_client.shared.sp.url_builder import (
+    SimplyPrintURL,
+    SimplyPrintBackend,
+)
 
 
 class TestURLs(unittest.TestCase):

@@ -11,8 +11,16 @@ from typing import final, List, Dict, Tuple, Optional, Type
 from yarl import URL
 
 from .base import BaseCameraProtocol, FrameT
-from .commands import Request, CreateCamera, Response, PollCamera, \
-    StartCamera, StopCamera, DeleteCamera, ReceivedFrame
+from .commands import (
+    Request,
+    CreateCamera,
+    Response,
+    PollCamera,
+    StartCamera,
+    StopCamera,
+    DeleteCamera,
+    ReceivedFrame,
+)
 from .controller import CameraController
 from .handle import CameraHandle
 from ..utils.stoppable import ProcessStoppable, StoppableProcess
@@ -42,7 +50,7 @@ class CameraWorkerProcess(StoppableProcess, Synchronized):
 
     def on_request(self, req: Request):
         try:
-            # Create new camera instance.
+            # Create a new camera instance.
             if isinstance(req, CreateCamera):
                 with self:
                     self.instances[req.id] = CameraController(
@@ -54,7 +62,7 @@ class CameraWorkerProcess(StoppableProcess, Synchronized):
 
                     return
 
-            # Execute command on camera instance.
+            # Execute command on a camera instance.
             with self:
                 instance = self.instances.get(req.id)
 
@@ -81,7 +89,11 @@ class CameraWorkerProcess(StoppableProcess, Synchronized):
     def _send_frame(self, camera_id: int, frame: Optional[FrameT]):
         res = ReceivedFrame(camera_id, time.time(), frame)
         self.response_queue.put(res)
-        logging.debug("Sent frame to %s with size %s", camera_id, len(frame) if frame is not None else 0)
+        logging.debug(
+            "Sent frame to %s with size %s",
+            camera_id,
+            len(frame) if frame is not None else 0,
+        )
 
     def run(self):
         try:
@@ -96,9 +108,12 @@ class CameraWorkerProcess(StoppableProcess, Synchronized):
         self.instances = {}
 
         logging.basicConfig(
-            level=logging.DEBUG if os.environ.get("SIMPLYPRINT_DEBUG_CAMERA", False) else logging.INFO,
-            format="%(asctime)s [%(process)d] %(message)s", datefmt="%H:%M:%S",
-            handlers=[logging.StreamHandler(stream=sys.stdout)]
+            level=logging.DEBUG
+            if os.environ.get("SIMPLYPRINT_DEBUG_CAMERA", False)
+            else logging.INFO,
+            format="%(asctime)s [%(process)d] %(message)s",
+            datefmt="%H:%M:%S",
+            handlers=[logging.StreamHandler(stream=sys.stdout)],
         )
 
         with ThreadPoolExecutor(thread_name_prefix="CameraWorkerProcess") as tp:
@@ -173,7 +188,9 @@ class CameraPool(ProcessStoppable, Synchronized):
 
             # Increase pool size (spawn happens deferred)
             if prev < value:
-                self.processes.extend([self._create_worker_process() for _ in range(value - prev)])
+                self.processes.extend(
+                    [self._create_worker_process() for _ in range(value - prev)]
+                )
                 return
 
             # Reduce pool size (terminate processes)

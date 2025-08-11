@@ -5,16 +5,13 @@ Events sent to and from a connection.
 from ...events import Event
 
 
-class ConnectionEvent(Event):
-    ...
+class ConnectionEvent(Event): ...
 
 
-class ConnectionIncomingEvent(ConnectionEvent):
-    ...
+class ConnectionIncomingEvent(ConnectionEvent): ...
 
 
-class ConnectionOutgoingEvent(ConnectionEvent):
-    ...
+class ConnectionOutgoingEvent(ConnectionEvent): ...
 
 
 class ConnectionEstablishedEvent(ConnectionEvent):
@@ -31,5 +28,4 @@ class ConnectionLostEvent(ConnectionEvent):
         self.v = v
 
 
-class ConnectionSuspectEvent(ConnectionEvent):
-    ...
+class ConnectionSuspectEvent(ConnectionEvent): ...

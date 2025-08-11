@@ -16,7 +16,16 @@ import contextlib
 import contextvars
 import sys
 from enum import Enum, auto
-from typing import Union, TypeVar, Coroutine, Any, List, Callable, Optional, TYPE_CHECKING
+from typing import (
+    Union,
+    TypeVar,
+    Coroutine,
+    Any,
+    List,
+    Callable,
+    Optional,
+    TYPE_CHECKING,
+)
 
 try:
     import uvloop
@@ -36,7 +45,11 @@ class EventLoopBackend(Enum):
         uvloop_available = uvloop is not None
 
         if self is self.AUTO:
-            return uvloop.new_event_loop() if uvloop_available else asyncio.new_event_loop()
+            return (
+                uvloop.new_event_loop()
+                if uvloop_available
+                else asyncio.new_event_loop()
+            )
 
         if self is self.UVLOOP:
             assert uvloop_available, "uvloop must be available to use"
@@ -59,7 +72,8 @@ def enable_asyncio_debug():
 
 
 class Runner:
-    """ Wrapper around uvloop/asyncio implementations for running the main event loop. """
+    """Wrapper around uvloop/asyncio implementations for running the main event loop."""
+
     debug = False
     context_stack: List[Callable[[], contextlib.AbstractContextManager]]
     backend: Optional[EventLoopBackend] = None
@@ -76,26 +90,30 @@ class Runner:
         return True
 
     if TYPE_CHECKING:
+
         def run(
-                self,
-                main: Coroutine[Any, Any, _T],
-                *,
-                loop_factory: Optional[
-                    Callable[[], Loop]
-                ] = asyncio.new_event_loop,
-                debug: Optional[bool] = None,
+            self,
+            main: Coroutine[Any, Any, _T],
+            *,
+            loop_factory: Optional[Callable[[], Loop]] = asyncio.new_event_loop,
+            debug: Optional[bool] = None,
         ) -> _T:
             """The preferred way of running a coroutine with uvloop."""
     else:
+
         def run(self, *args, **kwargs) -> None:
             try:
                 with contextlib.ExitStack() as stack:
                     for context_func in self.context_stack:
                         stack.enter_context(context_func())
 
-                    kwargs["debug"] = kwargs.get("debug") or (self.debug or _loop_debug_enabled.get())
-                    kwargs["loop_factory"] = kwargs.get("loop_factory") or (
-                            self.backend or _loop_backend.get()).new_event_loop
+                    kwargs["debug"] = kwargs.get("debug") or (
+                        self.debug or _loop_debug_enabled.get()
+                    )
+                    kwargs["loop_factory"] = (
+                        kwargs.get("loop_factory")
+                        or (self.backend or _loop_backend.get()).new_event_loop
+                    )
 
                     return run(*args, **kwargs)
             except asyncio.CancelledError:
@@ -110,12 +128,11 @@ def run(main, *, loop_factory=asyncio.new_event_loop, debug=None, **run_kwargs):
 
         if asyncio._get_running_loop() is not None:
             raise RuntimeError(
-                "asyncio.run() cannot be called from a running event loop")
+                "asyncio.run() cannot be called from a running event loop"
+            )
 
         if not asyncio.iscoroutine(main):
-            raise ValueError(
-                "a coroutine was expected, got {!r}".format(main)
-            )
+            raise ValueError("a coroutine was expected, got {!r}".format(main))
 
         loop = loop_factory()
         try:
@@ -127,10 +144,8 @@ def run(main, *, loop_factory=asyncio.new_event_loop, debug=None, **run_kwargs):
             try:
                 _cancel_all_tasks(loop)
                 loop.run_until_complete(loop.shutdown_asyncgens())
-                if hasattr(loop, 'shutdown_default_executor'):
-                    loop.run_until_complete(
-                        loop.shutdown_default_executor()
-                    )
+                if hasattr(loop, "shutdown_default_executor"):
+                    loop.run_until_complete(loop.shutdown_default_executor())
             finally:
                 asyncio.set_event_loop(None)
                 loop.close()
@@ -138,23 +153,17 @@ def run(main, *, loop_factory=asyncio.new_event_loop, debug=None, **run_kwargs):
     elif vi == (3, 11):
         if asyncio._get_running_loop() is not None:
             raise RuntimeError(
-                "asyncio.run() cannot be called from a running event loop")
+                "asyncio.run() cannot be called from a running event loop"
+            )
 
         with asyncio.Runner(
-                loop_factory=loop_factory,
-                debug=debug,
-                **run_kwargs
+            loop_factory=loop_factory, debug=debug, **run_kwargs
         ) as runner:
             return runner.run(main)
 
     else:
         assert vi >= (3, 12)
-        return asyncio.run(
-            main,
-            loop_factory=loop_factory,
-            debug=debug,
-            **run_kwargs
-        )
+        return asyncio.run(main, loop_factory=loop_factory, debug=debug, **run_kwargs)
 
 
 def _cancel_all_tasks(loop: asyncio.AbstractEventLoop) -> None:
@@ -167,16 +176,16 @@ def _cancel_all_tasks(loop: asyncio.AbstractEventLoop) -> None:
     for task in to_cancel:
         task.cancel()
 
-    loop.run_until_complete(
-        asyncio.gather(*to_cancel, return_exceptions=True)
-    )
+    loop.run_until_complete(asyncio.gather(*to_cancel, return_exceptions=True))
 
     for task in to_cancel:
         if task.cancelled():
             continue
         if task.exception() is not None:
-            loop.call_exception_handler({
-                'message':   'unhandled exception during asyncio.run() shutdown',
-                'exception': task.exception(),
-                'task':      task,
-            })
+            loop.call_exception_handler(
+                {
+                    "message": "unhandled exception during asyncio.run() shutdown",
+                    "exception": task.exception(),
+                    "task": task,
+                }
+            )

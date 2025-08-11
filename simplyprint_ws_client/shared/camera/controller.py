@@ -1,8 +1,13 @@
 import threading
 from typing import final, Optional, Callable
 
-from .base import BaseCameraProtocol, CameraProtocolPollingMode, FrameT, CameraProtocolInvalidState, \
-    CameraProtocolConnectionError
+from .base import (
+    BaseCameraProtocol,
+    CameraProtocolPollingMode,
+    FrameT,
+    CameraProtocolInvalidState,
+    CameraProtocolConnectionError,
+)
 from ..utils.stoppable import SyncStoppable
 from ..utils.synchronized import Synchronized
 
@@ -19,10 +24,10 @@ class CameraController(SyncStoppable, Synchronized):
     _main_thread: Optional[threading.Thread] = None
 
     def __init__(
-            self,
-            frame_cb: Callable[[Optional[FrameT]], None],
-            protocol: BaseCameraProtocol,
-            pause_timeout: Optional[int] = None,
+        self,
+        frame_cb: Callable[[Optional[FrameT]], None],
+        protocol: BaseCameraProtocol,
+        pause_timeout: Optional[int] = None,
     ):
         SyncStoppable.__init__(self)
         Synchronized.__init__(self)
@@ -51,8 +56,9 @@ class CameraController(SyncStoppable, Synchronized):
 
         self.clear()
         self._refresh_timer()
-        self._main_thread = threading.Thread(target=self._exception_handler,
-                                             args=(self._read_loop,), daemon=True)
+        self._main_thread = threading.Thread(
+            target=self._exception_handler, args=(self._read_loop,), daemon=True
+        )
         self._main_thread.start()
 
     def stop(self):

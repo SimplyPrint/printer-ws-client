@@ -1,22 +1,30 @@
-__all__ = [
-    "Connection",
-    "ConnectionHint",
-    "ConnectionMode"
-]
+__all__ = ["Connection", "ConnectionHint", "ConnectionMode"]
 
 import asyncio
 import logging
 from enum import Enum, auto
 from typing import Optional, final, Hashable
 
-from aiohttp import ClientWebSocketResponse, ClientSession, WSMsgType, ClientError, WebSocketError, ClientTimeout
+from aiohttp import (
+    ClientWebSocketResponse,
+    ClientSession,
+    WSMsgType,
+    ClientError,
+    WebSocketError,
+    ClientTimeout,
+)
 from pydantic import ValidationError
 from pydantic_core import PydanticSerializationError
 from yarl import URL
 
-from .events import (ConnectionEvent, ConnectionIncomingEvent, ConnectionOutgoingEvent, ConnectionEstablishedEvent,
-                     ConnectionLostEvent,
-                     ConnectionSuspectEvent)
+from .events import (
+    ConnectionEvent,
+    ConnectionIncomingEvent,
+    ConnectionOutgoingEvent,
+    ConnectionEstablishedEvent,
+    ConnectionLostEvent,
+    ConnectionSuspectEvent,
+)
 from .messages import ClientMsg, ServerMsg, ClientMsgType
 from ..config import PrinterConfig
 from ...events import EventBus
@@ -37,13 +45,22 @@ class ConnectionHint:
     mode: ConnectionMode = ConnectionMode.SINGLE
     config: PrinterConfig = PrinterConfig.get_blank()
 
-    def __init__(self, mode: Optional[ConnectionMode] = None, config: Optional[PrinterConfig] = None):
+    def __init__(
+        self,
+        mode: Optional[ConnectionMode] = None,
+        config: Optional[PrinterConfig] = None,
+    ):
         self.mode = mode or self.mode
         self.config = config or self.config
 
     @property
     def ws_url(self) -> URL:
-        return SimplyPrintURL().ws_url / self.mode.value / str(self.config.id) / str(self.config.token)
+        return (
+            SimplyPrintURL().ws_url
+            / self.mode.value
+            / str(self.config.id)
+            / str(self.config.token)
+        )
 
 
 class Action(Enum):
@@ -51,9 +68,9 @@ class Action(Enum):
     PAUSE = auto()
     RESUME = auto()
 
-    def transition(self, state: 'State'):
+    def transition(self, state: "State"):
         return {
-            self.PAUSE:  State.PAUSED,
+            self.PAUSE: State.PAUSED,
             self.RESUME: State.NOT_CONNECTED,
         }.get(self, state)
 
@@ -65,14 +82,16 @@ class State(Enum):
     PAUSED = auto()
 
 
-ConnectionTimeout = ClientTimeout(total=None, connect=60.0, sock_connect=60.0, sock_read=None)
+ConnectionTimeout = ClientTimeout(
+    total=None, connect=60.0, sock_connect=60.0, sock_read=None
+)
 
 # aiohttp WebSocket parameters.
 # https://docs.aiohttp.org/en/stable/client_reference.html#aiohttp.ClientSession.ws_connect
 WsParams = {
-    "autoclose":    True,
-    "autoping":     True,
-    "heartbeat":    30,
+    "autoclose": True,
+    "autoping": True,
+    "heartbeat": 30,
     "max_msg_size": 0,
 }
 
@@ -92,14 +111,16 @@ WsConnectionErrors = (
     ClientError,
     asyncio.TimeoutError,
     asyncio.CancelledError,
-    WebSocketError
+    WebSocketError,
 )
 
 WsSuspectConnectionBoundedInterval = BoundedInterval[int](7, 1)
 
 
 @final
-class Connection(AsyncStoppable, EventLoopProvider[asyncio.AbstractEventLoop], Hashable):
+class Connection(
+    AsyncStoppable, EventLoopProvider[asyncio.AbstractEventLoop], Hashable
+):
     """Underlying connection to the SimplyPrint server. Manages the WebSocket connection and dispatches
     both event and messages to power client functionality. Receives outgoing messages, and is stateless
     by design.
@@ -133,11 +154,11 @@ class Connection(AsyncStoppable, EventLoopProvider[asyncio.AbstractEventLoop], H
     _loop_task: ContinuousTask[None]
 
     def __init__(
-            self,
-            session: Optional[ClientSession] = None,
-            hint: Optional[ConnectionHint] = None,
-            logger: logging.Logger = logging.getLogger("ws"),
-            **kwargs
+        self,
+        session: Optional[ClientSession] = None,
+        hint: Optional[ConnectionHint] = None,
+        logger: logging.Logger = logging.getLogger("ws"),
+        **kwargs,
     ):
         AsyncStoppable.__init__(self, **kwargs)
         EventLoopProvider.__init__(self, **kwargs)
@@ -193,7 +214,9 @@ class Connection(AsyncStoppable, EventLoopProvider[asyncio.AbstractEventLoop], H
 
         queue_task = ContinuousTask(self._queue.get, provider=self)
         poll_task = ContinuousTask(self.poll, provider=self)
-        ws_connect_task = ContinuousTask(lambda: self.session.ws_connect(self.url, **WsParams), provider=self)
+        ws_connect_task = ContinuousTask(
+            lambda: self.session.ws_connect(self.url, **WsParams), provider=self
+        )
         wait_delay_task = ContinuousTask(lambda d: self.wait(d), provider=self)
         wait_stop_task = ContinuousTask(self.wait, provider=self)
 
@@ -251,10 +274,15 @@ class Connection(AsyncStoppable, EventLoopProvider[asyncio.AbstractEventLoop], H
                             delay = None
                             self.logger.info("Reconnecting (resumed).")
 
-                        await asyncio.wait([
-                            wait_delay_task.schedule(delay),  # wait task with delay (sleep for delay seconds)
-                            queue_task.schedule()
-                        ], return_when=asyncio.FIRST_COMPLETED)
+                        await asyncio.wait(
+                            [
+                                wait_delay_task.schedule(
+                                    delay
+                                ),  # wait task with delay (sleep for delay seconds)
+                                queue_task.schedule(),
+                            ],
+                            return_when=asyncio.FIRST_COMPLETED,
+                        )
 
                         # Handle more immediate actions.
                         if self.is_stopped() or queue_task.done():
@@ -271,11 +299,14 @@ class Connection(AsyncStoppable, EventLoopProvider[asyncio.AbstractEventLoop], H
                 # we need to wait for the connection to be established.
                 # this can also be interrupted by a queue action.
                 if not self.connected and self._state == State.CONNECTING:
-                    await asyncio.wait([
-                        ws_connect_task.schedule(),
-                        queue_task.schedule(),
-                        wait_stop_task.schedule(),  # wait task without any delay (wait forever for stop event)
-                    ], return_when=asyncio.FIRST_COMPLETED)
+                    await asyncio.wait(
+                        [
+                            ws_connect_task.schedule(),
+                            queue_task.schedule(),
+                            wait_stop_task.schedule(),  # wait task without any delay (wait forever for stop event)
+                        ],
+                        return_when=asyncio.FIRST_COMPLETED,
+                    )
 
                     # Queue action interrupted us, deal with it.
                     if not ws_connect_task.done():
@@ -294,11 +325,15 @@ class Connection(AsyncStoppable, EventLoopProvider[asyncio.AbstractEventLoop], H
 
                 if not self.connected:
                     raise ConnectionResetError(
-                        f"Invalid connection state. Previous close code: {self.ws.close_code if self.ws is not None else None}")
+                        f"Invalid connection state. Previous close code: {self.ws.close_code if self.ws is not None else None}"
+                    )
 
                 # In this state we are connected and actively polling the connection.
                 # Poll for messages and interrupt on queue action.
-                await asyncio.wait([queue_task.schedule(), poll_task.schedule()], return_when=asyncio.FIRST_COMPLETED)
+                await asyncio.wait(
+                    [queue_task.schedule(), poll_task.schedule()],
+                    return_when=asyncio.FIRST_COMPLETED,
+                )
 
                 # Ensure all exceptions from poll task are propagated so we can detect connection closure.
                 # This is allowed to fail to trigger a reconnect.
@@ -381,7 +416,12 @@ class Connection(AsyncStoppable, EventLoopProvider[asyncio.AbstractEventLoop], H
         """
         message = await self.ws.receive()
 
-        if message.type in (WSMsgType.CLOSE, WSMsgType.CLOSING, WSMsgType.CLOSED, WSMsgType.ERROR):
+        if message.type in (
+            WSMsgType.CLOSE,
+            WSMsgType.CLOSING,
+            WSMsgType.CLOSED,
+            WSMsgType.ERROR,
+        ):
             raise ConnectionResetError(f"Connection closed. {message}")
 
         try:
@@ -397,7 +437,9 @@ class Connection(AsyncStoppable, EventLoopProvider[asyncio.AbstractEventLoop], H
             # Invalid message.
             self.logger.error("Invalid message: %s", message, exc_info=e)
 
-    async def send(self, msg: ClientMsg[ClientMsgType], v: Optional[int] = None) -> None:
+    async def send(
+        self, msg: ClientMsg[ClientMsgType], v: Optional[int] = None
+    ) -> None:
         """
         :param msg: Message to send.
         :param v: Optional version to target.
@@ -412,7 +454,9 @@ class Connection(AsyncStoppable, EventLoopProvider[asyncio.AbstractEventLoop], H
         # Optionally, specify a connection version the message was targeted for.
         # Messages with a different version will not be sent.
         if v is not None and self.v != v:
-            self.logger.warning("Dropped message %s, version mismatch. %d != %d", msg, self.v, v)
+            self.logger.warning(
+                "Dropped message %s, version mismatch. %d != %d", msg, self.v, v
+            )
             return
 
         try:

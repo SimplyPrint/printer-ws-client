@@ -1,6 +1,6 @@
 """Simple async controller to intermittently re-send `file_progress` to refresh the 30-second client side timeout."""
 
-__all__ = ['FakeFileProgress']
+__all__ = ["FakeFileProgress"]
 
 import asyncio
 from typing import Optional
@@ -9,7 +9,8 @@ from ..asyncio.continuous_task import ContinuousTask
 from ..asyncio.event_loop_provider import EventLoopProvider
 from ..utils.backoff import Backoff, ConstantBackoff
 from ..utils.stoppable import AsyncStoppable
-from ...core import Client, FileProgressStateEnum
+from ...core.client import Client
+from ...core.state import FileProgressStateEnum
 
 
 class FakeFileProgress(AsyncStoppable):
@@ -17,16 +18,27 @@ class FakeFileProgress(AsyncStoppable):
     backoff: Backoff
     fake_progress_task: ContinuousTask
 
-    def __init__(self, client: Client, backoff: Optional[Backoff] = None,
-                 event_loop_provider: Optional[EventLoopProvider[asyncio.AbstractEventLoop]] = None, **kwargs) -> None:
+    def __init__(
+        self,
+        client: Client,
+        backoff: Optional[Backoff] = None,
+        event_loop_provider: Optional[
+            EventLoopProvider[asyncio.AbstractEventLoop]
+        ] = None,
+        **kwargs,
+    ) -> None:
         super().__init__(**kwargs)
         self.client = client
         self.backoff = backoff or ConstantBackoff(5)
-        self.fake_progress_task = ContinuousTask(self.fake_progress, provider=event_loop_provider)
+        self.fake_progress_task = ContinuousTask(
+            self.fake_progress, provider=event_loop_provider
+        )
 
     @property
     def is_downloading(self):
-        return self.client.printer.file_progress.state == FileProgressStateEnum.DOWNLOADING
+        return (
+            self.client.printer.file_progress.state == FileProgressStateEnum.DOWNLOADING
+        )
 
     def tick(self):
         """Call this to start/stop the fake progress task.

@@ -1,12 +1,21 @@
 import unittest
 import weakref
 
-from simplyprint_ws_client import Client, PrinterConfig, JobInfoState, PrinterState, JobInfoMsg
+from simplyprint_ws_client import (
+    Client,
+    PrinterConfig,
+    JobInfoState,
+    PrinterState,
+    JobInfoMsg,
+)
 from simplyprint_ws_client.core.state import Exclusive
 
 
 def job_state_consistent(state: JobInfoState):
-    return sum(1 for key in JobInfoState.MUTUALLY_EXCLUSIVE_FIELDS if getattr(state, key)) <= 1
+    return (
+        sum(1 for key in JobInfoState.MUTUALLY_EXCLUSIVE_FIELDS if getattr(state, key))
+        <= 1
+    )
 
 
 def build_job_state_msg(state: PrinterState) -> JobInfoMsg:
@@ -59,7 +68,9 @@ class TestJobInfo(unittest.TestCase):
         self.assertTrue(job_state_consistent(state))
 
         msg = build_job_state_msg(printer)
-        self.assertDictEqual(msg.model_dump(mode="json"), {"type": "job_info", "data": {"started": True}})
+        self.assertDictEqual(
+            msg.model_dump(mode="json"), {"type": "job_info", "data": {"started": True}}
+        )
         msg.reset_changes(printer)
         self.assertEqual(state.model_changed_fields, set())
 
@@ -78,7 +89,10 @@ class TestJobInfo(unittest.TestCase):
 
         self.assertDictEqual(
             msg.model_dump(mode="json"),
-            {"type": "job_info", "data": {"cancelled": True, "progress": 10, "reprint": 1}},
+            {
+                "type": "job_info",
+                "data": {"cancelled": True, "progress": 10, "reprint": 1},
+            },
         )
 
         msg.reset_changes(printer)

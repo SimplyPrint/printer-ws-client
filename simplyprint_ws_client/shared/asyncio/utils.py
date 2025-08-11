@@ -2,7 +2,7 @@
 Boilerplate async utils
 """
 
-__all__ = ['cond_notify', 'cond_notify_all', 'cond_wait']
+__all__ = ["cond_notify", "cond_notify_all", "cond_wait"]
 
 import asyncio
 

@@ -7,7 +7,10 @@ import time
 from yarl import URL
 
 from simplyprint_ws_client import *
-from simplyprint_ws_client.shared.camera.base import BaseCameraProtocol, CameraProtocolPollingMode
+from simplyprint_ws_client.shared.camera.base import (
+    BaseCameraProtocol,
+    CameraProtocolPollingMode,
+)
 from simplyprint_ws_client.shared.camera.mixin import ClientCameraMixin
 
 
@@ -17,6 +20,7 @@ def expt_smooth(target, actual, alpha, dt) -> float:
 
 class VirtualConfig(PrinterConfig):
     """Define extra fields that will be persisted in a config entry"""
+
     ...
 
 
@@ -56,13 +60,13 @@ class VirtualClient(DefaultClient[VirtualConfig], ClientCameraMixin):
         self.printer.firmware.version = "1.0.0"
 
         self.printer.set_info("Virtual Printer", "0.0.1")
-        self.printer.nozzle_count = 1
-        self.printer.material_count = 4
+        self.printer.tool_count = 1
+        self.printer.tool().material_count = 4
 
         self.set_camera_uri(URL("virtual://localhost"))
         self.printer.webcam_info.connected = True
 
-        for i, mat in enumerate(self.printer.materials):
+        for i, mat in enumerate(self.printer.materials0):
             mat.type = "PLA" if i in (0, 1) else "PETG"
             mat.color = "Black"
             mat.hex = "#000000"
@@ -81,9 +85,9 @@ class VirtualClient(DefaultClient[VirtualConfig], ClientCameraMixin):
                 self.logger.info(f"Setting tool temperature to {target}")
 
                 if target > 0.0:
-                    self.printer.tool_temperatures[0].target = target
+                    self.printer.tool0.temperature.target = target
                 else:
-                    self.printer.tool_temperatures[0].target = 0.0
+                    self.printer.tool0.temperature.target = 0.0
 
             if gcode[:4] == "M140":
                 target = float(gcode[6:])
@@ -91,9 +95,9 @@ class VirtualClient(DefaultClient[VirtualConfig], ClientCameraMixin):
                 self.logger.info(f"Setting bed temperature to {target}")
 
                 if target > 0.0:
-                    self.printer.bed_temperature.target = target
+                    self.printer.bed.temperature.target = target
                 else:
-                    self.printer.bed_temperature.target = 0.0
+                    self.printer.bed.temperature.target = 0.0
 
     async def on_file(self, data: FileDemandData):
         self.printer.status = PrinterStatus.DOWNLOADING
@@ -105,12 +109,15 @@ class VirtualClient(DefaultClient[VirtualConfig], ClientCameraMixin):
         alpha = random.uniform(0.1, 0.5)
 
         while self.printer.file_progress.percent < 100.0:
-            self.printer.file_progress.percent = max(100.0, expt_smooth(
-                105.0,
-                self.printer.file_progress.percent,
-                alpha,
-                0.1,
-            ))
+            self.printer.file_progress.percent = max(
+                100.0,
+                expt_smooth(
+                    105.0,
+                    self.printer.file_progress.percent,
+                    alpha,
+                    0.1,
+                ),
+            )
             await asyncio.sleep(0.1)
 
         self.printer.file_progress.state = FileProgressStateEnum.READY
@@ -125,8 +132,8 @@ class VirtualClient(DefaultClient[VirtualConfig], ClientCameraMixin):
         # Calculate the time to finish the print using the progress rate
         self.printer.job_info.time = round(100.0 / self.job_progress_alpha)
 
-        self.printer.bed_temperature.target = 60.0
-        self.printer.tool_temperatures[0].target = 225.0
+        self.printer.bed.temperature.target = 60.0
+        self.printer.tool0.temperature.target = 225.0
 
     async def on_cancel(self, _):
         self.printer.status = PrinterStatus.CANCELLING
@@ -134,49 +141,70 @@ class VirtualClient(DefaultClient[VirtualConfig], ClientCameraMixin):
         await asyncio.sleep(2)
         self.printer.status = PrinterStatus.OPERATIONAL
 
-        self.printer.bed_temperature.target = 0.0
-        self.printer.tool_temperatures[0].target = 0.0
+        self.printer.bed.temperature.target = 0.0
+        self.printer.tool0.temperature.target = 0.0
+
+    async def on_stream_off(self):
+        self.printer.material0.raw = {
+            'tray_uuid':       'C5D095A34DF246E8A9B99C1D6AD667BE',
+            'tag_uid':         '2496010000000100',
+            'tray_color':      '5898DDFF',
+            'tray_type':       'TPU-AMS',
+            'tray_id_name':    'U02-B0',
+            'tray_info_idx':   'GFU02',
+            'tray_sub_brands': 'TPU for AMS',
+            'tray_weight':     '1000',
+            'tray_diameter':   '1.75',
+            'cols':            ['5898DDFF'],
+        }
+
+        await self.send(
+            MaterialDataMsg(data=dict(MaterialDataMsg.build(self.printer, is_refresh=True)))
+        )
 
     async def init(self):
-        self.printer.bed_temperature.actual = 20.0
-        self.printer.bed_temperature.target = 0.0
-        self.printer.tool_temperatures[0].actual = 20.0
-        self.printer.tool_temperatures[0].target = 0.0
+        self.printer.bed.temperature.actual = 20.0
+        self.printer.bed.temperature.target = 0.0
+        self.printer.tool0.temperature.actual = 20.0
+        self.printer.tool0.temperature.target = 0.0
         self.printer.status = PrinterStatus.OPERATIONAL
 
     async def tick(self, _):
         await self.send_ping()
 
         # Update temperatures, printer status and so on with smoothing function
-        if self.printer.bed_temperature.target:
-            target = self.printer.bed_temperature.target
+        if self.printer.bed.temperature.target:
+            target = self.printer.bed.temperature.target
 
-            self.printer.bed_temperature.actual = expt_smooth(
+            self.printer.bed.temperature.actual = expt_smooth(
                 target,
-                self.printer.bed_temperature.actual,
+                self.printer.bed.temperature.actual,
                 15,
                 0.1,
             )
 
         else:
-            self.printer.bed_temperature.actual = 20.0
+            self.printer.bed.temperature.actual = 20.0
 
-        if self.printer.tool_temperatures[0].target:
-            target = self.printer.tool_temperatures[0].target
+        if self.printer.tool0.temperature.target:
+            target = self.printer.tool0.temperature.target
 
-            self.printer.tool_temperatures[0].actual = expt_smooth(
+            self.printer.tool0.temperature.actual = expt_smooth(
                 target,
-                self.printer.tool_temperatures[0].actual,
+                self.printer.tool0.temperature.actual,
                 15,
                 0.1,
             )
 
         else:
-            self.printer.tool_temperatures[0].actual = 20.0
+            self.printer.tool0.temperature.actual = 20.0
 
         self.printer.ambient_temperature.tick(self.printer)
 
-        if self.printer.status == PrinterStatus.PRINTING and not self.printer.is_heating():
+        if (
+                self.printer.status == PrinterStatus.PRINTING
+                and not self.printer.is_heating()
+        ):
             self.printer.job_info.progress = expt_smooth(
                 100.0,
                 self.printer.job_info.progress,
@@ -191,8 +219,8 @@ class VirtualClient(DefaultClient[VirtualConfig], ClientCameraMixin):
                 self.printer.job_info.progress = 100
                 self.printer.status = PrinterStatus.OPERATIONAL
 
-                self.printer.bed_temperature.target = 0.0
-                self.printer.tool_temperatures[0].target = 0.0
+                self.printer.bed.temperature.target = 0.0
+                self.printer.tool0.temperature.target = 0.0
 
     async def halt(self):
         pass

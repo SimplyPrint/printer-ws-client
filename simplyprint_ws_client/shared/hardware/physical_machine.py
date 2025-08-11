@@ -37,7 +37,9 @@ def callonce(func):
 # since none of the commands we call do anything important that needs time to run.
 # To reproduce the issue spawning MultiProcessing processes while calling check_output / run
 # seems to do the trick.
-capped_check_output = functools.partial(subprocess.check_output, shell=False, timeout=1.0)
+capped_check_output = functools.partial(
+    subprocess.check_output, shell=False, timeout=1.0
+)
 
 
 class PhysicalMachine:
@@ -55,39 +57,42 @@ class PhysicalMachine:
             # Find the first temperature sensor that is not None
             # Priority is given in reverse order
             temperature_keys = {
-                                   "coretemp",
-                                   "cpu-thermal",
-                                   "cpu_thermal",
-                                   "soc_thermal"
-                               } & set(temperatures.keys())
+                "coretemp",
+                "cpu-thermal",
+                "cpu_thermal",
+                "soc_thermal",
+            } & set(temperatures.keys())
 
             if len(temperature_keys) > 0:
                 temperature_key = temperature_keys.pop()
-                temperature = temperatures[temperature_key][0].current if temperatures[temperature_key][
-                                                                              0].current is not None else 0
+                temperature = (
+                    temperatures[temperature_key][0].current
+                    if temperatures[temperature_key][0].current is not None
+                    else 0
+                )
         except AttributeError:
             pass
 
         return {
-            "usage":  round(psutil.cpu_percent()),
-            "temp":   round(temperature),
+            "usage": round(psutil.cpu_percent()),
+            "temp": round(temperature),
             "memory": round(psutil.virtual_memory().percent),
-            "flags":  0,
+            "flags": 0,
         }
 
     @classmethod
     def get_info(cls):
         return {
             "python_version": cls.python_version(),
-            "machine":        cls.machine(),
-            "os":             platform.system(),
-            "mac":            cls.mac_address(),
-            "is_ethernet":    cls.is_ethernet(),
-            "ssid":           cls.ssid(),
-            "hostname":       cls.hostname(),
-            "local_ip":       cls.local_ip(),
-            "core_count":     cls.core_count(),
-            "total_memory":   cls.total_memory(),
+            "machine": cls.machine(),
+            "os": platform.system(),
+            "mac": cls.mac_address(),
+            "is_ethernet": cls.is_ethernet(),
+            "ssid": cls.ssid(),
+            "hostname": cls.hostname(),
+            "local_ip": cls.local_ip(),
+            "core_count": cls.core_count(),
+            "total_memory": cls.total_memory(),
         }
 
     @staticmethod
@@ -106,9 +111,7 @@ class PhysicalMachine:
         with open(info_path, "r") as f:
             data = f.read()
 
-        cpu_items = [
-            item.strip() for item in data.split("\n\n") if item.strip()
-        ]
+        cpu_items = [item.strip() for item in data.split("\n\n") if item.strip()]
 
         match = re.search(r"Model\s+:\s+(.+)", cpu_items[-1])
         if match is not None:
@@ -124,14 +127,19 @@ class PhysicalMachine:
     @callonce
     @exception_as_value(return_default=True)
     def __get_cpu_model_macos() -> Optional[str]:
-        return capped_check_output(["sysctl", "-n", "machdep.cpu.brand_string"]).decode(
-            "utf-8").strip()
+        return (
+            capped_check_output(["sysctl", "-n", "machdep.cpu.brand_string"])
+            .decode("utf-8")
+            .strip()
+        )
 
     @staticmethod
     @callonce
     @exception_as_value(return_default=True)
     def __get_cpu_model_windows() -> Optional[str]:
-        name = capped_check_output(["wmic", "cpu", "get", "name"]).decode("utf-8").strip()
+        name = (
+            capped_check_output(["wmic", "cpu", "get", "name"]).decode("utf-8").strip()
+        )
 
         if name.startswith("Name"):
             name = name[4:].strip()
@@ -151,8 +159,9 @@ class PhysicalMachine:
     @exception_as_value(return_default=True)
     def mac_address() -> Optional[str]:
         # Use netifaces
-        return netifaces.ifaddresses(netifaces.gateways()["default"][netifaces.AF_INET][1])[netifaces.AF_LINK][0][
-            "addr"]
+        return netifaces.ifaddresses(
+            netifaces.gateways()["default"][netifaces.AF_INET][1]
+        )[netifaces.AF_LINK][0]["addr"]
 
     @staticmethod
     @exception_as_value(return_default=True, default=False)
@@ -169,9 +178,21 @@ class PhysicalMachine:
     @callonce
     @exception_as_value(return_default=True)
     def __ssid_macos() -> Optional[str]:
-        airport_output = map(functools.partial(str.split, sep=': '), map(str.strip, capped_check_output(
-            ["/System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport", "-I"]).decode(
-            "utf-8").strip().split('\n')))
+        airport_output = map(
+            functools.partial(str.split, sep=": "),
+            map(
+                str.strip,
+                capped_check_output(
+                    [
+                        "/System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport",
+                        "-I",
+                    ]
+                )
+                .decode("utf-8")
+                .strip()
+                .split("\n"),
+            ),
+        )
 
         for field, value in airport_output:
             if field == "SSID":
@@ -181,8 +202,11 @@ class PhysicalMachine:
     @callonce
     @exception_as_value(return_default=True)
     def __ssid_windows() -> Optional[str]:
-        output = capped_check_output(["netsh", "wlan", "show", "interfaces"]).decode(
-            "utf-8").strip()
+        output = (
+            capped_check_output(["netsh", "wlan", "show", "interfaces"])
+            .decode("utf-8")
+            .strip()
+        )
 
         for line in output.split("\n"):
             line = line.strip()

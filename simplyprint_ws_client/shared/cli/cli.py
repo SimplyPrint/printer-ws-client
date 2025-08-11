@@ -1,4 +1,4 @@
-__all__ = ['ClientCli', 'CommandBag']
+__all__ = ["ClientCli", "CommandBag"]
 
 from typing import Any, Dict, Optional, Union, get_args, get_origin, Callable
 
@@ -24,20 +24,33 @@ class CommandBag:
 
 
 class ClientCliConfigManager(CommandBag, click.Group):
-    """ Commands to interact with the configuration manager. """
+    """Commands to interact with the configuration manager."""
 
     def __init__(self, app: ClientApp) -> None:
         super().__init__(name="config", help="Configuration manager commands")
         self.app = app
         self.commands = {}
         self.add_command(click.Command("list", callback=self.list_configs))
-        self.add_command(click.Command("edit", callback=self.edit_config,
-                                       params=[click.Argument(["index"], type=int)]))
-        self.add_command(click.Command("add", callback=self.add_config))
-        self.add_command(click.Command("new", callback=self.add_new_config, help="Add a new configuration"))
         self.add_command(
-            click.Command("remove", callback=self.remove_config,
-                          params=[click.Argument(["index"], type=int)]))
+            click.Command(
+                "edit",
+                callback=self.edit_config,
+                params=[click.Argument(["index"], type=int)],
+            )
+        )
+        self.add_command(click.Command("add", callback=self.add_config))
+        self.add_command(
+            click.Command(
+                "new", callback=self.add_new_config, help="Add a new configuration"
+            )
+        )
+        self.add_command(
+            click.Command(
+                "remove",
+                callback=self.remove_config,
+                params=[click.Argument(["index"], type=int)],
+            )
+        )
 
     def list_configs(self):
         configs = self.app.config_manager.get_all()
@@ -60,17 +73,25 @@ class ClientCliConfigManager(CommandBag, click.Group):
 
         for field in fields:
             # Ask user for field value
-            field_type = config.__annotations__[field] if field in config.__annotations__ else str
+            field_type = (
+                config.__annotations__[field]
+                if field in config.__annotations__
+                else str
+            )
 
             if get_origin(field_type) is Union:
                 field_type = get_args(field_type)[0]
 
             field_default = self.get_config_default(
-                field, getattr(config, field) if hasattr(config, field) else None)
+                field, getattr(config, field) if hasattr(config, field) else None
+            )
 
-            value = click.prompt(f"Input {field}",
-                                 default=field_default, show_default=field_default != "",
-                                 type=field_type)
+            value = click.prompt(
+                f"Input {field}",
+                default=field_default,
+                show_default=field_default != "",
+                type=field_type,
+            )
 
             if value is None or value == "":
                 continue
@@ -120,7 +141,7 @@ class ClientCliConfigManager(CommandBag, click.Group):
 
 
 class ClientCliDebugConnectivity(CommandBag, click.Group):
-    """ Commands to debug connectivity. """
+    """Commands to debug connectivity."""
 
     def __init__(self, app: ClientApp) -> None:
         super().__init__(name="connectivity", help="Debug connectivity commands")
@@ -132,7 +153,7 @@ class ClientCliDebugConnectivity(CommandBag, click.Group):
 
     @staticmethod
     def test():
-        path = APP_DIRS.user_log_path / 'connectivity_reports'
+        path = APP_DIRS.user_log_path / "connectivity_reports"
 
         if not path.exists():
             path.mkdir(parents=True, exist_ok=True)
@@ -143,22 +164,22 @@ class ClientCliDebugConnectivity(CommandBag, click.Group):
 
     @staticmethod
     def list_previous_reports():
-        path = APP_DIRS.user_log_path / 'connectivity_reports'
+        path = APP_DIRS.user_log_path / "connectivity_reports"
 
         if not path.exists():
             path.mkdir(parents=True, exist_ok=True)
 
-        l = ConnectivityReport.read_previous_reports(path)
+        list_of_reports = ConnectivityReport.read_previous_reports(path)
 
-        print(f"Found {len(l)} reports in {path}.")
+        print(f"Found {len(list_of_reports)} reports in {path}.")
 
-        for report in l:
+        for report in list_of_reports:
             print(f"* Report generated on {report.timestamp}:")
-            print("  - " + "\n  - ".join(report.summary().split("\n")).strip('- '))
+            print("  - " + "\n  - ".join(report.summary().split("\n")).strip("- "))
 
     @staticmethod
     def delete_all_reports():
-        path = APP_DIRS.user_log_path / 'connectivity_reports'
+        path = APP_DIRS.user_log_path / "connectivity_reports"
 
         if not path.exists():
             print("Nothing to delete")
@@ -183,7 +204,9 @@ class ClientCli(CommandBag, click.MultiCommand):
         # Register commands
         self.add_command(ClientCliConfigManager(self.app))
         self.add_command(ClientCliDebugConnectivity(self.app))
-        self.add_command(click.Command("start", callback=self.start_client, help="Start the client"))
+        self.add_command(
+            click.Command("start", callback=self.start_client, help="Start the client")
+        )
 
     @property
     def start_client(self):

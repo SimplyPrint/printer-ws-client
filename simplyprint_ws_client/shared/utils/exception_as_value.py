@@ -3,7 +3,7 @@ from typing import Type, Union, Tuple
 
 
 def exception_as_value(*args, return_default=False, default=None, **kwargs):
-    """ Internal decorator to return an exception as a value
+    """Internal decorator to return an exception as a value
 
     Only used to minimize runtime overhead.
     """
@@ -27,20 +27,24 @@ def exception_as_value(*args, return_default=False, default=None, **kwargs):
     return decorator
 
 
-def exception_as_another(exc: Type[BaseException], wrap=True,
-                         catch: Union[Type[BaseException], Tuple[Type[BaseException]]] = BaseException):
+def exception_as_another(
+    exc: Type[BaseException],
+    wrap=True,
+    catch: Union[Type[BaseException], Tuple[Type[BaseException]]] = BaseException,
+):
     """Replace uncaught exception with another type of exception"""
 
     def decorator(func):
         if not callable(func):
-            raise ValueError("uncaught_exception_as_another decorator must be used on a callable")
+            raise ValueError(
+                "uncaught_exception_as_another decorator must be used on a callable"
+            )
 
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
             try:
                 return func(*args, **kwargs)
             except catch as e:
-
                 if wrap:
                     e = exc(e)
                 else:

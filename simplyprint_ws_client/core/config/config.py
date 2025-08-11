@@ -52,7 +52,7 @@ class Config(ABC):
 
         return data
 
-    def partial_eq(self, config: Optional['Config'] = None, **kwargs) -> bool:
+    def partial_eq(self, config: Optional["Config"] = None, **kwargs) -> bool:
         """Check if the other config is partially equal to this one."""
         data = self.as_dict()
 

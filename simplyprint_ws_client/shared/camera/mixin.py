@@ -13,7 +13,8 @@ from ... import configure, DemandMsgType, PrinterConfig
 from ...core.client import Client
 from ...core.ws_protocol.messages import WebcamSnapshotDemandData, StreamMsg
 
-_T = TypeVar('_T', bound=PrinterConfig)
+_T = TypeVar("_T", bound=PrinterConfig)
+
 
 class ClientCameraMixin(Client[_T]):
     _camera_pool: Optional[CameraPool] = None
@@ -27,12 +28,12 @@ class ClientCameraMixin(Client[_T]):
     _request_count: int = 0
 
     def initialize_camera_mixin(
-            self,
-            camera_pool: Optional[CameraPool] = None,
-            pause_timeout: Optional[int] = None,
-            max_cache_age: Optional[datetime.timedelta] = None,
-            camera_debug=False,
-            **_kwargs
+        self,
+        camera_pool: Optional[CameraPool] = None,
+        pause_timeout: Optional[int] = None,
+        max_cache_age: Optional[datetime.timedelta] = None,
+        camera_debug=False,
+        **_kwargs,
     ):
         self._camera_pool = camera_pool
         self._stream_lock = CancelableLock()
@@ -41,14 +42,14 @@ class ClientCameraMixin(Client[_T]):
         self._camera_max_cache_age = max_cache_age
         self._camera_debug = camera_debug
 
-    def set_camera_uri(self, uri: Optional[URL] = None) -> Literal['err', 'ok', 'new']:
+    def set_camera_uri(self, uri: Optional[URL] = None) -> Literal["err", "ok", "new"]:
         """Returns whether it has changed the camera URI"""
         if self._camera_pool is None:
-            return 'err'
+            return "err"
 
         # If the camera URI is the same, don't recreate the camera.
         if self._camera_uri == uri and self._camera_handle:
-            return 'ok'
+            return "ok"
 
         self._camera_uri = uri
 
@@ -60,21 +61,22 @@ class ClientCameraMixin(Client[_T]):
 
         # Create a new camera handle
         if self._camera_uri and self._camera_pool:
-            self._camera_handle = self._camera_pool.create(self._camera_uri, pause_timeout=self._camera_pause_timeout)
+            self._camera_handle = self._camera_pool.create(
+                self._camera_uri, pause_timeout=self._camera_pause_timeout
+            )
             self.event_loop.call_soon_threadsafe(self._stream_setup.set)
 
         # Check if we left off with a request that needs to be sent.
         if self._request_count > 0:
             asyncio.run_coroutine_threadsafe(
-                self.on_webcam_snapshot(),
-                loop=self.event_loop
+                self.on_webcam_snapshot(), loop=self.event_loop
             )
 
         # Mark the webcam as connected if it's not already.
         if not self.printer.webcam_info.connected:
             self.printer.webcam_info.connected = True
 
-        return 'new'
+        return "new"
 
     def __del__(self):
         self.set_camera_uri(None)
@@ -103,10 +105,10 @@ class ClientCameraMixin(Client[_T]):
             self._request_count += 1
 
     async def on_webcam_snapshot(
-            self,
-            data: WebcamSnapshotDemandData = WebcamSnapshotDemandData(),
-            attempt=0,
-            retry_timeout=5
+        self,
+        data: WebcamSnapshotDemandData = WebcamSnapshotDemandData(),
+        attempt=0,
+        retry_timeout=5,
     ):
         if not self._camera_handle:
             await self._stream_setup.wait()
@@ -118,12 +120,15 @@ class ClientCameraMixin(Client[_T]):
         # Block until the camera is ready, but we will sometimes allow snapshot events
         # to use existing images if they are new enough but only once.
         frame = await self._camera_handle.receive_frame(
-            allow_cache_age=self._camera_max_cache_age if is_snapshot_event else None)
+            allow_cache_age=self._camera_max_cache_age if is_snapshot_event else None
+        )
 
         # Empty frame or none.
         if not frame:
             if attempt <= 3:
-                self.logger.debug(f"Failed to get frame, retrying in {retry_timeout} seconds")
+                self.logger.debug(
+                    f"Failed to get frame, retrying in {retry_timeout} seconds"
+                )
                 await asyncio.sleep(retry_timeout)
                 await self.on_webcam_snapshot(data, attempt + 1, retry_timeout)
             else:

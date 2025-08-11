@@ -23,7 +23,11 @@ class JsonConfigManager(ConfigManager):
 
         with self._file_lock:
             with open(self._json_file, "w") as file:
-                data = [json.loads(config.as_json()) for config in self.get_all() if not config.is_empty()]
+                data = [
+                    json.loads(config.as_json())
+                    for config in self.get_all()
+                    if not config.is_empty()
+                ]
                 json.dump(data, file, indent=4)
 
     def load(self):
@@ -35,7 +39,8 @@ class JsonConfigManager(ConfigManager):
                     data = json.load(file)
                 except json.JSONDecodeError:
                     logging.warning(
-                        f"Failed to load {self._json_file} configuration file, it's invalid - resetting it!!!")
+                        f"Failed to load {self._json_file} configuration file, it's invalid - resetting it!!!"
+                    )
 
                     data = []
 

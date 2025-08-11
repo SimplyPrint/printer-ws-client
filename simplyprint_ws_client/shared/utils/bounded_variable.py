@@ -11,16 +11,25 @@ class BoundedInterval(Generic[TIntervalValue]):
     step: TIntervalValue
     default: Optional[TIntervalValue] = None
 
-    def __init__(self, max_value: TIntervalValue, step: TIntervalValue, default: Optional[TIntervalValue] = None):
+    def __init__(
+        self,
+        max_value: TIntervalValue,
+        step: TIntervalValue,
+        default: Optional[TIntervalValue] = None,
+    ):
         self.max = max_value
         self.step = step
         self.default = default
 
-    def create_variable(self, value: Optional[TIntervalValue] = None) -> "BoundedVariable":
+    def create_variable(
+        self, value: Optional[TIntervalValue] = None
+    ) -> "BoundedVariable":
         default = self.default if value is None else value
 
         if default is None:
-            raise ValueError(f"Cannot create bounded variable {self.__class__.__name__} with default value None")
+            raise ValueError(
+                f"Cannot create bounded variable {self.__class__.__name__} with default value None"
+            )
 
         return BoundedVariable(default, self)
 
@@ -31,7 +40,9 @@ class BoundedVariable(Generic[TIntervalValue]):
     _starting_value: TIntervalValue
     _current_value: TIntervalValue
 
-    def __init__(self, value: TIntervalValue, interval: BoundedInterval[TIntervalValue]):
+    def __init__(
+        self, value: TIntervalValue, interval: BoundedInterval[TIntervalValue]
+    ):
         self._starting_value = value
         self._current_value = value
         self.interval = interval
@@ -49,7 +60,9 @@ class BoundedVariable(Generic[TIntervalValue]):
         self._current_value = min(self._current_value + step, self.interval.max)
         return self._current_value
 
-    def exponential_increment(self, factor: Optional[TIntervalValue] = None) -> TIntervalValue:
+    def exponential_increment(
+        self, factor: Optional[TIntervalValue] = None
+    ) -> TIntervalValue:
         factor = factor or self.interval.step
         self._current_value = min(self._current_value * factor, self.interval.max)
         return self._current_value

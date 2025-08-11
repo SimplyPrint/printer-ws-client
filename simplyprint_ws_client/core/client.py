@@ -1,11 +1,11 @@
 __all__ = [
-    'Client',
-    'ClientConfigChangedEvent',
-    'ClientStateChangeEvent',
-    'DefaultClient',
-    'PhysicalClient',
-    'ClientState',
-    'configure',
+    "Client",
+    "ClientConfigChangedEvent",
+    "ClientStateChangeEvent",
+    "DefaultClient",
+    "PhysicalClient",
+    "ClientState",
+    "configure",
 ]
 
 import asyncio
@@ -16,14 +16,60 @@ from datetime import timedelta, datetime
 from enum import IntEnum
 from typing import NamedTuple, Optional, Union, Generic, TypeVar, cast
 
-from ._event_instrumentation import autoconfigure_class_dict, produce, configure, instrument, consume
+from ._event_instrumentation import (
+    autoconfigure_class_dict,
+    produce,
+    configure,
+    instrument,
+    consume,
+)
 from .config import PrinterConfig
 from .state import PrinterState
 from .ws_protocol.connection import ConnectionMode
-from .ws_protocol.events import ConnectionOutgoingEvent, ConnectionEstablishedEvent, ConnectionLostEvent, \
-    ConnectionIncomingEvent
-from .ws_protocol.messages import *
-from .ws_protocol.messages import SetMaterialDataDemandData
+from .ws_protocol.events import (
+    ConnectionOutgoingEvent,
+    ConnectionEstablishedEvent,
+    ConnectionLostEvent,
+    ConnectionIncomingEvent,
+)
+from .ws_protocol.messages import (
+    SetMaterialDataDemandData,
+    MachineDataMsg,
+    WebcamStatusMsg,
+    WebcamMsg,
+    FirmwareMsg,
+    FirmwareWarningMsg,
+    ToolMsg,
+    TemperatureMsg,
+    AmbientTemperatureMsg,
+    StateChangeMsg,
+    JobInfoMsg,
+    LatencyMsg,
+    FileProgressMsg,
+    FilamentSensorMsg,
+    PowerControllerMsg,
+    CpuInfoMsg,
+    MaterialDataMsg,
+    MultiPrinterRemoveConnectionMsg,
+    ServerMsgType,
+    MultiPrinterRemovedMsg,
+    MultiPrinterAddedMsg,
+    PingMsg,
+    PrinterSettingsMsg,
+    IntervalChangeMsg,
+    CompleteSetupMsg,
+    NewTokenMsg,
+    ErrorMsg,
+    ConnectedMsg,
+    DemandMsgType,
+    FileDemandData,
+    WebcamSnapshotDemandData,
+    ClientMsg,
+    DispatchMode,
+    ClientMsgType,
+    ServerMsgKind,
+    MultiPrinterAddConnectionMsg,
+)
 from ..events import EventBus, Event
 from ..events.event import sync_only
 from ..shared.asyncio.event_loop_provider import EventLoopProvider
@@ -33,22 +79,29 @@ from ..shared.sp.simplyprint_api import SimplyPrintApi
 from ..shared.utils.backoff import Backoff, ExponentialBackoff
 
 # Map message producers
-produce(MachineDataMsg, 'info')
-produce(WebcamStatusMsg, 'webcam_info.connected')
-produce(WebcamMsg, 'webcam_settings')
-produce(FirmwareMsg, 'firmware')
-produce(FirmwareWarningMsg, 'firmware_warning')
-produce(ToolMsg, 'active_tool')
-produce(TemperatureMsg, 'bed_temperature', 'tool_temperatures')
-produce(AmbientTemperatureMsg, 'ambient_temperature.ambient')
-produce(StateChangeMsg, 'status')
-produce(JobInfoMsg, 'job_info')
-produce(LatencyMsg, 'latency.pong')
-produce(FileProgressMsg, 'file_progress')
-produce(FilamentSensorMsg, 'filament_sensor')
-produce(PowerControllerMsg, 'psu_info')
-produce(CpuInfoMsg, 'cpu_info')
-produce(MaterialDataMsg, 'materials', 'bed', 'mms_layout', 'nozzles')
+produce(MachineDataMsg, "info")
+produce(WebcamStatusMsg, "webcam_info.connected")
+produce(WebcamMsg, "webcam_settings")
+produce(FirmwareMsg, "firmware")
+produce(FirmwareWarningMsg, "firmware_warning")
+produce(ToolMsg, "active_tool", "tools.*.active_material")
+produce(TemperatureMsg, "bed.temperature", "tools.*.temperature")
+produce(AmbientTemperatureMsg, "ambient_temperature.ambient")
+produce(StateChangeMsg, "status")
+produce(JobInfoMsg, "job_info")
+produce(LatencyMsg, "latency.pong")
+produce(FileProgressMsg, "file_progress")
+produce(FilamentSensorMsg, "filament_sensor")
+produce(PowerControllerMsg, "psu_info")
+produce(CpuInfoMsg, "cpu_info")
+produce(
+    MaterialDataMsg,
+    "tools.*.materials",
+    "tools.*.size",
+    "tools.*.type",
+    "bed.type",
+    "mms_layout",
+)
 
 
 class InstrumentClientMeta(ABCMeta):
@@ -82,19 +135,22 @@ class VersionedState(NamedTuple):
     s: ClientState
 
 
-class ClientConfigChangedEvent(Event):
-    ...
+class ClientConfigChangedEvent(Event): ...
 
 
 @sync_only
-class ClientStateChangeEvent(Event):
-    ...
+class ClientStateChangeEvent(Event): ...
 
 
-TConfig = TypeVar('TConfig', bound=PrinterConfig)
+TConfig = TypeVar("TConfig", bound=PrinterConfig)
 
 
-class Client(ABC, Generic[TConfig], EventLoopProvider[asyncio.AbstractEventLoop], metaclass=InstrumentClientMeta):
+class Client(
+    ABC,
+    Generic[TConfig],
+    EventLoopProvider[asyncio.AbstractEventLoop],
+    metaclass=InstrumentClientMeta,
+):
     """A scheduling unit.
 
     Attributes:
@@ -128,7 +184,13 @@ class Client(ABC, Generic[TConfig], EventLoopProvider[asyncio.AbstractEventLoop]
     _pending_action_ts: datetime = datetime.min
     _pending_action_log_ts: datetime = datetime.min
 
-    def __init__(self, config: TConfig, *, event_loop_provider: Optional[EventLoopProvider] = None, **kwargs):
+    def __init__(
+        self,
+        config: TConfig,
+        *,
+        event_loop_provider: Optional[EventLoopProvider] = None,
+        **kwargs,
+    ):
         ABC.__init__(self)
         Generic.__init__(self)
         EventLoopProvider.__init__(self, provider=event_loop_provider)
@@ -137,8 +199,6 @@ class Client(ABC, Generic[TConfig], EventLoopProvider[asyncio.AbstractEventLoop]
         self.event_bus = EventBus(event_loop_provider=self)
         self.printer = PrinterState(config=config)
         self.printer.provide_context(weakref.ref(self))
-        self.printer.nozzle_count = 1
-        self.printer.material_count = 1
         self.logger = logging.getLogger(ClientName(self))
         instrument(self)
 
@@ -227,16 +287,22 @@ class Client(ABC, Generic[TConfig], EventLoopProvider[asyncio.AbstractEventLoop]
 
         can_do_pending = time_since > self._pending_action_delay
 
-        if not can_do_pending and now - self._pending_action_log_ts > (self._pending_action_delay / 3):
+        if not can_do_pending and now - self._pending_action_log_ts > (
+            self._pending_action_delay / 3
+        ):
             self._pending_action_log_ts = now
             time_remaining = self._pending_action_delay - time_since
-            self.logger.debug("Cannot do current pending action. Time remaining: %s", time_remaining)
+            self.logger.debug(
+                "Cannot do current pending action. Time remaining: %s", time_remaining
+            )
 
         return can_do_pending
 
     def _do_pending(self):
         self._pending_action_ts = datetime.now()
-        self._pending_action_delay = timedelta(seconds=self._pending_action_backoff.delay())
+        self._pending_action_delay = timedelta(
+            seconds=self._pending_action_backoff.delay()
+        )
 
     def signal(self):
         self.event_bus.emit_sync(ClientStateChangeEvent)
@@ -309,8 +375,14 @@ class Client(ABC, Generic[TConfig], EventLoopProvider[asyncio.AbstractEventLoop]
         """External send method (applies dispatch mode)."""
         # check dispatch mode + use interval (automatically)
 
-        if not skip_dispatch and (dispatch_mode := msg.dispatch_mode(self.printer)) != DispatchMode.DISPATCH:
-            self.logger.warning("Dropped message %s due to dispatch mode %s.", msg, dispatch_mode)
+        if (
+            not skip_dispatch
+            and (dispatch_mode := msg.dispatch_mode(self.printer))
+            != DispatchMode.DISPATCH
+        ):
+            self.logger.warning(
+                "Dropped message %s due to dispatch mode %s.", msg, dispatch_mode
+            )
             return
 
         await self.event_bus.emit(ConnectionOutgoingEvent, msg, self.v)
@@ -367,22 +439,25 @@ class DefaultClient(Client[TConfig], ABC):
             return
 
         try:
-            await SimplyPrintApi.clear_bed(self.config.id, self._file_action_token, success, rating)
+            await SimplyPrintApi.clear_bed(
+                self.config.id, self._file_action_token, success, rating
+            )
             self._have_cleared_bed = True
         except Exception as e:
             self.logger.warning("Failed to clear bed: %s", e)
 
     async def start_next_print(self):
         try:
-            await SimplyPrintApi.start_next_print(self.config.id, self._file_action_token)
+            await SimplyPrintApi.start_next_print(
+                self.config.id, self._file_action_token
+            )
         except Exception as e:
             self.logger.warning("Failed to start next print: %s", e)
 
     # Default event handling.
 
     @configure(ServerMsgType.ERROR, priority=1)
-    def _on_error(self, msg: ErrorMsg):
-        ...
+    def _on_error(self, msg: ErrorMsg): ...
 
     @configure(ServerMsgType.NEW_TOKEN, priority=1)
     async def _on_new_token(self, msg: NewTokenMsg):
@@ -407,10 +482,13 @@ class DefaultClient(Client[TConfig], ABC):
 
     @configure(ServerMsgType.COMPLETE_SETUP, priority=1)
     async def _on_setup_complete(self, msg: CompleteSetupMsg):
-        self.printer.mark_common_fields_as_changed()
-        self.config.id = msg.data.printer_id
-        self.config.in_setup = False
-        await self.event_bus.emit(ClientConfigChangedEvent)
+        try:
+            self.printer.mark_common_fields_as_changed()
+            self.config.id = msg.data.printer_id
+            self.config.in_setup = False
+            await self.event_bus.emit(ClientConfigChangedEvent)
+        except Exception as e:
+            self.logger.exception("Failed to complete setup: %s", e)
 
     @configure(ServerMsgType.INTERVAL_CHANGE, priority=1)
     def _on_interval_change(self, msg: IntervalChangeMsg):
@@ -425,8 +503,7 @@ class DefaultClient(Client[TConfig], ABC):
         self.printer.settings = msg.data
 
     @configure(ServerMsgType.STREAM_RECEIVED, priority=1)
-    def _on_stream_received(self):
-        ...
+    def _on_stream_received(self): ...
 
     @configure(DemandMsgType.WEBCAM_SNAPSHOT, priority=1)
     def _on_webcam_snapshot(self, data: WebcamSnapshotDemandData):
@@ -451,7 +528,11 @@ class DefaultClient(Client[TConfig], ABC):
 
     @configure(DemandMsgType.REFRESH_MATERIAL_DATA, priority=1)
     async def _on_refresh_material_data(self):
-        await self.send(MaterialDataMsg(data=dict(MaterialDataMsg.build(self.printer, is_refresh=True))))
+        await self.send(
+            MaterialDataMsg(
+                data=dict(MaterialDataMsg.build(self.printer, is_refresh=True))
+            )
+        )
 
 
 class PhysicalClient(DefaultClient[TConfig], ABC):

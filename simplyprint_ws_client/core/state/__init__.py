@@ -1,43 +1,56 @@
 __all__ = [
-    'StateModel',
-    'TemperatureState',
-    'AmbientTemperatureState',
-    'FileProgressState',
-    'CpuInfoState',
-    'PrinterInfoState',
-    'PrinterFirmwareState',
-    'PrinterFirmwareWarning',
-    'PrinterFilamentSensorState',
-    'PSUState',
-    'JobInfoState',
-    'PingPongState',
-    'WebcamState',
-    'WebcamSettings',
-    'PrinterState',
-    'PrinterCpuFlag',
-    'PrinterStatus',
-    'FileProgressStateEnum',
-    'FilamentSensorEnum',
-    'Intervals',
-    'DisplaySettings',
-    'PrinterSettings',
-    'BasicMaterialState',
-    'BasicMMSState',
-    'BasicBedState',
-    'BasicNozzleState',
-    'MultiMaterialSolution',
+    "StateModel",
+    "TemperatureState",
+    "AmbientTemperatureState",
+    "FileProgressState",
+    "CpuInfoState",
+    "PrinterInfoState",
+    "PrinterFirmwareState",
+    "PrinterFirmwareWarning",
+    "PrinterFilamentSensorState",
+    "PSUState",
+    "JobInfoState",
+    "PingPongState",
+    "WebcamState",
+    "WebcamSettings",
+    "PrinterState",
+    "PrinterCpuFlag",
+    "PrinterStatus",
+    "FileProgressStateEnum",
+    "FilamentSensorEnum",
+    "Intervals",
+    "DisplaySettings",
+    "PrinterSettings",
+    "MaterialLayoutEntry",
+    "MaterialEntry",
+    "BedState",
+    "ToolState",
+    "MultiMaterialSolution",
+    "NozzleType",
+    "BedType",
 ]
 
 import threading
 import time
-from typing import Optional, Literal, no_type_check, Union, List, Set, ClassVar, TypeVar, Callable
+from typing import Optional, Literal, no_type_check, Union, List, Set, ClassVar, TypeVar, Dict, Any
 
 from pydantic import Field, PrivateAttr
 
 from .exclusive import Exclusive
-from .models import *
-from .models import MultiMaterialSolution
+from .models import (
+    PrinterCpuFlag,
+    PrinterStatus,
+    FileProgressStateEnum,
+    FilamentSensorEnum,
+    Intervals,
+    DisplaySettings,
+    PrinterSettings,
+    MultiMaterialSolution,
+    BedType,
+    NozzleType,
+)
 from .state_model import StateModel
+from .utils import _resize_state_inplace
 from ..config import PrinterConfig
 from ...const import VERSION
 from ...shared.hardware.physical_machine import PhysicalMachine
@@ -48,7 +61,7 @@ class TemperatureState(StateModel):
     actual: Optional[float] = None
     target: Optional[float] = None
 
-    def as_rounded(self, k: Literal['actual', 'target']) -> Optional[int]:
+    def as_rounded(self, k: Literal["actual", "target"]) -> Optional[int]:
         value: Optional[float] = getattr(self, k)
 
         if value is None:
@@ -57,13 +70,13 @@ class TemperatureState(StateModel):
         return round(value)
 
     def is_heating(self) -> bool:
-        target = self.as_rounded('target')
-        actual = self.as_rounded('actual')
+        target = self.as_rounded("target")
+        actual = self.as_rounded("actual")
         return target not in {None, 0} and target != actual
 
     def to_list(self):
-        actual = self.as_rounded('actual')
-        target = self.as_rounded('target')
+        actual = self.as_rounded("actual")
+        target = self.as_rounded("target")
 
         return [actual] + ([target] if target is not None else [])
 
@@ -71,8 +84,9 @@ class TemperatureState(StateModel):
         if not isinstance(other, TemperatureState):
             return False
 
-        return self.as_rounded('target') == other.as_rounded('target') and self.as_rounded(
-            'actual') == other.as_rounded('actual')
+        return self.as_rounded("target") == other.as_rounded(
+            "target"
+        ) and self.as_rounded("actual") == other.as_rounded("actual")
 
 
 class AmbientTemperatureState(StateModel):
@@ -85,10 +99,7 @@ class AmbientTemperatureState(StateModel):
     def on_changed(self, new_ambient: float):
         self.ambient = round(new_ambient)
 
-    def tick(
-            self,
-            state: 'PrinterState'
-    ):
+    def tick(self, state: "PrinterState"):
         """
         It is up to the implementation to decide when to invoke the check or respect the update_interval,
         the entire state is self-contained and requires the tool_temperatures to be passed in from the PrinterState,
@@ -96,17 +107,22 @@ class AmbientTemperatureState(StateModel):
         """
         now = time.time()
 
-        if self._last_update is not None and now - self._last_update < self._update_interval:
+        if (
+                self._last_update is not None
+                and now - self._last_update < self._update_interval
+        ):
             return
 
         self._last_update = now
 
-        (self._initial_sample, self.ambient, self._update_interval) = AmbientCheck.detect(
-            self.on_changed,
-            state.tool_temperatures,
-            self._initial_sample,
-            self.ambient,
-            state.status,
+        (self._initial_sample, self.ambient, self._update_interval) = (
+            AmbientCheck.detect(
+                self.on_changed,
+                state.tools,
+                self._initial_sample,
+                self.ambient,
+                state.status,
+            )
         )
 
 
@@ -120,7 +136,7 @@ class FileProgressState(StateModel):
         super().__setattr__(key, value)
 
         # Reset the progress when the state changes away from downloading.
-        if key == 'state' and value != FileProgressStateEnum.DOWNLOADING:
+        if key == "state" and value != FileProgressStateEnum.DOWNLOADING:
             self.percent = 0.0
 
 
@@ -193,7 +209,12 @@ class JobInfoState(StateModel, validate_assignment=True):
     # Mark a print job as a reprint of a previous (not-cleared) job from the client.
     reprint: Optional[Exclusive[int]] = None
 
-    MUTUALLY_EXCLUSIVE_FIELDS: ClassVar[Set[str]] = {'started', 'finished', 'cancelled', 'failed'}
+    MUTUALLY_EXCLUSIVE_FIELDS: ClassVar[Set[str]] = {
+        "started",
+        "finished",
+        "cancelled",
+        "failed",
+    }
 
     @no_type_check
     def __setattr__(self, key, value):
@@ -235,31 +256,70 @@ class WebcamSettings(StateModel):
     rotate90: bool = False
 
 
-class BasicBedState(StateModel):
-    type: Optional[str] = None
-
-
-class BasicMMSState(StateModel):
+class MaterialLayoutEntry(StateModel):
+    nozzle: int = 0
     mms: Optional[MultiMaterialSolution] = None
-    nozzle: Optional[int] = None
     size: Optional[int] = None
     chains: Optional[int] = None
 
 
-class BasicNozzleState(StateModel):
+class MaterialEntry(StateModel):
     nozzle: int
-    size: Optional[float] = None
-
-
-class BasicMaterialState(StateModel):
     ext: int
-    type: Union[str, int, None] = None
-    color: Optional[str] = None
-    hex: Optional[str] = None
-    raw: Optional[dict] = None
+    type: Union[str, int, None] = None  # Material type name
+    color: Optional[str] = None  # Material color name, e.g. "Red"
+    hex: Optional[str] = None  # Material color hex code, e.g. "#FF0000"
+    raw: Optional[dict] = None  # Vendor specific data
 
 
-_T = TypeVar('_T', bound=StateModel)
+class BedState(StateModel):
+    type: Optional[str] = None
+    temperature: TemperatureState = Field(default_factory=TemperatureState)
+
+    def is_heating(self) -> bool:
+        """Returns True if the bed is currently heating."""
+        return self.temperature.is_heating()
+
+
+class ToolState(StateModel):
+    nozzle: int
+    type: Optional[NozzleType] = None
+    size: Optional[float] = None
+    temperature: TemperatureState = Field(default_factory=TemperatureState)
+    active_material: Optional[int] = None
+    materials: List[MaterialEntry] = Field(default_factory=list)
+    __resize_lock: threading.Lock = PrivateAttr(default_factory=threading.Lock)
+
+    def model_post_init(self, __context: Any) -> None:
+        """Initialize the tool state with a default material if none are provided."""
+        if not self.materials:
+            self.materials.append(MaterialEntry(nozzle=self.nozzle, ext=0))
+
+    def is_heating(self):
+        """Returns True if the tool is currently heating."""
+        return self.temperature.is_heating()
+
+    @property
+    def material_count(self) -> int:
+        """Returns the number of materials for this tool."""
+        return len(self.materials)
+
+    @material_count.setter
+    def material_count(self, count: int) -> None:
+        """Sets the number of materials for this tool, resizing the list if necessary."""
+        if count < 1:
+            raise ValueError("Material count must be at least 1")
+
+        with self.__resize_lock:
+            _resize_state_inplace(
+                self,
+                self.materials,
+                count,
+                lambda i: MaterialEntry(nozzle=self.nozzle, ext=i),
+            )
+
+
+_T = TypeVar("_T", bound=StateModel)
 
 
 class PrinterState(StateModel):
@@ -272,22 +332,26 @@ class PrinterState(StateModel):
     job_info: JobInfoState = Field(default_factory=JobInfoState)
     psu_info: PSUState = Field(default_factory=PSUState)
     webcam_info: WebcamState = Field(default_factory=WebcamState)
+
     file_progress: FileProgressState = Field(default_factory=FileProgressState)
     latency: PingPongState = Field(default_factory=PingPongState)
 
     firmware: PrinterFirmwareState = Field(default_factory=PrinterFirmwareState)
-    firmware_warning: PrinterFirmwareWarning = Field(default_factory=PrinterFirmwareWarning)
+    firmware_warning: PrinterFirmwareWarning = Field(
+        default_factory=PrinterFirmwareWarning
+    )
 
     active_tool: Optional[int] = None
-    bed: BasicBedState = Field(default_factory=BasicBedState)
-    nozzles: List[BasicNozzleState] = Field(default_factory=list)
-    mms_layout: List[BasicMMSState] = Field(default_factory=list)
-    materials: List[BasicMaterialState] = Field(default_factory=list)
-    filament_sensor: PrinterFilamentSensorState = Field(default_factory=PrinterFilamentSensorState)
+    bed: BedState = Field(default_factory=BedState)
+    tools: List[ToolState] = Field(default_factory=lambda: [ToolState(nozzle=0)])
+    mms_layout: List[MaterialLayoutEntry] = Field(default_factory=list)
 
-    bed_temperature: TemperatureState = Field(default_factory=TemperatureState)
-    tool_temperatures: List[TemperatureState] = Field(default_factory=list)
-    ambient_temperature: AmbientTemperatureState = Field(default_factory=AmbientTemperatureState)
+    filament_sensor: PrinterFilamentSensorState = Field(
+        default_factory=PrinterFilamentSensorState
+    )
+    ambient_temperature: AmbientTemperatureState = Field(
+        default_factory=AmbientTemperatureState
+    )
 
     settings: PrinterSettings = Field(default_factory=PrinterSettings)
     webcam_settings: WebcamSettings = Field(default_factory=WebcamSettings)
@@ -295,11 +359,10 @@ class PrinterState(StateModel):
     # Locks for complex assignment manipulation
     # this object must be threadsafe to fulfill its api
     # XXX: Consider a better approach.
-    __nozzle_count_lock: threading.Lock = PrivateAttr(default_factory=threading.Lock)
-    __material_count_lock: threading.Lock = PrivateAttr(default_factory=threading.Lock)
+    __resize_lock: threading.Lock = PrivateAttr(default_factory=threading.Lock)
 
     def set_info(self, name, version="0.0.1"):
-        """ Set the same info for all fields, both for UI / API and the client. """
+        """Set the same info for all fields, both for UI / API and the client."""
         self.set_api_info(name, version)
         self.set_ui_info(name, version)
 
@@ -311,52 +374,95 @@ class PrinterState(StateModel):
         self.info.ui = ui
         self.info.ui_version = ui_version
 
-    def _resize_state_inplace(self, target: List[_T], size: int, default: Callable[[int], _T]):
-        if len(target) == size:
-            return
-
-        if size > len(target):
-            for _ in range(size - len(target)):
-                target.append(model := default(len(target)))
-                model.provide_context(self)
-        else:
-            del target[size:]
+    @property
+    def tool0(self) -> ToolState:
+        """Convenience property to access the first tool."""
+        return self.tools[0]
 
     @property
-    def nozzle_count(self) -> int:
-        return len(self.tool_temperatures)
+    def material0(self) -> MaterialEntry:
+        tool0 = self.tool0
+        return tool0.materials[0]
 
-    @nozzle_count.setter
-    def nozzle_count(self, count: int) -> None:
+    @property
+    def materials0(self) -> List[MaterialEntry]:
+        """Convenience property to access the materials of the first tool."""
+        return self.tool0.materials
+
+    @property
+    def tool_count(self) -> int:
+        return len(self.tools)
+
+    @tool_count.setter
+    def tool_count(self, count: int) -> None:
         if count < 1:
             raise ValueError("Nozzle count must be at least 1")
 
-        if self.nozzle_count == count:
-            return
+        with self.__resize_lock:
+            _resize_state_inplace(
+                self, self.tools, count, lambda i: ToolState(nozzle=i)
+            )
 
-        with self.__nozzle_count_lock:
-            self._resize_state_inplace(self.nozzles, count, lambda idx: BasicNozzleState(nozzle=idx))
-            assert all(i == n.nozzle for i, n in enumerate(self.nozzles)), "Nozzle must match index"
-            self._resize_state_inplace(self.tool_temperatures, count, lambda _: TemperatureState())
+    def tool(self, nozzle: int = 0) -> Optional[ToolState]:
+        """Safe getter for the tool temperature at the given nozzle index."""
+        if nozzle < 0:
+            return None
 
-    @property
-    def material_count(self) -> int:
-        return len(self.materials)
+        return self.tools[nozzle] if nozzle < len(self.tools) else None
 
-    @material_count.setter
-    def material_count(self, count: int) -> None:
-        if count < 1:
-            raise ValueError("Material count must be at least 1")
+    def material(self, nozzle: int = 0, ext: int = 0) -> Optional[MaterialEntry]:
+        """Safe getter for the material at the given nozzle index and ext."""
+        if tool := self.tool(nozzle):
+            if ext < 0 or ext >= tool.material_count:
+                return None
 
-        if self.material_count == count:
-            return
+            return tool.materials[ext]
 
-        with self.__material_count_lock:
-            if self.active_tool is not None and self.active_tool >= count:
-                self.active_tool = None
+        return None
 
-            self._resize_state_inplace(self.materials, count, lambda idx: BasicMaterialState(ext=idx))
-            assert all(i == m.ext for i, m in enumerate(self.materials)), "Material ext must match index"
+    def update_mms_layout(self, mms_layout: List[MaterialLayoutEntry]):
+        """Helper function to set nozzles and materials based on a provided MMS layout.
+        It does not change the tool count, this needs to be done separately.
+        """
+
+        with self.__resize_lock:
+            # compare the new layout with the current one
+            if len(self.mms_layout) == len(mms_layout):
+                for a, b in zip(self.mms_layout, mms_layout):
+                    if a == b:
+                        continue
+                    break
+                else:
+                    # If all entries are the same, no need to update
+                    return
+
+            self.mms_layout = mms_layout
+
+            layout_per_nozzle: Dict[int, List[MaterialLayoutEntry]] = {}
+
+            for entry in mms_layout:
+                if entry.nozzle not in layout_per_nozzle:
+                    layout_per_nozzle[entry.nozzle] = []
+                layout_per_nozzle[entry.nozzle].append(entry)
+
+            material_count_per_nozzle: Dict[int, int] = {}
+
+            for nozzle, entries in layout_per_nozzle.items():
+                material_count_per_nozzle[nozzle] = 0
+
+                for entry in entries:
+                    if entry.mms is None:
+                        material_count_per_nozzle[nozzle] += (entry.size or 1) * (entry.chains or 1)
+                        continue
+
+                    mms = entry.mms
+
+                    material_count_per_nozzle[nozzle] += (entry.size or mms.default_size) * (
+                        min(entry.chains or 1, mms.max_chains if mms.can_chain else 1)
+                    )
+
+            for i, tool in enumerate(self.tools):
+                tool.material_count = max(material_count_per_nozzle.get(i, 1), 1)
 
     def is_printing(self, *status) -> bool:
         """If any of the statuses are printing, return True. Default behavior is to check own status."""
@@ -366,7 +472,7 @@ class PrinterState(StateModel):
         return PrinterStatus.is_printing(*status)
 
     def is_heating(self) -> bool:
-        return any([tool.is_heating() for tool in (self.bed_temperature, *self.tool_temperatures)])
+        return any([h.is_heating() for h in (self.bed.temperature, *self.tools)])
 
     def populate_info_from_physical_machine(self, *skip: str):
         """Set information about the physical machine the client is running on."""
@@ -379,6 +485,6 @@ class PrinterState(StateModel):
     def mark_common_fields_as_changed(self):
         # Mark non-default fields as changed so they will be sent to the client.
         # In theory, we could store this information, but this is easier.
-        self.model_set_changed('status', 'materials')
-        self.info.model_set_changed('sp_version')
-        self.firmware.model_set_changed('name')
+        self.model_set_changed("status")
+        self.info.model_set_changed("sp_version")
+        self.firmware.model_set_changed("name")

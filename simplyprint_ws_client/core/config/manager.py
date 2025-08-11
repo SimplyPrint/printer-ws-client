@@ -16,9 +16,12 @@ class ConfigManager(ABC, Generic[TConfig]):
     configurations: Set[TConfig]
     base_directory: Path
 
-    def __init__(self, name: str = "printers", config_t: Type[TConfig] = PrinterConfig,
-                 base_directory: Optional[str] = None) -> None:
-
+    def __init__(
+        self,
+        name: str = "printers",
+        config_t: Type[TConfig] = PrinterConfig,
+        base_directory: Optional[str] = None,
+    ) -> None:
         self.name = name
 
         # Override the hashable method to make the config hashable

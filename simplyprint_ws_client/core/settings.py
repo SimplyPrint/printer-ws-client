@@ -15,8 +15,7 @@ TAnyPrinterConfig = TypeVar("TAnyPrinterConfig", bound=PrinterConfig)
 
 
 class ClientFactory(Protocol):
-    def __call__(self, config: TAnyPrinterConfig, *args, **kwargs) -> TAnyClient:
-        ...
+    def __call__(self, config: TAnyPrinterConfig, *args, **kwargs) -> TAnyClient: ...
 
 
 TClientFactory = Union[Type[TAnyClient], ClientFactory]

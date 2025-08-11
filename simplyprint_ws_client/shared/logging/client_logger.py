@@ -14,7 +14,9 @@ from .client_name import ClientName
 class ClientLogger(logging.Logger):
     name: ClientName
 
-    def __init__(self, name: ClientName, level: Union[int, str] = logging.NOTSET) -> None:
+    def __init__(
+        self, name: ClientName, level: Union[int, str] = logging.NOTSET
+    ) -> None:
         # Pass the config as the name so the logger dynamically updates its name
         super().__init__(name, level)
 
@@ -38,4 +40,5 @@ class ClientLogger(logging.Logger):
 
     def _initialize_client_logger(self):
         from . import ClientFilesHandler
+
         ClientFilesHandler.register_client_name(self.name)

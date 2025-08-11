@@ -32,7 +32,12 @@ class ClientApp(SyncStoppable):
     _app_instance: Optional[threading.Thread] = None
     _app_lock: threading.Lock
 
-    def __init__(self, settings: ClientSettings, logger: logging.Logger = logging.getLogger("app"), **kwargs):
+    def __init__(
+        self,
+        settings: ClientSettings,
+        logger: logging.Logger = logging.getLogger("app"),
+        **kwargs,
+    ):
         super().__init__(**kwargs)
 
         if settings.client_factory is None or settings.config_factory is None:
@@ -47,7 +52,9 @@ class ClientApp(SyncStoppable):
 
         self.settings = settings
         self.client_list = ClientList()
-        self.scheduler = Scheduler(self.client_list, self.settings, loop=self._app_event_loop)
+        self.scheduler = Scheduler(
+            self.client_list, self.settings, loop=self._app_event_loop
+        )
         self.config_manager = settings.config_manager_t(
             name=settings.name,
             config_t=settings.config_factory,
@@ -65,11 +72,15 @@ class ClientApp(SyncStoppable):
             self.camera_pool.protocols.extend(self.settings.camera_protocols or [])
 
     async def run(self):
-        # On start, load all current configs.
-        for config in self.config_manager.get_all():
-            self.add(config)
+        try:
+            # On start, load all current configs.
+            for config in self.config_manager.get_all():
+                self.add(config)
 
-        await self.scheduler.block_until_stopped()
+            await self.scheduler.block_until_stopped()
+        except Exception as e:
+            self.logger.exception("An error occurred in the main loop: %s", e)
+            raise
 
     def run_blocking(self, debug=False, contexts: Optional[list] = None):
         contexts = contexts or []
@@ -84,7 +95,9 @@ class ClientApp(SyncStoppable):
                 self.logger.warning("Scheduler already running.")
                 return
 
-            self._app_instance = threading.Thread(target=self.run_blocking, args=args, kwargs=kwargs)
+            self._app_instance = threading.Thread(
+                target=self.run_blocking, args=args, kwargs=kwargs
+            )
             self._app_instance.start()
 
             # Register atexit handler to prevent spamming of "Cannot schedule new futures after shutdown" errors.
@@ -98,11 +111,16 @@ class ClientApp(SyncStoppable):
             self.config_manager.persist(config)
             self.config_manager.flush(config)
 
-            client = self.settings.client_factory(config, event_loop_provider=self.scheduler,
-                                                  camera_pool=self.camera_pool)
+            client = self.settings.client_factory(
+                config, event_loop_provider=self.scheduler, camera_pool=self.camera_pool
+            )
 
-            client.event_bus.on(ClientConfigChangedEvent,
-                                lambda *args, **kwargs: self.config_manager.flush(cast(PrinterConfig, client.config)))
+            client.event_bus.on(
+                ClientConfigChangedEvent,
+                lambda *args, **kwargs: self.config_manager.flush(
+                    cast(PrinterConfig, client.config)
+                ),
+            )
 
             client.event_bus.on(ClientStateChangeEvent, self.scheduler.signal)
 

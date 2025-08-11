@@ -40,6 +40,4 @@ class ReceivedFrame(NamedTuple):
     data: Optional[FrameT]
 
 
-Response = Union[
-    ReceivedFrame
-]
+Response = Union[ReceivedFrame]

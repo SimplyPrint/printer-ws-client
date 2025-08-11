@@ -47,7 +47,8 @@ class SQLiteConfigManager(ConfigManager):
         configs = self.db.execute(
             """
             SELECT pk, sk, data FROM printers
-            """).fetchall()
+            """
+        ).fetchall()
 
         for config in configs:
             kwargs = json.loads(config[2])
@@ -69,7 +70,9 @@ class SQLiteConfigManager(ConfigManager):
         return self.db.execute(
             """
             SELECT pk, sk FROM printers WHERE pk= ? AND sk= ? LIMIT 1
-            """, (config.pk, config.sk)).fetchone()
+            """,
+            (config.pk, config.sk),
+        ).fetchone()
 
     def _flush_single(self, config: Config):
         # Check if unique sk and pk exists
@@ -79,7 +82,9 @@ class SQLiteConfigManager(ConfigManager):
             self.db.execute(
                 """
                 INSERT INTO printers (pk, sk, data) VALUES (?, ?, ?)
-                """, (config.pk, config.sk, config.as_json()))
+                """,
+                (config.pk, config.sk, config.as_json()),
+            )
 
             self.db.commit()
             self.logger.info(f"Inserted config {config}")
@@ -88,14 +93,17 @@ class SQLiteConfigManager(ConfigManager):
         self.db.execute(
             """
             UPDATE printers SET data= ? WHERE pk= ? AND sk= ?
-            """, (config.as_json(), config.pk, config.sk))
+            """,
+            (config.as_json(), config.pk, config.sk),
+        )
 
     def _remove_detached(self):
         # Get all configs from the database
         configs = self.db.execute(
             """
             SELECT pk, sk FROM printers
-            """).fetchall()
+            """
+        ).fetchall()
 
         # Loop over all configs
         for config in configs:
@@ -105,7 +113,9 @@ class SQLiteConfigManager(ConfigManager):
                 self.db.execute(
                     """
                     DELETE FROM printers WHERE pk= ? AND sk= ?
-                    """, (config[0], config[1]))
+                    """,
+                    (config[0], config[1]),
+                )
 
     @property
     def _database_file(self) -> Path:
@@ -130,7 +140,8 @@ class SQLiteConfigManager(ConfigManager):
                 data TEXT, 
                 PRIMARY KEY (pk, sk)
             );
-            """)
+            """
+        )
 
         self.db.commit()
         self.logger.info("Created printers table")

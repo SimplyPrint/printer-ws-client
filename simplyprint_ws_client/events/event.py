@@ -1,10 +1,10 @@
-__all__ = ['Event', 'sync_only']
+__all__ = ["Event", "sync_only"]
 
 from typing import Type, Union, ClassVar
 
 
 class EventTraits:
-    def __eq__(self: Union[Type['Event'], 'Event'], other: object) -> bool:
+    def __eq__(self: Union[Type["Event"], "Event"], other: object) -> bool:
         if isinstance(other, str):
             return self.get_name() == other
 
@@ -13,11 +13,13 @@ class EventTraits:
 
         return self is other
 
-    def __str__(self: Union[Type['Event'], 'Event']) -> str:
+    def __str__(self: Union[Type["Event"], "Event"]) -> str:
         return self.get_name()
 
-    def __hash__(self: Union[Type['Event'], 'Event']) -> int:
-        return hash(self.__name__ if isinstance(self, type) else self.__class__.__name__)
+    def __hash__(self: Union[Type["Event"], "Event"]) -> int:
+        return hash(
+            self.__name__ if isinstance(self, type) else self.__class__.__name__
+        )
 
 
 class EventType(EventTraits, type):
@@ -26,7 +28,7 @@ class EventType(EventTraits, type):
         raise NotImplementedError()
 
 
-def sync_only(cls: Type['Event']) -> Type['Event']:
+def sync_only(cls: Type["Event"]) -> Type["Event"]:
     """Mark an event as sync-only, this will prevent it from being listened to with an async handler."""
     if isinstance(cls, type) and not issubclass(cls, Event):
         raise TypeError("sync_only decorator can only be used on Event subclasses.")

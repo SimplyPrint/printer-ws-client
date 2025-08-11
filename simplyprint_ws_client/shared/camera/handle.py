@@ -3,8 +3,14 @@ import datetime
 from typing import TYPE_CHECKING, List, Optional
 
 from .base import FrameT
-from .commands import Response, PollCamera, StartCamera, \
-    StopCamera, DeleteCamera, ReceivedFrame
+from .commands import (
+    Response,
+    PollCamera,
+    StartCamera,
+    StopCamera,
+    DeleteCamera,
+    ReceivedFrame,
+)
 from ..utils.stoppable import StoppableInterface
 
 if TYPE_CHECKING:
@@ -12,7 +18,7 @@ if TYPE_CHECKING:
 
 
 class CameraHandle(StoppableInterface):
-    pool: 'CameraPool'
+    pool: "CameraPool"
     id: int
 
     _waiters: List[asyncio.Future]
@@ -20,7 +26,7 @@ class CameraHandle(StoppableInterface):
     _last_poll_time: datetime.datetime
     _cached_frame: Optional[FrameT] = None
 
-    def __init__(self, pool: 'CameraPool', camera_id: int):
+    def __init__(self, pool: "CameraPool", camera_id: int):
         self.pool = pool
         self.id = camera_id
         self._frame_time_window = []
@@ -48,13 +54,18 @@ class CameraHandle(StoppableInterface):
             loop = fut.get_loop()
             loop.call_soon_threadsafe(fut.set_result, res.data)
 
-    async def receive_frame(self, allow_cache_age: Optional[datetime.timedelta] = None) -> FrameT:
+    async def receive_frame(
+        self, allow_cache_age: Optional[datetime.timedelta] = None
+    ) -> FrameT:
         # Always ask for a new frame
         self.pool.submit_request(PollCamera(self.id))
 
         # Although we might want to serve an old frame if it's not too old
         if allow_cache_age is not None and self._cached_frame is not None:
-            if self._last_poll_time is not None and self._last_poll_time + allow_cache_age > datetime.datetime.now():
+            if (
+                self._last_poll_time is not None
+                and self._last_poll_time + allow_cache_age > datetime.datetime.now()
+            ):
                 return self._cached_frame
 
             self._cached_frame = None

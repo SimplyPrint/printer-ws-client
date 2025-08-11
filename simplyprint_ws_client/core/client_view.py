@@ -6,9 +6,13 @@ from typing import Union, Hashable, Set, MutableSet
 from .client import Client
 from .client_list import ClientList, TUniqueId
 from .ws_protocol.connection import ConnectionMode, Connection
-from .ws_protocol.events import ConnectionIncomingEvent, \
-    ConnectionEstablishedEvent
-from .ws_protocol.messages import MultiPrinterAddedMsg, MultiPrinterRemovedMsg, Msg, ConnectedMsg
+from .ws_protocol.events import ConnectionIncomingEvent, ConnectionEstablishedEvent
+from .ws_protocol.messages import (
+    MultiPrinterAddedMsg,
+    MultiPrinterRemovedMsg,
+    Msg,
+    ConnectedMsg,
+)
 from ..events.emitter import Emitter, TEvent
 
 
@@ -21,8 +25,13 @@ class ClientView(Emitter, MutableSet[Client], Hashable):
     clients: Set[TUniqueId]
     logger: logging.Logger
 
-    def __init__(self, mode: ConnectionMode, connection: Connection, client_list: ClientList,
-                 logger=logging.getLogger(__name__)):
+    def __init__(
+        self,
+        mode: ConnectionMode,
+        connection: Connection,
+        client_list: ClientList,
+        logger=logging.getLogger(__name__),
+    ):
         self.mode = mode
         self.connection = connection
         self.client_list = client_list
@@ -53,7 +62,10 @@ class ClientView(Emitter, MutableSet[Client], Hashable):
 
             # For multi-printer connections the `connected` message is the `established` message.
             if isinstance(msg, ConnectedMsg) and msg.for_client is None:
-                self.logger.debug("Converted base ConnectedMsg to ConnectionEstablishedEvent with v: %d.", v)
+                self.logger.debug(
+                    "Converted base ConnectedMsg to ConnectionEstablishedEvent with v: %d.",
+                    v,
+                )
                 await self._emit_all(ConnectionEstablishedEvent(v))
                 return
 
@@ -62,7 +74,9 @@ class ClientView(Emitter, MutableSet[Client], Hashable):
 
             # Some messages are targeting the top level connection,
             # but we can further route them to the correct client.
-            if client_id is None and isinstance(msg, (MultiPrinterAddedMsg, MultiPrinterRemovedMsg)):
+            if client_id is None and isinstance(
+                msg, (MultiPrinterAddedMsg, MultiPrinterRemovedMsg)
+            ):
                 client_id = msg.data.unique_id
 
             if client_id not in self.clients:
@@ -75,7 +89,8 @@ class ClientView(Emitter, MutableSet[Client], Hashable):
         if is_multi_mode and isinstance(event, ConnectionEstablishedEvent):
             self.logger.debug(
                 "Dropped ConnectionEstablishedEvent for multi-mode connection with v: %d in favor of ConnectedMsg",
-                event.v)
+                event.v,
+            )
             return
 
         # Default handling for all other events.

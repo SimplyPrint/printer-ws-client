@@ -7,14 +7,20 @@ File = NamedTuple("File", [("name", str), ("size", int), ("last_modified", int)]
 
 
 class FileManager:
-    """ Virtual file manager logic """
+    """Virtual file manager logic"""
 
     max_age: int
     max_count: int
     max_size: int
     least_remaining_space_percentage: float
 
-    def __init__(self, max_age: int = 0, max_count=0, max_size=0, least_remaining_space_percentage=0.1) -> None:
+    def __init__(
+        self,
+        max_age: int = 0,
+        max_count=0,
+        max_size=0,
+        least_remaining_space_percentage=0.1,
+    ) -> None:
         self.max_age = max_age
         self.max_count = max_count
         self.max_size = max_size
@@ -25,13 +31,14 @@ class FileManager:
         # Remove all non-hex characters
         padded_str = "".join([char for char in file_id if char in string.hexdigits])
         padded_str = padded_str.ljust(len(padded_str) + (len(padded_str) % 2), "0")
-        return base64.urlsafe_b64encode(bytes.fromhex(padded_str)).decode().replace("=", "")
+        return (
+            base64.urlsafe_b64encode(bytes.fromhex(padded_str))
+            .decode()
+            .replace("=", "")
+        )
 
     def get_files_to_remove(
-            self,
-            files: List[File],
-            total_disk_space: int,
-            total_disk_usage: int
+        self, files: List[File], total_disk_space: int, total_disk_usage: int
     ) -> Generator[File, None, None]:
         # Sort files by last modified
         files.sort(key=lambda f: f.last_modified)

@@ -4,11 +4,9 @@ from typing import Protocol
 
 
 class Backoff(Protocol):
-    def delay(self) -> float:
-        ...
+    def delay(self) -> float: ...
 
-    def reset(self) -> None:
-        ...
+    def reset(self) -> None: ...
 
 
 class ConstantBackoff(Backoff):
@@ -45,15 +43,17 @@ class LinearBackoff(Backoff):
 
 
 class ExponentialBackoff(Backoff):
-    """Derived from https://github.com/Rapptz/discord.py/blob/master/discord/backoff.py
-    """
+    """Derived from https://github.com/Rapptz/discord.py/blob/master/discord/backoff.py"""
+
     base: float
     exp: int
     reset_time: float
     ts: float  # Previous invocation
     rand: Random
 
-    def __init__(self, base: float = 2.5, maximum: float = 30.0, reset_time: float = 60.0):
+    def __init__(
+        self, base: float = 2.5, maximum: float = 30.0, reset_time: float = 60.0
+    ):
         """
         Less-steep exponential backoff that starts at ~1s, hits ~5s quickly, and never exceeds ~30s.
 
@@ -83,7 +83,7 @@ class ExponentialBackoff(Backoff):
         self.exp += 1
 
         # The 'ideal' exponential factor
-        ideal = self.base * (2 ** self.exp)
+        ideal = self.base * (2**self.exp)
 
         # Clamp it to the maximum
         delay = min(ideal, self.max_delay)

@@ -1,5 +1,12 @@
-__all__ = ["ConfigManagerType", "ConfigManager", "MemoryConfigManager", "SQLiteConfigManager", "JsonConfigManager",
-           "Config", "PrinterConfig"]
+__all__ = [
+    "ConfigManagerType",
+    "ConfigManager",
+    "MemoryConfigManager",
+    "SQLiteConfigManager",
+    "JsonConfigManager",
+    "Config",
+    "PrinterConfig",
+]
 
 from enum import Enum
 from typing import Type

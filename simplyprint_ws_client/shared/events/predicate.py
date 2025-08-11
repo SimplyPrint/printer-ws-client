@@ -29,7 +29,7 @@ class Constant(Predicate):
         return self.value
 
     def __repr__(self):
-        return f'{self.__class__.__name__}({self.value})'
+        return f"{self.__class__.__name__}({self.value})"
 
 
 @dataclass
@@ -47,7 +47,7 @@ class Unary(Predicate, ABC):
     predicate: Predicate
 
     def __repr__(self):
-        return f'{self.__class__.__name__}({repr(self.predicate)})'
+        return f"{self.__class__.__name__}({repr(self.predicate)})"
 
 
 @dataclass
@@ -61,7 +61,7 @@ class Compare(Predicate, ABC):
     value: Any
 
     def __repr__(self):
-        return f'{self.__class__.__name__}({repr(self.value)})'
+        return f"{self.__class__.__name__}({repr(self.value)})"
 
 
 @dataclass
@@ -118,7 +118,7 @@ class Binary(Predicate, ABC):
     right: Predicate
 
     def __repr__(self):
-        return f'{self.__class__.__name__}({repr(self.left)}, {repr(self.right)})'
+        return f"{self.__class__.__name__}({repr(self.left)}, {repr(self.right)})"
 
     @classmethod
     def chain(cls, *predicates: Predicate) -> Predicate:
@@ -144,7 +144,7 @@ class Or(Binary):
         return self.left(*args, **kwargs) or self.right(*args, **kwargs)
 
 
-_TValue = TypeVar('_TValue')
+_TValue = TypeVar("_TValue")
 
 
 @dataclass
@@ -172,7 +172,7 @@ class Pipe(Generic[_TValue], Predicate, ABC):
         raise TypeError(f"Cannot reduce {self} with {other}")
 
     def __repr__(self):
-        return f'{self.__class__.__name__}({repr(self.value)}, {repr(self.output)})'
+        return f"{self.__class__.__name__}({repr(self.value)}, {repr(self.output)})"
 
 
 @dataclass
@@ -187,10 +187,21 @@ class Reduce(Pipe[Callable]):
             return False
 
         # If the callable objects are not strictly equal, we compare their code objects.
-        if self.value != other.value and (
-                hasattr(self.value, '__code__') and hasattr(self.value.__code__, 'co_code')) and (
-                hasattr(other.value, '__code__') and hasattr(other.value.__code__, 'co_code')):
-            return self.output == other.output and self.value.__code__.co_code == other.value.__code__.co_code
+        if (
+            self.value != other.value
+            and (
+                hasattr(self.value, "__code__")
+                and hasattr(self.value.__code__, "co_code")
+            )
+            and (
+                hasattr(other.value, "__code__")
+                and hasattr(other.value.__code__, "co_code")
+            )
+        ):
+            return (
+                self.output == other.output
+                and self.value.__code__.co_code == other.value.__code__.co_code
+            )
 
         return self.value == other.value and self.output == other.output
 
@@ -199,7 +210,9 @@ class Reduce(Pipe[Callable]):
 class Extract(Pipe[PropertyPath]):
     """Extracts a property from the first argument and evaluates it with the predicate."""
 
-    def __init__(self, value: Union[PropertyPath, PropertyPathBuilder], output: Predicate = None):
+    def __init__(
+        self, value: Union[PropertyPath, PropertyPathBuilder], output: Predicate = None
+    ):
         if isinstance(value, PropertyPathBuilder):
             value = as_path(value)
 

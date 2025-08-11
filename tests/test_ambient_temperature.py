@@ -39,10 +39,10 @@ class TestAmbientTemperature(unittest.TestCase):
         custom_time = CustomTime()
         time.time = lambda: custom_time.time()
         self.state = TestState(time=custom_time)
-        self.state.nozzle_count = 1
+        self.state.tool_count = 1
 
     def test_simple(self):
-        tool0 = self.state.tool_temperatures[0]
+        tool0 = self.state.tools[0].temperature
 
         tool0.actual = 27.21875
         tool0.target = 0.0
@@ -52,7 +52,7 @@ class TestAmbientTemperature(unittest.TestCase):
         self.assertEqual(self.state.ambient_temperature.ambient, 27)
 
     def test_with_printing_state(self):
-        tool0 = self.state.tool_temperatures[0]
+        tool0 = self.state.tools[0].temperature
 
         tool0.actual = 27.21875
         tool0.target = 0.0
@@ -90,7 +90,7 @@ class TestAmbientTemperature(unittest.TestCase):
         self.assertEqual(self.state.ambient_temperature.ambient, 25)
 
     def test_fail_case(self):
-        tool0 = self.state.tool_temperatures[0]
+        tool0 = self.state.tools[0].temperature
 
         tool0.actual = 27.21875
         tool0.target = 0.0

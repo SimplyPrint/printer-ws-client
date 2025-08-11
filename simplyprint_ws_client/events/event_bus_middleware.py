@@ -1,7 +1,17 @@
 import asyncio
 import functools
 from abc import ABC, abstractmethod
-from typing import Callable, Tuple, Dict, TypeVar, Generic, Optional, NamedTuple, TYPE_CHECKING, Final
+from typing import (
+    Callable,
+    Tuple,
+    Dict,
+    TypeVar,
+    Generic,
+    Optional,
+    NamedTuple,
+    TYPE_CHECKING,
+    Final,
+)
 
 from .event_bus_listeners import EventBusListener, ListenerLifetimeForever
 from .event_bus_predicate_tree import EventBusPredicateTree
@@ -16,16 +26,18 @@ class EventBusMiddleware(EventBusListener, ABC):
     """An event bus middleware is a synchronous listener that is always called before any other listener."""
 
     @classmethod
-    def setup(cls, event_bus: 'EventBus', *args, **kwargs):
+    def setup(cls, event_bus: "EventBus", *args, **kwargs):
         """Instantiate and ensure the middleware is added to the event bus."""
         instance = cls(*args, **kwargs)
         event_bus.middleware.add(instance)
         return instance
 
     def __init__(self, *args, **kwargs):
-        super().__init__(lifetime=ListenerLifetimeForever(**{}), priority=0, handler=self.handle)
+        super().__init__(
+            lifetime=ListenerLifetimeForever(**{}), priority=0, handler=self.handle
+        )
 
-        assert not self.is_async, 'EventBusMiddleware must be synchronous.'
+        assert not self.is_async, "EventBusMiddleware must be synchronous."
 
     @abstractmethod
     def handle(self, *args, **kwargs):
@@ -41,7 +53,9 @@ class EventBusResponseMiddleware(EventBusMiddleware, EventLoopProvider, ABC):
         ABC.__init__(self)
 
     @staticmethod
-    def _on_response(loop: asyncio.AbstractEventLoop, callback: Callable[[Tuple[Tuple, Dict]], None]):
+    def _on_response(
+        loop: asyncio.AbstractEventLoop, callback: Callable[[Tuple[Tuple, Dict]], None]
+    ):
         """Bind a loop and a callback as the response to a future."""
         return functools.partial(loop.call_soon, callback)
 
@@ -76,12 +90,14 @@ class EventBusResponseMiddleware(EventBusMiddleware, EventLoopProvider, ABC):
         pass
 
     @abstractmethod
-    async def create_response_queue(self, *args, **kwargs) -> Tuple[asyncio.Queue, Callable]:
+    async def create_response_queue(
+        self, *args, **kwargs
+    ) -> Tuple[asyncio.Queue, Callable]:
         """Creates a queue that will be filled with responses."""
         pass
 
 
-_THash = TypeVar('_THash')
+_THash = TypeVar("_THash")
 
 
 class EventBusKeyResponseMiddleware(EventBusResponseMiddleware, Generic[_THash]):
@@ -103,16 +119,21 @@ class EventBusKeyResponseMiddleware(EventBusResponseMiddleware, Generic[_THash])
         self.hash_bucket = {}
 
     def create_response(self, index: _THash) -> asyncio.Future:
-        future, trigger = self._create_response(lambda _: self.hash_bucket.pop(index, None))
+        future, trigger = self._create_response(
+            lambda _: self.hash_bucket.pop(index, None)
+        )
         self.hash_bucket[index] = self._HashBucketEntry(True, trigger)
         return future
 
-    async def wait_for_response(self, index: _THash, timeout: Optional[float] = None, **kwargs) -> Tuple[
-        Tuple, Dict]:
+    async def wait_for_response(
+        self, index: _THash, timeout: Optional[float] = None, **kwargs
+    ) -> Tuple[Tuple, Dict]:
         future = self.create_response(index)
         return await asyncio.wait_for(future, timeout=timeout)
 
-    async def create_response_queue(self, index: _THash, maxsize=0) -> Tuple[asyncio.Queue, Callable]:
+    async def create_response_queue(
+        self, index: _THash, maxsize=0
+    ) -> Tuple[asyncio.Queue, Callable]:
         queue, trigger = self._create_response_queue(maxsize)
         self.hash_bucket[index] = self._HashBucketEntry(False, trigger)
         return queue, functools.partial(self.hash_bucket.pop, index, None)
@@ -146,18 +167,24 @@ class EventBusPredicateResponseMiddleware(EventBusResponseMiddleware):
     def create_response(self, *predicates: Predicate) -> asyncio.Future:
         """WARNING: not threadsafe."""
         resource_id = None
-        future, trigger = self._create_response(lambda _: self.predicate_tree.remove_resource_id(resource_id))
+        future, trigger = self._create_response(
+            lambda _: self.predicate_tree.remove_resource_id(resource_id)
+        )
         resource_id = self.predicate_tree.add(trigger, *predicates)
         return future
 
-    async def wait_for_response(self, *predicates: Predicate, timeout: Optional[float] = None, **kwargs):
+    async def wait_for_response(
+        self, *predicates: Predicate, timeout: Optional[float] = None, **kwargs
+    ):
         future = self.create_response(*predicates)
         return await asyncio.wait_for(future, timeout=timeout)
 
     async def create_response_queue(self, *predicates: Predicate, maxsize=0, **kwargs):
         queue, trigger = self._create_response_queue(maxsize)
         resource_id = self.predicate_tree.add(trigger, *predicates)
-        return queue, functools.partial(self.predicate_tree.remove_resource_id, resource_id)
+        return queue, functools.partial(
+            self.predicate_tree.remove_resource_id, resource_id
+        )
 
     def handle(self, *args, **kwargs):
         for resource_id in self.predicate_tree.evaluate(*args, **kwargs):

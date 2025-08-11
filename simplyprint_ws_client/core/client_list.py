@@ -1,4 +1,4 @@
-__all__ = ['ClientList', 'TUniqueId']
+__all__ = ["ClientList", "TUniqueId"]
 
 from typing import Union, Dict, Mapping
 

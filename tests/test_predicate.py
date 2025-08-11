@@ -1,12 +1,19 @@
 import unittest
 
 from simplyprint_ws_client.events import Event
-from simplyprint_ws_client.shared.events.predicate import Constant, Reduce, Eq, Extract, Sel, And, EmptyPipe
+from simplyprint_ws_client.shared.events.predicate import (
+    Constant,
+    Reduce,
+    Eq,
+    Extract,
+    Sel,
+    And,
+    EmptyPipe,
+)
 from simplyprint_ws_client.shared.events.property_path import p
 
 
 class TestPredicate(unittest.TestCase):
-
     def test_simple(self):
         predicate = Constant(True)
 
@@ -20,7 +27,13 @@ class TestPredicate(unittest.TestCase):
         a = [1, 2, 3]
         b = [4, 5, 6]
 
-        predicate = Sel(1) | Reduce(lambda x: filter(lambda y: y > 4, x)) | Reduce(list) | Reduce(len) | Eq(2)
+        predicate = (
+            Sel(1)
+            | Reduce(lambda x: filter(lambda y: y > 4, x))
+            | Reduce(list)
+            | Reduce(len)
+            | Eq(2)
+        )
 
         self.assertTrue(predicate(a, b))
         self.assertFalse(predicate(b, a))
@@ -33,10 +46,12 @@ class TestPredicate(unittest.TestCase):
             def __init__(self, name: str):
                 self.name = name
 
-        event_a = CustomEvent('a')
-        event_b = CustomEvent('b')
+        event_a = CustomEvent("a")
+        event_b = CustomEvent("b")
 
-        event_is_a = Sel(0) | And.chain(Extract(p.name) | Eq('a'), Extract(p.id) | Eq(1337))
+        event_is_a = Sel(0) | And.chain(
+            Extract(p.name) | Eq("a"), Extract(p.id) | Eq(1337)
+        )
 
         self.assertTrue(event_is_a(event_a))
         self.assertFalse(event_is_a(event_b))
@@ -68,16 +83,18 @@ class TestPredicate(unittest.TestCase):
         predicate = Reduce(lambda x: x) | Reduce(lambda x: x)
 
         self.assertEqual(predicate, Reduce(lambda x: x) | Reduce(lambda x: x))
-        self.assertNotEqual(predicate, Reduce(lambda x: x) | Reduce(lambda x: x) | Reduce(lambda x: x))
+        self.assertNotEqual(
+            predicate, Reduce(lambda x: x) | Reduce(lambda x: x) | Reduce(lambda x: x)
+        )
 
         predicate = Sel(0) | Reduce(lambda x: x)
 
         self.assertEqual(predicate, Sel(0) | Reduce(lambda x: x))
         self.assertNotEqual(predicate, Sel(1) | Reduce(lambda x: x))
 
-        predicate = Extract(p.name) | Eq('a')
+        predicate = Extract(p.name) | Eq("a")
 
-        self.assertEqual(predicate, Extract(p.name) | Eq('a'))
+        self.assertEqual(predicate, Extract(p.name) | Eq("a"))
         self.assertNotEqual(predicate, Extract(p.id) | Eq(1337))
 
         predicate = And(Constant(True), Constant(True))

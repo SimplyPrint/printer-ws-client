@@ -19,10 +19,22 @@ class TestGcodeParser(unittest.TestCase):
         parsed = list(parser.parse_gcode(gcode))
 
         self.assertEqual(len(parsed), 7)
-        self.assertEqual(parsed[0], GcodeCommand("G1", [("X", 10), ("Y", 20), ("Z", 30)]))
-        self.assertEqual(parsed[1], GcodeCommand("G1", [("X", 40), ("Y", 50), ("Z", 60)]))
-        self.assertEqual(parsed[2], GcodeCommand("G1", [("X", 70), ("Y", 80), ("Z", 90)]))
+        self.assertEqual(
+            parsed[0], GcodeCommand("G1", [("X", 10), ("Y", 20), ("Z", 30)])
+        )
+        self.assertEqual(
+            parsed[1], GcodeCommand("G1", [("X", 40), ("Y", 50), ("Z", 60)])
+        )
+        self.assertEqual(
+            parsed[2], GcodeCommand("G1", [("X", 70), ("Y", 80), ("Z", 90)])
+        )
         self.assertEqual(parsed[3], GcodeCommand("M104", [("S", 1000)]))
         self.assertEqual(parsed[4], GcodeCommand("M140", [("I", 13), ("S", 20)]))
-        self.assertEqual(parsed[5], GcodeCommand("M104", [("T", 1), ("S", 100), ("F", 0), ("B", 100)]))
-        self.assertEqual(parsed[6], GcodeCommand("M140", [("F", 1), ("S", 100.51), ("F", 0), ("B", 100)]))
+        self.assertEqual(
+            parsed[5],
+            GcodeCommand("M104", [("T", 1), ("S", 100), ("F", 0), ("B", 100)]),
+        )
+        self.assertEqual(
+            parsed[6],
+            GcodeCommand("M140", [("F", 1), ("S", 100.51), ("F", 0), ("B", 100)]),
+        )

@@ -5,8 +5,25 @@ import decimal
 import enum
 import functools
 import weakref
-from typing import Optional, Dict, Any, TypeVar, TYPE_CHECKING, ClassVar, Type, get_origin, List, Set, Tuple, Mapping, \
-    get_args, Union, no_type_check, cast
+from itertools import repeat
+from typing import (
+    Optional,
+    Dict,
+    Any,
+    TypeVar,
+    TYPE_CHECKING,
+    ClassVar,
+    Type,
+    get_origin,
+    List,
+    Set,
+    Tuple,
+    Mapping,
+    get_args,
+    Union,
+    no_type_check,
+    cast,
+)
 
 from pydantic import BaseModel, PrivateAttr
 
@@ -21,14 +38,19 @@ class StateModel(BaseModel):
     MIT License
     Copyright (c) TEAM23 GmbH 2022.
     """
+
     COMPARABLE_TYPES: ClassVar[tuple] = (
         str,
-        int, float,
+        int,
+        float,
         bool,
         Exclusive,
         enum.Enum,
         decimal.Decimal,
-        datetime.datetime, datetime.date, datetime.time, datetime.timedelta,
+        datetime.datetime,
+        datetime.date,
+        datetime.time,
+        datetime.timedelta,
         BaseModel,
     )
 
@@ -41,7 +63,8 @@ class StateModel(BaseModel):
 
         # if annotation is an ChangeDetectionMixin everything is easy
         if (
-                get_origin(annotation) is None  # If the origin is None, it's likely a concrete class
+                get_origin(annotation)
+                is None  # If the origin is None, it's likely a concrete class
                 and isinstance(annotation, type)
                 and issubclass(annotation, StateModel)
         ):
@@ -58,11 +81,7 @@ class StateModel(BaseModel):
                 or origin is tuple
         ):
             return cls.is_pydantic_change_detect_annotation(get_args(annotation)[0])
-        elif (
-                origin is Dict
-                or origin is dict
-                or origin is Mapping
-        ):
+        elif origin is Dict or origin is dict or origin is Mapping:
             return cls.is_pydantic_change_detect_annotation(get_args(annotation)[1])
         elif origin is Union:
             # Note: This includes Optional, as Optional[...] is just Union[..., None]
@@ -86,7 +105,7 @@ class StateModel(BaseModel):
         object.__setattr__(self, "ctx", ctx)
         self.model_reset_changed()
 
-    def provide_context(self, ctx: Union['StateModel', weakref.ref]) -> None:
+    def provide_context(self, ctx: Union["StateModel", weakref.ref]) -> None:
         """Give tree a reference"""
         if isinstance(ctx, StateModel):
             object.__setattr__(self, "ctx", ctx.ctx)
@@ -107,8 +126,11 @@ class StateModel(BaseModel):
             return
 
         if not keys and v is not None:
-            object.__setattr__(self, "model_self_changed_fields",
-                               {k: v2 for k, v2 in self.model_self_changed_fields.items() if v2 > v})
+            object.__setattr__(
+                self,
+                "model_self_changed_fields",
+                {k: v2 for k, v2 in self.model_self_changed_fields.items() if v2 > v},
+            )
             return
 
         for key in keys:
@@ -131,7 +153,9 @@ class StateModel(BaseModel):
             if isinstance(field_value, StateModel) and field_value.model_has_changed:
                 changed_fields.add(field_name)
 
-            if field_value and self.is_pydantic_change_detect_annotation(model_field.annotation):
+            if field_value and self.is_pydantic_change_detect_annotation(
+                    model_field.annotation
+            ):
                 if isinstance(field_value, (list, tuple)):
                     field_value_list = list(enumerate(field_value))
                 elif isinstance(field_value, dict):
@@ -140,7 +164,10 @@ class StateModel(BaseModel):
                     continue
 
                 for inner_field_index, inner_field_value in field_value_list:
-                    if isinstance(inner_field_value, StateModel) and inner_field_value.model_has_changed:
+                    if (
+                            isinstance(inner_field_value, StateModel)
+                            and inner_field_value.model_has_changed
+                    ):
                         changed_fields.add(field_name)
                         break
 
@@ -154,30 +181,46 @@ class StateModel(BaseModel):
             field_value = self.__dict__[field_name]
 
             if isinstance(field_value, StateModel) and (
-                    field_value_changes := field_value.model_recursive_changeset):
+                    field_value_changes := field_value.model_recursive_changeset
+            ):
                 for key, value in field_value_changes.items():
                     changed_fields[f"{field_name}.{key}"] = value
-                changed_fields[field_name] = max(changed_fields.get(field_name, -1), *field_value_changes.values())
+                changed_fields[field_name] = max(
+                    changed_fields.get(field_name, -1), *field_value_changes.values()
+                )
                 continue
 
-            if field_value and self.is_pydantic_change_detect_annotation(model_field.annotation):
-                if isinstance(field_value, (list, tuple)):
-                    field_value_list = list(enumerate(field_value))
+            if field_value and self.is_pydantic_change_detect_annotation(
+                    model_field.annotation
+            ):
+                if isinstance(field_value, list):
+                    field_values = zip(
+                        repeat("*"), field_value
+                    )  # Generate a matchable key for list changes
+                elif isinstance(field_value, tuple):
+                    field_values = enumerate(field_value)  # Tuples have fixed indices
                 elif isinstance(field_value, dict):
-                    field_value_list = list(field_value.items())
+                    field_values = field_value.items()
                 else:
                     continue
 
-                for inner_field_index, inner_field_value in field_value_list:
+                for inner_field_index, inner_field_value in field_values:
                     if isinstance(inner_field_value, StateModel) and (
-                            inner_field_value_changes := inner_field_value.model_recursive_changeset):
+                            inner_field_value_changes
+                            := inner_field_value.model_recursive_changeset
+                    ):
                         for key, value in inner_field_value_changes.items():
-                            changed_fields[f"{field_name}.{inner_field_index}.{key}"] = value
+                            changed_fields[
+                                f"{field_name}.{inner_field_index}.{key}"
+                            ] = value
 
                         x = changed_fields[f"{field_name}.{inner_field_index}"] = max(
-                            inner_field_value_changes.values())
+                            inner_field_value_changes.values()
+                        )
 
-                        changed_fields[field_name] = max(changed_fields.get(field_name, -1), x)
+                        changed_fields[field_name] = max(
+                            changed_fields.get(field_name, -1), x
+                        )
 
         return changed_fields
 
@@ -189,6 +232,22 @@ class StateModel(BaseModel):
             return True
 
         return bool(self.model_changed_fields)
+
+    def model_has_changes(self, *fields: str) -> bool:
+        """
+        Check if the given fields have changed.
+        If no fields are given, check if any field has changed.
+        """
+
+        if not fields:
+            return self.model_has_changed
+
+        # Ensure all fields exists
+        for name in fields:
+            if name not in self.model_fields:
+                raise AttributeError(f"Field {name} not available in this model")
+
+        return any(name in self.model_self_changed_fields for name in fields)
 
     def model_set_changed(self, *fields: str) -> None:
         """Set fields as changed."""
@@ -211,25 +270,17 @@ class StateModel(BaseModel):
 
     def _model_value_is_comparable_type(self, value: Any) -> bool:
         if isinstance(value, (list, set, tuple)):
-            return all(
-                self._model_value_is_comparable_type(i)
-                for i
-                in value
-            )
+            return all(self._model_value_is_comparable_type(i) for i in value)
         elif isinstance(value, dict):
             return all(
                 (
                         self._model_value_is_comparable_type(k)
                         and self._model_value_is_comparable_type(v)
                 )
-                for k, v
-                in value.items()
+                for k, v in value.items()
             )
 
-        return (
-                value is None
-                or isinstance(value, self.COMPARABLE_TYPES)
-        )
+        return value is None or isinstance(value, self.COMPARABLE_TYPES)
 
     @staticmethod
     def _model_value_is_actually_unchanged(value1: Any, value2: Any) -> bool:
@@ -237,7 +288,6 @@ class StateModel(BaseModel):
 
     @no_type_check
     def __setattr__(self, name, value) -> None:  # noqa: ANN001
-
         # Private attributes do not need to be handled
         if (
                 self.__private_attributes__  # may be None
@@ -269,7 +319,9 @@ class StateModel(BaseModel):
             if (
                     self._model_value_is_comparable_type(original_value)
                     and self._model_value_is_comparable_type(current_value)
-                    and self._model_value_is_actually_unchanged(original_value, current_value)
+                    and self._model_value_is_actually_unchanged(
+                original_value, current_value
+            )
             ):
                 has_changed = False
 
@@ -287,12 +339,16 @@ class StateModel(BaseModel):
         super().__setstate__(state)
 
         if "model_self_changed_fields" in state:
-            object.__setattr__(self, "model_self_changed_fields", state["model_self_changed_fields"])
+            object.__setattr__(
+                self, "model_self_changed_fields", state["model_self_changed_fields"]
+            )
         else:
             object.__setattr__(self, "model_self_changed_fields", {})
 
     @classmethod
-    def model_construct(cls: Type[TStateModel], *args: Any, **kwargs: Any) -> TStateModel:
+    def model_construct(
+            cls: Type[TStateModel], *args: Any, **kwargs: Any
+    ) -> TStateModel:
         """Construct an unvalidated instance"""
 
         m = cast(TStateModel, super().model_construct(*args, **kwargs))
@@ -303,9 +359,11 @@ class StateModel(BaseModel):
         super().model_post_init(__context)
         self.model_reset_changed()
 
-    def model_update(self, other: TStateModel) -> None:
-        # Set all fields from other to self
+    def model_update(self, other: TStateModel, exclude: Optional[Set[str]] = None) -> None:
         for field_name, model_field in self.model_fields.items():
+            if exclude and field_name in exclude:
+                continue
+
             if field_name in other.model_fields:
                 field_value = getattr(other, field_name)
 
@@ -319,13 +377,19 @@ class StateModel(BaseModel):
             TStateModel,
             super().__copy__(),
         )
-        object.__setattr__(clone, "model_self_changed_fields", self.model_self_changed_fields.copy())
+        object.__setattr__(
+            clone, "model_self_changed_fields", self.model_self_changed_fields.copy()
+        )
         return clone
 
-    def __deepcopy__(self: TStateModel, memo: Optional[Dict[int, Any]] = None) -> TStateModel:
+    def __deepcopy__(
+            self: TStateModel, memo: Optional[Dict[int, Any]] = None
+    ) -> TStateModel:
         clone = cast(
             TStateModel,
             super().__deepcopy__(memo=memo),
         )
-        object.__setattr__(clone, "model_self_changed_fields", self.model_self_changed_fields.copy())
+        object.__setattr__(
+            clone, "model_self_changed_fields", self.model_self_changed_fields.copy()
+        )
         return clone

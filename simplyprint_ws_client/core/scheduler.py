@@ -44,18 +44,20 @@ class Scheduler(AsyncStoppable, EventLoopProvider[asyncio.AbstractEventLoop]):
     _signal_lock: threading.Lock
 
     def __init__(
-            self,
-            client_list: ClientList,
-            settings: ClientSettings,
-            logger: logging.Logger = logging.getLogger("Scheduler"),
-            **kwargs
+        self,
+        client_list: ClientList,
+        settings: ClientSettings,
+        logger: logging.Logger = logging.getLogger("Scheduler"),
+        **kwargs,
     ):
         AsyncStoppable.__init__(self, **kwargs)
         EventLoopProvider.__init__(self, **kwargs)
 
         self.settings = settings
         self.client_list = client_list
-        self.manager = ClientConnectionManager(self.settings.mode, self.client_list, provider=self)
+        self.manager = ClientConnectionManager(
+            self.settings.mode, self.client_list, provider=self
+        )
         self.logger = logger
         self._cond = asyncio.Condition()
         self._tasks = {}
@@ -71,7 +73,10 @@ class Scheduler(AsyncStoppable, EventLoopProvider[asyncio.AbstractEventLoop]):
             return
 
         if client.unique_id in self._to_delete:
-            self.logger.warning("client %s is being submitted is also pending deletion.", client.unique_id)
+            self.logger.warning(
+                "client %s is being submitted is also pending deletion.",
+                client.unique_id,
+            )
             self._to_delete.discard(client.unique_id)
 
         self._tasks.pop(client.unique_id, None)
@@ -105,7 +110,9 @@ class Scheduler(AsyncStoppable, EventLoopProvider[asyncio.AbstractEventLoop]):
             if not self.event_loop_is_running():
                 return
 
-            fut = asyncio.run_coroutine_threadsafe(cond_notify_all(self._cond), self.event_loop)
+            fut = asyncio.run_coroutine_threadsafe(
+                cond_notify_all(self._cond), self.event_loop
+            )
             fut.add_done_callback(self._pending_signals.discard)
             self._pending_signals.add(fut)
 
@@ -115,12 +122,17 @@ class Scheduler(AsyncStoppable, EventLoopProvider[asyncio.AbstractEventLoop]):
             return True
 
         # Always schedule clients that are pending a tick.
-        if when - self._last_ticked.get(client.unique_id, datetime.min) >= self._tick_rate_delta:
+        if (
+            when - self._last_ticked.get(client.unique_id, datetime.min)
+            >= self._tick_rate_delta
+        ):
             return True
 
         # Schedule if the client needs to change its connection state.
         is_active = client.active
-        return (is_active and not client.is_added()) or (not is_active and not client.is_removed())
+        return (is_active and not client.is_added()) or (
+            not is_active and not client.is_removed()
+        )
 
     async def _schedule_client(self, client: Client):
         """Schedule single client."""
@@ -146,7 +158,9 @@ class Scheduler(AsyncStoppable, EventLoopProvider[asyncio.AbstractEventLoop]):
 
             # Progress inner client state until we reach CONNECTED state.
             # e.i. in multi printer mode until we receive the connected message.
-            if not await client.ensure_added(self.settings.mode, self.settings.allow_setup):
+            if not await client.ensure_added(
+                self.settings.mode, self.settings.allow_setup
+            ):
                 return
 
             # Tick client.
@@ -182,7 +196,9 @@ class Scheduler(AsyncStoppable, EventLoopProvider[asyncio.AbstractEventLoop]):
                 continue
 
             if unique_id not in self._tasks:
-                self._tasks[unique_id] = ContinuousTask(self._schedule_client, provider=self)
+                self._tasks[unique_id] = ContinuousTask(
+                    self._schedule_client, provider=self
+                )
 
             task = self._tasks[unique_id]
 
@@ -221,8 +237,12 @@ class Scheduler(AsyncStoppable, EventLoopProvider[asyncio.AbstractEventLoop]):
         for task in self._tasks.values():
             task.discard()
 
-        await asyncio.gather(*(client.teardown() for client in self.client_list.values()))
-        await asyncio.gather(*(connection._loop_task.task for connection in self.manager.connections))
+        await asyncio.gather(
+            *(client.teardown() for client in self.client_list.values())
+        )
+        await asyncio.gather(
+            *(connection._loop_task.task for connection in self.manager.connections)
+        )
 
     async def _schedule_loop(self):
         if self._schedule_task.task != asyncio.current_task():

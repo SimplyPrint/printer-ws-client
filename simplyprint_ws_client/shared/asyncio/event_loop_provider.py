@@ -11,7 +11,7 @@ TEventLoopFactory = Callable[[], TEventLoop]
 
 
 class EventLoopProvider(Generic[TEventLoop]):
-    """ Manages an event loop for external access
+    """Manages an event loop for external access
 
     Useful when you have a class that uses an event loop
     to perform its tasks, and you want to invoke it from
@@ -21,12 +21,18 @@ class EventLoopProvider(Generic[TEventLoop]):
     __event_loop: Optional[TEventLoop]
     __event_loop_factory: Optional[TEventLoopFactory]
 
-    def __init__(self, loop: Optional[TEventLoop] = None, factory: Optional[TEventLoopFactory] = None,
-                 provider: Optional[Self] = None, **kwargs):
+    def __init__(
+        self,
+        loop: Optional[TEventLoop] = None,
+        factory: Optional[TEventLoopFactory] = None,
+        provider: Optional[Self] = None,
+        **kwargs,
+    ):
         # TODO: raise an error if no loops are provided / no default is used?
         self.__event_loop = loop
         self.__event_loop_factory = factory or (
-            (lambda *args, **_: provider.event_loop) if provider is not None else None)
+            (lambda *args, **_: provider.event_loop) if provider is not None else None
+        )
 
     def use_running_loop(self):
         self.__event_loop = asyncio.get_running_loop()
@@ -76,5 +82,5 @@ class EventLoopProvider(Generic[TEventLoop]):
 
     @staticmethod
     def default():
-        """ Returns an EventLoopProvider that uses the running loop. """
+        """Returns an EventLoopProvider that uses the running loop."""
         return EventLoopProvider(factory=asyncio.get_running_loop)
