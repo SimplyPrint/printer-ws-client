@@ -193,7 +193,7 @@ class MultiMaterialSolution(Enum):
         }.get(self)
 
     @property
-    def default_size(self) -> Optional[int]:
+    def default_size(self) -> int:
         return {
             self.PRUSA_MMU2:   5,
             self.PRUSA_MMU3:   5,

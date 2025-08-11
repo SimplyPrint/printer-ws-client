@@ -262,6 +262,17 @@ class MaterialLayoutEntry(StateModel):
     size: Optional[int] = None
     chains: Optional[int] = None
 
+    def get_computed_size(self) -> int:
+        return self.get_size() * self.get_chains()
+
+    def get_size(self) -> int:
+        return self.size or (self.mms.default_size if self.mms else 1)
+
+    def get_chains(self) -> int:
+        if self.mms and self.mms.can_chain:
+            return min(self.chains or 1, self.mms.max_chains)
+        return 1
+
 
 class MaterialEntry(StateModel):
     nozzle: int
@@ -451,15 +462,7 @@ class PrinterState(StateModel):
                 material_count_per_nozzle[nozzle] = 0
 
                 for entry in entries:
-                    if entry.mms is None:
-                        material_count_per_nozzle[nozzle] += (entry.size or 1) * (entry.chains or 1)
-                        continue
-
-                    mms = entry.mms
-
-                    material_count_per_nozzle[nozzle] += (entry.size or mms.default_size) * (
-                        min(entry.chains or 1, mms.max_chains if mms.can_chain else 1)
-                    )
+                    material_count_per_nozzle[nozzle] += entry.get_computed_size()
 
             for i, tool in enumerate(self.tools):
                 tool.material_count = max(material_count_per_nozzle.get(i, 1), 1)
