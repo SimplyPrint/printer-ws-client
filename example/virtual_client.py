@@ -6,7 +6,15 @@ import time
 
 from yarl import URL
 
-from simplyprint_ws_client import *
+from simplyprint_ws_client import (
+    PrinterConfig,
+    DefaultClient,
+    GcodeDemandData,
+    PrinterStatus,
+    FileDemandData,
+    FileProgressStateEnum,
+    MaterialDataMsg,
+)
 from simplyprint_ws_client.shared.camera.base import (
     BaseCameraProtocol,
     CameraProtocolPollingMode,
@@ -146,20 +154,22 @@ class VirtualClient(DefaultClient[VirtualConfig], ClientCameraMixin):
 
     async def on_stream_off(self):
         self.printer.material0.raw = {
-            'tray_uuid':       'C5D095A34DF246E8A9B99C1D6AD667BE',
-            'tag_uid':         '2496010000000100',
-            'tray_color':      '5898DDFF',
-            'tray_type':       'TPU-AMS',
-            'tray_id_name':    'U02-B0',
-            'tray_info_idx':   'GFU02',
-            'tray_sub_brands': 'TPU for AMS',
-            'tray_weight':     '1000',
-            'tray_diameter':   '1.75',
-            'cols':            ['5898DDFF'],
+            "tray_uuid": "C5D095A34DF246E8A9B99C1D6AD667BE",
+            "tag_uid": "2496010000000100",
+            "tray_color": "5898DDFF",
+            "tray_type": "TPU-AMS",
+            "tray_id_name": "U02-B0",
+            "tray_info_idx": "GFU02",
+            "tray_sub_brands": "TPU for AMS",
+            "tray_weight": "1000",
+            "tray_diameter": "1.75",
+            "cols": ["5898DDFF"],
         }
 
         await self.send(
-            MaterialDataMsg(data=dict(MaterialDataMsg.build(self.printer, is_refresh=True)))
+            MaterialDataMsg(
+                data=dict(MaterialDataMsg.build(self.printer, is_refresh=True))
+            )
         )
 
     async def init(self):
@@ -202,8 +212,8 @@ class VirtualClient(DefaultClient[VirtualConfig], ClientCameraMixin):
         self.printer.ambient_temperature.tick(self.printer)
 
         if (
-                self.printer.status == PrinterStatus.PRINTING
-                and not self.printer.is_heating()
+            self.printer.status == PrinterStatus.PRINTING
+            and not self.printer.is_heating()
         ):
             self.printer.job_info.progress = expt_smooth(
                 100.0,

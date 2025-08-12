@@ -63,22 +63,22 @@ class StateModel(BaseModel):
 
         # if annotation is an ChangeDetectionMixin everything is easy
         if (
-                get_origin(annotation)
-                is None  # If the origin is None, it's likely a concrete class
-                and isinstance(annotation, type)
-                and issubclass(annotation, StateModel)
+            get_origin(annotation)
+            is None  # If the origin is None, it's likely a concrete class
+            and isinstance(annotation, type)
+            and issubclass(annotation, StateModel)
         ):
             return True
 
         # Otherwise we may need to handle typing arguments
         origin = get_origin(annotation)
         if (
-                origin is List
-                or origin is list
-                or origin is Set
-                or origin is set
-                or origin is Tuple
-                or origin is tuple
+            origin is List
+            or origin is list
+            or origin is Set
+            or origin is set
+            or origin is Tuple
+            or origin is tuple
         ):
             return cls.is_pydantic_change_detect_annotation(get_args(annotation)[0])
         elif origin is Dict or origin is dict or origin is Mapping:
@@ -113,8 +113,18 @@ class StateModel(BaseModel):
             object.__setattr__(self, "ctx", ctx)
 
         for field in self.model_fields:
-            if isinstance(value := getattr(self, field), StateModel):
+            value = getattr(self, field)
+
+            if isinstance(value, StateModel):
                 value.provide_context(self)
+            elif isinstance(value, (list, tuple)):
+                for item in value:
+                    if isinstance(item, StateModel):
+                        item.provide_context(self)
+            elif isinstance(value, dict):
+                for item in value.values():
+                    if isinstance(item, StateModel):
+                        item.provide_context(self)
 
     def model_reset_changed(self, *keys: str, v: Optional[int] = None) -> None:
         """
@@ -154,7 +164,7 @@ class StateModel(BaseModel):
                 changed_fields.add(field_name)
 
             if field_value and self.is_pydantic_change_detect_annotation(
-                    model_field.annotation
+                model_field.annotation
             ):
                 if isinstance(field_value, (list, tuple)):
                     field_value_list = list(enumerate(field_value))
@@ -165,8 +175,8 @@ class StateModel(BaseModel):
 
                 for inner_field_index, inner_field_value in field_value_list:
                     if (
-                            isinstance(inner_field_value, StateModel)
-                            and inner_field_value.model_has_changed
+                        isinstance(inner_field_value, StateModel)
+                        and inner_field_value.model_has_changed
                     ):
                         changed_fields.add(field_name)
                         break
@@ -181,7 +191,7 @@ class StateModel(BaseModel):
             field_value = self.__dict__[field_name]
 
             if isinstance(field_value, StateModel) and (
-                    field_value_changes := field_value.model_recursive_changeset
+                field_value_changes := field_value.model_recursive_changeset
             ):
                 for key, value in field_value_changes.items():
                     changed_fields[f"{field_name}.{key}"] = value
@@ -191,7 +201,7 @@ class StateModel(BaseModel):
                 continue
 
             if field_value and self.is_pydantic_change_detect_annotation(
-                    model_field.annotation
+                model_field.annotation
             ):
                 if isinstance(field_value, list):
                     field_values = zip(
@@ -206,8 +216,8 @@ class StateModel(BaseModel):
 
                 for inner_field_index, inner_field_value in field_values:
                     if isinstance(inner_field_value, StateModel) and (
-                            inner_field_value_changes
-                            := inner_field_value.model_recursive_changeset
+                        inner_field_value_changes
+                        := inner_field_value.model_recursive_changeset
                     ):
                         for key, value in inner_field_value_changes.items():
                             changed_fields[
@@ -274,8 +284,8 @@ class StateModel(BaseModel):
         elif isinstance(value, dict):
             return all(
                 (
-                        self._model_value_is_comparable_type(k)
-                        and self._model_value_is_comparable_type(v)
+                    self._model_value_is_comparable_type(k)
+                    and self._model_value_is_comparable_type(v)
                 )
                 for k, v in value.items()
             )
@@ -288,21 +298,19 @@ class StateModel(BaseModel):
 
     @no_type_check
     def __setattr__(self, name, value) -> None:  # noqa: ANN001
+        contains_field = name in self.model_fields
+
         # Private attributes do not need to be handled
-        if (
-                self.__private_attributes__  # may be None
-                and name in self.__private_attributes__
+        # Same for non-model fields.
+        if not contains_field or (
+            self.__private_attributes__  # may be None
+            and name in self.__private_attributes__
         ):
             super().__setattr__(name, value)
             return
 
-        contains_field = name in self.model_fields
-
         # Get original value
-        original_value = None
-
-        if contains_field:
-            original_value = self.__dict__[name]
+        original_value = self.__dict__[name]
 
         # Store changed value using pydantic
         super().__setattr__(name, value)
@@ -310,20 +318,17 @@ class StateModel(BaseModel):
         # Check if value has actually been changed
         has_changed = True
 
-        if contains_field:
-            # Fetch original from original_update so we don't have to check everything again
-            # Don't use value parameter directly, as pydantic validation might have changed it
-            # (when validate_assignment == True)
-            current_value = self.__dict__[name]
+        # Fetch original from original_update so we don't have to check everything again
+        # Don't use value parameter directly, as pydantic validation might have changed it
+        # (when validate_assignment == True)
+        current_value = self.__dict__[name]
 
-            if (
-                    self._model_value_is_comparable_type(original_value)
-                    and self._model_value_is_comparable_type(current_value)
-                    and self._model_value_is_actually_unchanged(
-                original_value, current_value
-            )
-            ):
-                has_changed = False
+        if (
+            self._model_value_is_comparable_type(original_value)
+            and self._model_value_is_comparable_type(current_value)
+            and self._model_value_is_actually_unchanged(original_value, current_value)
+        ):
+            has_changed = False
 
         # Store changed state
         if has_changed and (ctx := self.ctx()):
@@ -347,7 +352,7 @@ class StateModel(BaseModel):
 
     @classmethod
     def model_construct(
-            cls: Type[TStateModel], *args: Any, **kwargs: Any
+        cls: Type[TStateModel], *args: Any, **kwargs: Any
     ) -> TStateModel:
         """Construct an unvalidated instance"""
 
@@ -359,7 +364,9 @@ class StateModel(BaseModel):
         super().model_post_init(__context)
         self.model_reset_changed()
 
-    def model_update(self, other: TStateModel, exclude: Optional[Set[str]] = None) -> None:
+    def model_update(
+        self, other: TStateModel, exclude: Optional[Set[str]] = None
+    ) -> None:
         for field_name, model_field in self.model_fields.items():
             if exclude and field_name in exclude:
                 continue
@@ -383,7 +390,7 @@ class StateModel(BaseModel):
         return clone
 
     def __deepcopy__(
-            self: TStateModel, memo: Optional[Dict[int, Any]] = None
+        self: TStateModel, memo: Optional[Dict[int, Any]] = None
     ) -> TStateModel:
         clone = cast(
             TStateModel,

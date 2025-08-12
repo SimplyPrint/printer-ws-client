@@ -1,4 +1,10 @@
-from simplyprint_ws_client import *
+from simplyprint_ws_client import (
+    DefaultClient,
+    PrinterConfig,
+    ClientSettings,
+    ConfigManagerType,
+    ClientApp,
+)
 
 
 class MyPrinterClient(DefaultClient[PrinterConfig]): ...

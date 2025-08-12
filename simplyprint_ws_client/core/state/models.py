@@ -44,18 +44,18 @@ class PrinterStatus(StrEnum):
     @staticmethod
     def is_printing(*status: Optional["PrinterStatus"]) -> bool:
         return (
-                len(
-                    set(status).intersection(
-                        {
-                            PrinterStatus.PRINTING,
-                            PrinterStatus.PAUSED,
-                            PrinterStatus.PAUSING,
-                            PrinterStatus.RESUMING,
-                            PrinterStatus.CANCELLING,
-                        }
-                    )
+            len(
+                set(status).intersection(
+                    {
+                        PrinterStatus.PRINTING,
+                        PrinterStatus.PAUSED,
+                        PrinterStatus.PAUSING,
+                        PrinterStatus.RESUMING,
+                        PrinterStatus.CANCELLING,
+                    }
                 )
-                > 0
+            )
+            > 0
         )
 
 
@@ -179,24 +179,30 @@ class MultiMaterialSolution(Enum):
 
     @property
     def can_chain(self) -> bool:
-        return self in {self.CREALITY_CFS, self.ANYCUBIC_ACE_PRO, self.BAMBU_AMS, self.BAMBU_AMS_2_PRO,
-                        self.BAMBU_AMS_HT, self.BOXTURTLE}
+        return self in {
+            self.CREALITY_CFS,
+            self.ANYCUBIC_ACE_PRO,
+            self.BAMBU_AMS,
+            self.BAMBU_AMS_2_PRO,
+            self.BAMBU_AMS_HT,
+            self.BOXTURTLE,
+        }
 
     @property
     def max_chains(self) -> Optional[int]:
         return {
-            self.BAMBU_AMS_HT:    4,
-            self.BAMBU_AMS:       4,
+            self.BAMBU_AMS_HT: 4,
+            self.BAMBU_AMS: 4,
             self.BAMBU_AMS_2_PRO: 4,
-            self.BAMBU_AMS_LITE:  1,
-            self.CREALITY_CFS:    4,
+            self.BAMBU_AMS_LITE: 1,
+            self.CREALITY_CFS: 4,
         }.get(self)
 
     @property
     def default_size(self) -> int:
         return {
-            self.PRUSA_MMU2:   5,
-            self.PRUSA_MMU3:   5,
+            self.PRUSA_MMU2: 5,
+            self.PRUSA_MMU3: 5,
             self.BAMBU_AMS_HT: 1,
         }.get(self, 4)
 

@@ -32,7 +32,18 @@ __all__ = [
 
 import threading
 import time
-from typing import Optional, Literal, no_type_check, Union, List, Set, ClassVar, TypeVar, Dict, Any
+from typing import (
+    Optional,
+    Literal,
+    no_type_check,
+    Union,
+    List,
+    Set,
+    ClassVar,
+    TypeVar,
+    Dict,
+    Any,
+)
 
 from pydantic import Field, PrivateAttr
 
@@ -108,8 +119,8 @@ class AmbientTemperatureState(StateModel):
         now = time.time()
 
         if (
-                self._last_update is not None
-                and now - self._last_update < self._update_interval
+            self._last_update is not None
+            and now - self._last_update < self._update_interval
         ):
             return
 

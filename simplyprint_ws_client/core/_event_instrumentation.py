@@ -29,7 +29,7 @@ from .ws_protocol.messages import (
 from ..events.event_bus_listeners import EventBusListenerOptions
 
 if TYPE_CHECKING:
-    from .client import Client
+    from .client import Client  # noqa: F401
 
 try:
     from typing import Unpack

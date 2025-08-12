@@ -16,7 +16,9 @@ def _assert_printer_state_consistent(printer: PrinterState):
         assert tool.material_count <= 255
 
     for i, tool in enumerate(printer.tools):
-        assert tool.nozzle == i, f"Tool index mismatch: expected {i}, got {tool.nozzle} {printer.tools=}"
+        assert tool.nozzle == i, (
+            f"Tool index mismatch: expected {i}, got {tool.nozzle} {printer.tools=}"
+        )
         for j, material in enumerate(tool.materials):
             assert material.ext == j, (
                 f"Material index mismatch for tool {i}, material {j}: "
@@ -34,7 +36,7 @@ class TestStateListResize(unittest.TestCase):
         self.printer = PrinterState(config=PrinterConfig.get_new())
 
     def _test_state_list_resize_by_property(
-            self, obj: object, property_name: str, n=1024, m=16
+        self, obj: object, property_name: str, n=1024, m=16
     ):
         # Fuzz material_count and nozzle_count properties
         # with random numbers between 1 and 255 and make sure
@@ -62,7 +64,7 @@ class TestStateListResize(unittest.TestCase):
             _assert_printer_state_consistent(self.printer)
 
     def _test_state_list_resize_by_property_multithreaded(
-            self, obj: object, property_name: str, n=1024, tc=10
+        self, obj: object, property_name: str, n=1024, tc=10
     ):
         with ThreadPoolExecutor(max_workers=tc) as executor:
             futures = []

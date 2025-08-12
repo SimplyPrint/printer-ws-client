@@ -66,7 +66,7 @@ class BaseCameraProtocol(ABC, Iterable[FrameT], AsyncIterable[FrameT]):
 
     @abstractmethod
     def read(
-            self,
+        self,
     ) -> Union[Iterator[FrameT], Coroutine[None, None, AsyncIterator[FrameT]]]:
         """Read frames from the camera, blocking."""
         ...

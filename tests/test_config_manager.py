@@ -1,6 +1,12 @@
 import unittest
 
-from simplyprint_ws_client import *
+from simplyprint_ws_client import (
+    MemoryConfigManager,
+    PrinterConfig,
+    ConfigManager,
+    JsonConfigManager,
+    SQLiteConfigManager,
+)
 
 
 class TestConfigManager(unittest.TestCase):
