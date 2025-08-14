@@ -3,6 +3,7 @@ import base64
 import math
 import random
 import time
+from typing import Optional
 
 from yarl import URL
 
@@ -58,7 +59,8 @@ class VirtualCamera(BaseCameraProtocol):
 
 
 class VirtualClient(DefaultClient[VirtualConfig], ClientCameraMixin):
-    job_progress_alpha: float = 0.5
+    job_progress_alpha: float = 0.1
+    pending_job: Optional[FileDemandData] = None
 
     def __init__(self, *args, **kwargs):
         DefaultClient.__init__(self, *args, **kwargs)
@@ -128,10 +130,20 @@ class VirtualClient(DefaultClient[VirtualConfig], ClientCameraMixin):
             )
             await asyncio.sleep(0.1)
 
+        self.pending_job = data
         self.printer.file_progress.state = FileProgressStateEnum.READY
-        await self.on_start_print(data)
+
+        if data.auto_start:
+            await self.on_start_print(data)
+        else:
+            self.printer.status = PrinterStatus.OPERATIONAL
 
     async def on_start_print(self, _):
+        if not self.pending_job:
+            return
+
+        self.pending_job = None
+
         # self.job_progress_alpha = random.uniform(0.05, 0.1)
 
         self.printer.status = PrinterStatus.PRINTING
@@ -154,16 +166,16 @@ class VirtualClient(DefaultClient[VirtualConfig], ClientCameraMixin):
 
     async def on_stream_off(self):
         self.printer.material0.raw = {
-            "tray_uuid": "C5D095A34DF246E8A9B99C1D6AD667BE",
-            "tag_uid": "2496010000000100",
-            "tray_color": "5898DDFF",
-            "tray_type": "TPU-AMS",
-            "tray_id_name": "U02-B0",
-            "tray_info_idx": "GFU02",
+            "tray_uuid":       "C5D095A34DF246E8A9B99C1D6AD667BE",
+            "tag_uid":         "2496010000000100",
+            "tray_color":      "5898DDFF",
+            "tray_type":       "TPU-AMS",
+            "tray_id_name":    "U02-B0",
+            "tray_info_idx":   "GFU02",
             "tray_sub_brands": "TPU for AMS",
-            "tray_weight": "1000",
-            "tray_diameter": "1.75",
-            "cols": ["5898DDFF"],
+            "tray_weight":     "1000",
+            "tray_diameter":   "1.75",
+            "cols":            ["5898DDFF"],
         }
 
         await self.send(
@@ -189,7 +201,7 @@ class VirtualClient(DefaultClient[VirtualConfig], ClientCameraMixin):
             self.printer.bed.temperature.actual = expt_smooth(
                 target,
                 self.printer.bed.temperature.actual,
-                15,
+                1,
                 0.1,
             )
 
@@ -202,7 +214,7 @@ class VirtualClient(DefaultClient[VirtualConfig], ClientCameraMixin):
             self.printer.tool0.temperature.actual = expt_smooth(
                 target,
                 self.printer.tool0.temperature.actual,
-                15,
+                1,
                 0.1,
             )
 
@@ -212,8 +224,8 @@ class VirtualClient(DefaultClient[VirtualConfig], ClientCameraMixin):
         self.printer.ambient_temperature.tick(self.printer)
 
         if (
-            self.printer.status == PrinterStatus.PRINTING
-            and not self.printer.is_heating()
+                self.printer.status == PrinterStatus.PRINTING
+                and not self.printer.is_heating()
         ):
             self.printer.job_info.progress = expt_smooth(
                 100.0,
