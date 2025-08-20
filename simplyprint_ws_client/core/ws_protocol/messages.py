@@ -1035,10 +1035,10 @@ class MaterialDataMsg(ClientMsg[Literal[ClientMsgType.MATERIAL_DATA]]):
     def reset_changes(self, state: PrinterState, v: Optional[int] = None) -> None:
         # Mirror of producer side.
         state.model_reset_changed("mms_layout", v=v)
-        state.bed.model_reset_changed("type", v=v)
+        state.bed.model_reset_changed(*self._BED_FIELDS, v=v)
 
         for t in state.tools:
-            t.model_reset_changed("materials", "size", "type", v=v)
+            t.model_reset_changed("materials", *self._TOOL_FIELDS, v=v)
 
             for m in t.materials:
                 m.model_reset_changed(v=v)
