@@ -765,7 +765,10 @@ class ToolMsg(ClientMsg[Literal[ClientMsgType.TOOL]]):
         yield "new", state.active_tool
 
     def reset_changes(self, state: PrinterState, v: Optional[int] = None) -> None:
-        state.model_reset_changed("active_tool")
+        state.model_reset_changed("active_tool", v=v)
+        # Not yet used, but modeled anyhow.
+        for tool in state.tools:
+            tool.model_reset_changed("active_material", v=v)
 
 
 class TemperatureMsg(ClientMsg[Literal[ClientMsgType.TEMPERATURES]]):

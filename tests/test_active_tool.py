@@ -19,6 +19,7 @@ def test_active_tool_change(client):
 
     # Change active tool
     client.printer.active_tool = 1
+    client.printer.tool0.active_material = 1010
 
     messages, _ = client.consume()
 

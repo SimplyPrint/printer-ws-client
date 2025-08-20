@@ -54,6 +54,7 @@ class ClientConnectionManager(
     client_views: Dict[TUniqueId, ClientView]
     views: Set[ClientView]
     logger: logging.Logger
+    _next_connection_id: int
 
     def __init__(
         self,
@@ -70,6 +71,7 @@ class ClientConnectionManager(
         self.client_views = {}
         self.views = set()
         self.logger = logger
+        self._next_connection_id = 0
 
     def _suspect_connection(self, connection: Connection, _):
         """Called when a connection suspects its ability to connect is compromised."""
@@ -111,7 +113,16 @@ class ClientConnectionManager(
             return next(iter(self.views))
 
         # Creating a new connection / client view pair.
-        connection = Connection(provider=self)
+        loggerName = "ws"
+        connection_id = self._next_connection_id
+        self._next_connection_id += 1
+
+        # Indicate what connection instance this is.
+        # In multimode all messages are annotated with an id.
+        if self.mode != ConnectionMode.MULTI:
+            loggerName = f"{loggerName}[{connection_id}]"
+
+        connection = Connection(provider=self, logger=logging.getLogger(loggerName))
         client_view = ClientView(self.mode, connection, self.client_list)
         self.views.add(client_view)
 

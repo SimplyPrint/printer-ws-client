@@ -28,6 +28,7 @@ __all__ = [
     "MultiMaterialSolution",
     "NozzleType",
     "BedType",
+    "VolumeType",
 ]
 
 import threading
