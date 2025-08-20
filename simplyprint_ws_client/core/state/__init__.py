@@ -59,6 +59,7 @@ from .models import (
     MultiMaterialSolution,
     BedType,
     NozzleType,
+    VolumeType,
 )
 from .state_model import StateModel
 from .utils import _resize_state_inplace
@@ -306,10 +307,12 @@ class BedState(StateModel):
 class ToolState(StateModel):
     nozzle: int
     type: Optional[NozzleType] = None
+    volume_type: Optional[VolumeType] = None
     size: Optional[float] = None
     temperature: TemperatureState = Field(default_factory=TemperatureState)
     active_material: Optional[int] = None
     materials: List[MaterialEntry] = Field(default_factory=list)
+
     __resize_lock: threading.Lock = PrivateAttr(default_factory=threading.Lock)
 
     def model_post_init(self, __context: Any) -> None:

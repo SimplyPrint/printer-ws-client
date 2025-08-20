@@ -274,7 +274,7 @@ class CameraPool(ProcessStoppable, Synchronized):
         protocol = None
 
         for protocol_cls in self.protocols:
-            if protocol_cls.is_async():
+            if protocol_cls.is_async:
                 raise NotImplementedError("Async protocols are not supported")
 
             if protocol_cls.test(uri):

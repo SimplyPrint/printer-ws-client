@@ -1,9 +1,9 @@
 [project]
 name = "simplyprint-ws-client"
-version = "1.0.1rc24"
+version = "1.0.1rc25"
 description = "SimplyPrint Websocket Client"
 authors = [{ name = "SimplyPrint", email = "contact@simplyprint.io" }]
-requires-python = "~=3.8"
+requires-python = ">=3.8"
 readme = "README.md"
 license = "AGPL-3.0-or-later"
 keywords = [
@@ -40,6 +40,8 @@ dev = [
     "mkdocs>=1.6.1",
     "mkdocs-material>=9.6.8",
     "pylint",
+    "pytest>=8.3.5",
+    "pytest-asyncio>=0.24.0",
 ]
 
 [tool.hatch.build.targets.sdist]

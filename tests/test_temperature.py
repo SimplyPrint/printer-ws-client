@@ -1,79 +1,80 @@
 """Test Temperature state + index based state producer rules with * as index."""
 
-import weakref
-from unittest import TestCase
+import pytest
 
 from simplyprint_ws_client import PrinterConfig, Client, TemperatureMsg
 
 
-class TestTemperature(TestCase):
-    def setUp(self):
-        self.client = Client(PrinterConfig.get_new())
-        self.client.config.id = 1
-        self.client.config.in_setup = False
-        self.ctx = weakref.ref(self.client)
+@pytest.fixture
+def client():
+    client = Client(PrinterConfig.get_new())
+    client.config.id = 1
+    client.config.in_setup = False
+    return client
 
-    def test_tool0_temperature(self):
-        tool0 = self.client.printer.tool0
 
-        changeset = self.client.printer.model_recursive_changeset
+def test_tool0_temperature(client):
+    tool0 = client.printer.tool0
 
-        self.assertDictEqual(changeset, {})
+    changeset = client.printer.model_recursive_changeset
 
-        tool0.temperature.actual = 200
-        tool0.temperature.target = 250
+    assert changeset == {}
 
-        messages, _ = self.client.consume()
+    tool0.temperature.actual = 200
+    tool0.temperature.target = 250
 
-        self.assertEqual(len(messages), 1)
+    messages, _ = client.consume()
 
-        message = messages[0]
+    assert len(messages) == 1
 
-        self.assertEqual(message.__class__, TemperatureMsg)
-        self.assertDictEqual(message.data, {"tool0": [200, 250]})
+    message = messages[0]
 
-        message.reset_changes(self.client.printer)
+    assert message.__class__ == TemperatureMsg
+    assert message.data == {"tool0": [200, 250]}
 
-        changeset = self.client.printer.model_recursive_changeset
+    message.reset_changes(client.printer)
 
-        self.assertDictEqual(changeset, {})
+    changeset = client.printer.model_recursive_changeset
 
-        tool0.temperature.actual = 250
-        self.client.printer.bed.temperature.target = 60
+    assert changeset == {}
 
-        messages, _ = self.client.consume()
+    tool0.temperature.actual = 250
+    client.printer.bed.temperature.target = 60
 
-        self.assertEqual(len(messages), 1)
+    messages, _ = client.consume()
 
-        message = messages[0]
+    assert len(messages) == 1
 
-        self.assertEqual(message.__class__, TemperatureMsg)
-        self.assertDictEqual(message.data, {"tool0": [250, 250], "bed": [None, 60]})
+    message = messages[0]
 
-        message.reset_changes(self.client.printer)
+    assert message.__class__ == TemperatureMsg
+    assert message.data == {"tool0": [250, 250], "bed": [None, 60]}
 
-        changeset = self.client.printer.model_recursive_changeset
+    message.reset_changes(client.printer)
 
-        self.assertDictEqual(changeset, {})
+    changeset = client.printer.model_recursive_changeset
 
-    def test_multiple_tools_temperatures(self):
-        self.client.printer.tool_count = 2
-        tool0 = self.client.printer.tools[0]
-        tool1 = self.client.printer.tools[1]
+    assert changeset == {}
 
-        changeset = self.client.printer.model_recursive_changeset
-        self.assertDictEqual(changeset, {})
 
-        tool0.temperature.actual = 200
-        tool0.temperature.target = 250
-        tool1.temperature.actual = 180
-        tool1.temperature.target = 220
+def test_multiple_tools_temperatures(client):
+    client.printer.tool_count = 2
+    tool0 = client.printer.tools[0]
+    tool1 = client.printer.tools[1]
 
-        messages, _ = self.client.consume()
+    changeset = client.printer.model_recursive_changeset
+    assert changeset == {}
 
-        self.assertEqual(len(messages), 1)
-        message = messages[0]
+    tool0.temperature.actual = 200
+    tool0.temperature.target = 250
+    tool1.temperature.actual = 180
+    tool1.temperature.target = 220
 
-        self.assertEqual(message.__class__, TemperatureMsg)
+    messages, _ = client.consume()
 
-        self.assertDictEqual(message.data, {"tool0": [200, 250], "tool1": [180, 220]})
+    assert len(messages) == 1
+    message = messages[0]
+
+    assert message.__class__ == TemperatureMsg
+
+    assert message.data == {"tool0": [200, 250], "tool1": [180, 220]}

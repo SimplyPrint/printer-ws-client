@@ -1,5 +1,6 @@
 import asyncio
-import unittest
+
+import pytest
 
 from simplyprint_ws_client import MultiPrinterAddedMsg
 from simplyprint_ws_client.events import EventBus
@@ -10,20 +11,20 @@ from simplyprint_ws_client.shared.events.predicate import IsInstance, Eq, Extrac
 from simplyprint_ws_client.shared.events.property_path import p
 
 
-class TestEventBus(unittest.IsolatedAsyncioTestCase):
-    async def test_simple(self):
-        event_bus = EventBus()
-        event_bus_response = EventBusPredicateResponseMiddleware(
-            provider=event_bus.event_loop_provider
-        )
-        event_bus.middleware.add(event_bus_response)
+@pytest.mark.asyncio
+async def test_simple():
+    event_bus = EventBus()
+    event_bus_response = EventBusPredicateResponseMiddleware(
+        provider=event_bus.event_loop_provider
+    )
+    event_bus.middleware.add(event_bus_response)
 
-        future = event_bus_response.create_response(
-            IsInstance(MultiPrinterAddedMsg), Extract(p.unique_id) | Eq("something")
-        )
-        future.set_result((None, None))
+    future = event_bus_response.create_response(
+        IsInstance(MultiPrinterAddedMsg), Extract(p.unique_id) | Eq("something")
+    )
+    future.set_result((None, None))
 
-        await future
-        await asyncio.sleep(0.0)
+    await future
+    await asyncio.sleep(0.0)
 
-        self.assertEqual(len(event_bus_response.predicate_tree.root.predicates), 0)
+    assert len(event_bus_response.predicate_tree.root.predicates) == 0

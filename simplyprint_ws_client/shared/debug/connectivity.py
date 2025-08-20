@@ -14,6 +14,12 @@ import netifaces
 import psutil
 from pydantic import BaseModel, Field
 
+try:
+    from aiohttp import ClientWSTimeout
+except ImportError:
+    # aiohttp < 3.8.0 does not have ClientWSTimeout
+    ClientWSTimeout = None
+
 from ..sp.url_builder import SimplyPrintBackend
 
 
@@ -107,6 +113,9 @@ class ConnectivityReport(BaseModel):
         url: str, websocket_timeout: int, logger: logging.Logger
     ) -> WebSocketTestResult:
         result_queue = queue.Queue()
+
+        if ClientWSTimeout is not None:
+            websocket_timeout = ClientWSTimeout(ws_close=websocket_timeout)
 
         def test_ws():
             async def inner():

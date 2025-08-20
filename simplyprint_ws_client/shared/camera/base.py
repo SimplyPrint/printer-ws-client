@@ -7,6 +7,7 @@ from typing import (
     AsyncIterable,
     AsyncIterator,
     Coroutine,
+    ClassVar,
 )
 
 from yarl import URL
@@ -41,22 +42,20 @@ class CameraProtocolPollingMode(Enum):
 
 
 class BaseCameraProtocol(ABC, Iterable[FrameT], AsyncIterable[FrameT]):
+    polling_mode: ClassVar[CameraProtocolPollingMode] = (
+        CameraProtocolPollingMode.ON_DEMAND
+    )
+    """Camera polling mode"""
+    is_async: ClassVar[bool] = False
+    """Is the camera protocol async?"""
+
     uri: URL
+    """Configuration URI for the camera protocol, and the only input we have access to."""
 
     def __init__(self, uri: URL, *args, **kwargs):
+        _ = args
+        _ = kwargs
         self.uri = uri
-
-    @staticmethod
-    @abstractmethod
-    def polling_mode() -> CameraProtocolPollingMode:
-        """Camera polling mode"""
-        ...
-
-    @staticmethod
-    @abstractmethod
-    def is_async() -> bool:
-        """Is the camera protocol async?"""
-        ...
 
     @staticmethod
     @abstractmethod

@@ -1,5 +1,6 @@
-import unittest
 import weakref
+
+import pytest
 
 from simplyprint_ws_client import (
     Client,
@@ -22,98 +23,101 @@ def build_job_state_msg(state: PrinterState) -> JobInfoMsg:
     return JobInfoMsg(data=dict(JobInfoMsg.build(state)))
 
 
-class TestJobInfo(unittest.TestCase):
-    def setUp(self):
-        self.client = Client(PrinterConfig.get_new())
-        self.ctx = weakref.ref(self.client)
+@pytest.fixture
+def client():
+    client = Client(PrinterConfig.get_new())
+    return client
 
-    def test_exclusivity(self):
-        state = JobInfoState()
-        state.provide_context(self.ctx)
 
-        self.assertEqual(state.model_changed_fields, set())
-        self.assertTrue(job_state_consistent(state))
+@pytest.fixture
+def ctx(client):
+    return weakref.ref(client)
 
-        state.started = True
-        self.assertTrue(state.model_changed_fields & {"started"})
-        self.assertTrue(job_state_consistent(state))
 
-        state.model_reset_changed()
-        state.started = True
+def test_exclusivity(client, ctx):
+    state = JobInfoState()
+    state.provide_context(ctx)
 
-        self.assertTrue(state.model_changed_fields & {"started"})
-        self.assertTrue(job_state_consistent(state))
+    assert state.model_changed_fields == set()
+    assert job_state_consistent(state)
 
-        state.failed = True
+    state.started = True
+    assert state.model_changed_fields & {"started"}
+    assert job_state_consistent(state)
 
-        self.assertTrue(state.failed)
-        self.assertTrue(job_state_consistent(state))
+    state.model_reset_changed()
+    state.started = True
 
-        state.model_reset_changed()
-        self.assertEqual(state.model_changed_fields, set())
+    assert state.model_changed_fields & {"started"}
+    assert job_state_consistent(state)
 
-    def test_generated_message(self):
-        printer = PrinterState(config=self.client.config)
-        printer.provide_context(self.ctx)
-        state = printer.job_info
+    state.failed = True
 
-        self.assertEqual(state.model_changed_fields, set())
-        self.assertTrue(job_state_consistent(state))
+    assert state.failed
+    assert job_state_consistent(state)
 
-        self.assertEqual(dict(JobInfoMsg.build(printer)), {})
+    state.model_reset_changed()
+    assert state.model_changed_fields == set()
 
-        state.started = True
 
-        self.assertTrue(state.model_changed_fields & {"started"})
-        self.assertTrue(job_state_consistent(state))
+def test_generated_message(client, ctx):
+    printer = PrinterState(config=client.config)
+    printer.provide_context(ctx)
+    state = printer.job_info
 
-        msg = build_job_state_msg(printer)
-        self.assertDictEqual(
-            msg.model_dump(mode="json"), {"type": "job_info", "data": {"started": True}}
-        )
-        msg.reset_changes(printer)
-        self.assertEqual(state.model_changed_fields, set())
+    assert state.model_changed_fields == set()
+    assert job_state_consistent(state)
 
-        state.started = False
+    assert dict(JobInfoMsg.build(printer)) == {}
 
-        msg = build_job_state_msg(printer)
-        self.assertDictEqual(msg.model_dump(mode="json"), {"type": "job_info"})
-        msg.reset_changes(printer)
-        self.assertEqual(state.model_changed_fields, set())
+    state.started = True
 
-        state.cancelled = True
-        state.progress = 10
-        state.reprint = True
+    assert state.model_changed_fields & {"started"}
+    assert job_state_consistent(state)
 
-        msg = build_job_state_msg(printer)
+    msg = build_job_state_msg(printer)
+    assert msg.model_dump(mode="json") == {
+        "type": "job_info",
+        "data": {"started": True},
+    }
+    msg.reset_changes(printer)
+    assert state.model_changed_fields == set()
 
-        self.assertDictEqual(
-            msg.model_dump(mode="json"),
-            {
-                "type": "job_info",
-                "data": {"cancelled": True, "progress": 10, "reprint": 1},
-            },
-        )
+    state.started = False
 
-        msg.reset_changes(printer)
+    msg = build_job_state_msg(printer)
+    assert msg.model_dump(mode="json") == {"type": "job_info"}
+    msg.reset_changes(printer)
+    assert state.model_changed_fields == set()
 
-        self.assertEqual(state.model_changed_fields, set())
-        self.assertTrue(job_state_consistent(state))
+    state.cancelled = True
+    state.progress = 10
+    state.reprint = True
 
-        state.reprint = True
+    msg = build_job_state_msg(printer)
 
-        msg = build_job_state_msg(printer)
-        self.assertDictEqual(
-            msg.model_dump(mode="json"),
-            {"type": "job_info", "data": {"reprint": 1}},
-        )
+    assert msg.model_dump(mode="json") == {
+        "type": "job_info",
+        "data": {"cancelled": True, "progress": 10, "reprint": 1},
+    }
 
-        msg.reset_changes(printer)
-        self.assertEqual(state.model_changed_fields, set())
+    msg.reset_changes(printer)
 
-    def test_exclusive_field_auto_conv(self):
-        s = JobInfoState()
-        s.filename = "Hello"
+    assert state.model_changed_fields == set()
+    assert job_state_consistent(state)
 
-        self.assertTrue(isinstance(s.filename, Exclusive))
-        self.assertEqual(s.filename.root, "Hello")
+    state.reprint = True
+
+    msg = build_job_state_msg(printer)
+    assert msg.model_dump(mode="json") == {"type": "job_info", "data": {"reprint": 1}}
+
+    msg.reset_changes(printer)
+    assert state.model_changed_fields == set()
+
+
+def test_exclusive_field_auto_conv():
+    s = JobInfoState()
+    s.filename = "Hello"
+
+    assert isinstance(s.filename, Exclusive)
+    assert s.filename.root == "Hello"

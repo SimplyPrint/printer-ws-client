@@ -3,6 +3,7 @@ import json
 from typing import Optional, Union
 
 import aiohttp
+from aiohttp import ClientTimeout
 from yarl import URL
 
 from .url_builder import SimplyPrintURL
@@ -26,7 +27,10 @@ class SimplyPrintApi:
 
         async with aiohttp.ClientSession() as session:
             async with session.post(
-                str(endpoint), data=data, headers=headers, timeout=45
+                str(endpoint),
+                data=data,
+                headers=headers,
+                timeout=ClientTimeout(total=45),
             ) as response:
                 if response.status != 200:
                     raise Exception(f"Failed to post snapshot: {await response.text()}")
@@ -63,7 +67,10 @@ class SimplyPrintApi:
 
         async with aiohttp.ClientSession() as session:
             async with session.post(
-                str(endpoint), data=data, headers=headers, timeout=45
+                str(endpoint),
+                data=data,
+                headers=headers,
+                timeout=ClientTimeout(total=45),
             ) as response:
                 if response.status != 200:
                     raise Exception(f"Failed to post logs: {await response.text()}")
@@ -102,7 +109,10 @@ class SimplyPrintApi:
 
         async with aiohttp.ClientSession() as session:
             async with session.post(
-                str(endpoint), json=data, headers=headers, timeout=45
+                str(endpoint),
+                json=data,
+                headers=headers,
+                timeout=ClientTimeout(total=45),
             ) as response:
                 if response.status != 200:
                     raise Exception(f"Failed to clear bed: {await response.text()}")
@@ -135,7 +145,10 @@ class SimplyPrintApi:
 
         async with aiohttp.ClientSession() as session:
             async with session.post(
-                str(endpoint), json=data, headers=headers, timeout=45
+                str(endpoint),
+                json=data,
+                headers=headers,
+                timeout=ClientTimeout(total=45),
             ) as response:
                 if response.status != 200:
                     raise Exception(

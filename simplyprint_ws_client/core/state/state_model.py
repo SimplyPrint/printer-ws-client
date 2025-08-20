@@ -112,7 +112,7 @@ class StateModel(BaseModel):
         else:
             object.__setattr__(self, "ctx", ctx)
 
-        for field in self.model_fields:
+        for field in self.__class__.model_fields:
             value = getattr(self, field)
 
             if isinstance(value, StateModel):
@@ -157,7 +157,7 @@ class StateModel(BaseModel):
 
         changed_fields = set(self.model_self_changed_fields.keys())
 
-        for field_name, model_field in self.model_fields.items():
+        for field_name, model_field in self.__class__.model_fields.items():
             field_value = self.__dict__[field_name]
 
             if isinstance(field_value, StateModel) and field_value.model_has_changed:
@@ -187,7 +187,7 @@ class StateModel(BaseModel):
     def model_recursive_changeset(self) -> Dict[str, int]:
         changed_fields = self.model_self_changed_fields.copy()
 
-        for field_name, model_field in self.model_fields.items():
+        for field_name, model_field in self.__class__.model_fields.items():
             field_value = self.__dict__[field_name]
 
             if isinstance(field_value, StateModel) and (
@@ -254,7 +254,7 @@ class StateModel(BaseModel):
 
         # Ensure all fields exists
         for name in fields:
-            if name not in self.model_fields:
+            if name not in self.__class__.model_fields:
                 raise AttributeError(f"Field {name} not available in this model")
 
         return any(name in self.model_self_changed_fields for name in fields)
@@ -264,7 +264,7 @@ class StateModel(BaseModel):
 
         # Ensure all fields exists
         for name in fields:
-            if name not in self.model_fields:
+            if name not in self.__class__.model_fields:
                 raise AttributeError(f"Field {name} not available in this model")
 
         ctx = self.ctx()
@@ -298,7 +298,7 @@ class StateModel(BaseModel):
 
     @no_type_check
     def __setattr__(self, name, value) -> None:  # noqa: ANN001
-        contains_field = name in self.model_fields
+        contains_field = name in self.__class__.model_fields
 
         # Private attributes do not need to be handled
         # Same for non-model fields.
@@ -367,7 +367,7 @@ class StateModel(BaseModel):
     def model_update(
         self, other: TStateModel, exclude: Optional[Set[str]] = None
     ) -> None:
-        for field_name, model_field in self.model_fields.items():
+        for field_name, model_field in self.__class__.model_fields.items():
             if exclude and field_name in exclude:
                 continue
 

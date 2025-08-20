@@ -1,5 +1,4 @@
-import unittest
-import weakref
+import pytest
 
 from simplyprint_ws_client import (
     Client,
@@ -10,22 +9,23 @@ from simplyprint_ws_client import (
 )
 
 
-class TestMessageOrder(unittest.TestCase):
-    def setUp(self):
-        self.client = Client(PrinterConfig.get_new())
-        self.client.config.id = 1
-        self.client.config.in_setup = False
-        self.ctx = weakref.ref(self.client)
+@pytest.fixture
+def client():
+    client = Client(PrinterConfig.get_new())
+    client.config.id = 1
+    client.config.in_setup = False
+    return client
 
-    def test_message_order_simple(self):
-        msgs, _ = self.client.consume()
-        self.assertEqual(len(msgs), 0)
 
-        self.client.printer.job_info.started = True
-        self.client.printer.status = PrinterStatus.PRINTING
+def test_message_order_simple(client):
+    msgs, _ = client.consume()
+    assert len(msgs) == 0
 
-        # Assert the order of messages
-        msgs, _ = self.client.consume()
-        self.assertEqual(len(msgs), 2)
-        self.assertEqual(msgs[0].__class__, JobInfoMsg)
-        self.assertEqual(msgs[1].__class__, StateChangeMsg)
+    client.printer.job_info.started = True
+    client.printer.status = PrinterStatus.PRINTING
+
+    # Assert the order of messages
+    msgs, _ = client.consume()
+    assert len(msgs) == 2
+    assert msgs[0].__class__ == JobInfoMsg
+    assert msgs[1].__class__ == StateChangeMsg

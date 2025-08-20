@@ -105,6 +105,7 @@ from typing import (
     Generator,
     get_args,
     ClassVar,
+    Set,
 )
 
 from pydantic import (
@@ -694,7 +695,7 @@ class GcodeScriptsMsg(ClientMsg[Literal[ClientMsgType.GCODE_SCRIPTS]]): ...
 class MachineDataMsg(ClientMsg[Literal[ClientMsgType.INFO]]):
     @classmethod
     def build(cls, state: PrinterState) -> TClientMsgDataGenerator:
-        for key in state.info.model_fields:
+        for key in state.info.__class__.model_fields:
             yield key, getattr(state.info, key)
 
     def reset_changes(self, state: PrinterState, v: Optional[int] = None) -> None:
@@ -707,7 +708,7 @@ class WebcamStatusMsg(ClientMsg[Literal[ClientMsgType.WEBCAM_STATUS]]):
         yield "connected", state.webcam_info.connected
 
     def reset_changes(self, state: PrinterState, v: Optional[int] = None) -> None:
-        state.webcam_info.model_reset_changed()
+        state.webcam_info.model_reset_changed(v=v)
 
 
 class WebcamMsg(ClientMsg[Literal[ClientMsgType.WEBCAM]]):
@@ -738,7 +739,7 @@ class FirmwareMsg(ClientMsg[Literal[ClientMsgType.FIRMWARE]]):
             (
                 {
                     (f"firmware_{key}" if key != "name" else "firmware"): value
-                    for key in state.firmware.model_fields
+                    for key in state.firmware.__class__.model_fields
                     if (value := getattr(state.firmware, key)) is not None
                 }
             ),
@@ -973,8 +974,8 @@ class LogsSentMsg(ClientMsg[Literal[ClientMsgType.LOGS_SENT]]): ...
 
 
 class MaterialDataMsg(ClientMsg[Literal[ClientMsgType.MATERIAL_DATA]]):
-    _BED_FIELDS: ClassVar = {"type"}
-    _TOOL_FIELDS: ClassVar = {"nozzle", "type", "size"}
+    _BED_FIELDS: ClassVar[Set[str]] = {"type"}
+    _TOOL_FIELDS: ClassVar[Set[str]] = {"nozzle", "type", "volume_type", "size"}
 
     @classmethod
     def build(cls, state: PrinterState, is_refresh=False) -> TClientMsgDataGenerator:
@@ -1016,7 +1017,7 @@ class MaterialDataMsg(ClientMsg[Literal[ClientMsgType.MATERIAL_DATA]]):
                 ],
             )
 
-        materials = chain.from_iterable(map(lambda t: t.materials, state.tools))
+        materials = list(chain.from_iterable(map(lambda t: t.materials, state.tools)))
 
         if is_refresh or any(m.model_has_changed for m in materials):
             yield (

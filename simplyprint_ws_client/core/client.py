@@ -99,6 +99,7 @@ produce(
     "tools.*.materials",
     "tools.*.size",
     "tools.*.type",
+    "tools.*.volume_type",
     "bed.type",
     "mms_layout",
 )

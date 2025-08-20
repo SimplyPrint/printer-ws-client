@@ -9,6 +9,7 @@ __all__ = [
     "MultiMaterialSolution",
     "BedType",
     "NozzleType",
+    "VolumeType",
 ]
 
 import asyncio
@@ -99,7 +100,7 @@ class Intervals(BaseModel):
     _usages: Dict[str, Optional[int]] = PrivateAttr(...)
 
     def model_post_init(self, __context: Any) -> None:
-        self._usages = {key: None for key in self.model_fields.keys()}
+        self._usages = {key: None for key in self.__class__.model_fields.keys()}
 
     @staticmethod
     def now() -> int:
@@ -260,3 +261,8 @@ class NozzleType(Enum):
     RUBY_TIPPED = "ruby_tipped"
     HEMISPHERICAL = "hemispherical"
     CUSTOM = "custom"
+
+
+class VolumeType(Enum):
+    STANDARD = "standard"
+    HIGH_FLOW = "high_flow"

@@ -1,35 +1,35 @@
 """Test active_tool state changes -> ToolMsg flow."""
 
-import weakref
-from unittest import TestCase
+import pytest
 
 from simplyprint_ws_client import PrinterConfig, Client, ToolMsg
 
 
-class TestActiveTool(TestCase):
-    def setUp(self):
-        self.client = Client(PrinterConfig.get_new())
-        self.client.config.id = 1
-        self.client.config.in_setup = False
-        self.ctx = weakref.ref(self.client)
+@pytest.fixture
+def client():
+    client = Client(PrinterConfig.get_new())
+    client.config.id = 1
+    client.config.in_setup = False
+    return client
 
-    def test_active_tool_change(self):
-        changeset = self.client.printer.model_recursive_changeset
-        self.assertDictEqual(changeset, {})
 
-        # Change active tool
-        self.client.printer.active_tool = 1
+def test_active_tool_change(client):
+    changeset = client.printer.model_recursive_changeset
+    assert changeset == {}
 
-        messages, _ = self.client.consume()
+    # Change active tool
+    client.printer.active_tool = 1
 
-        self.assertEqual(len(messages), 1)
+    messages, _ = client.consume()
 
-        message = messages[0]
+    assert len(messages) == 1
 
-        self.assertEqual(message.__class__, ToolMsg)
-        self.assertDictEqual(message.data, {"new": 1})
+    message = messages[0]
 
-        message.reset_changes(self.client.printer)
+    assert message.__class__ == ToolMsg
+    assert message.data == {"new": 1}
 
-        changeset = self.client.printer.model_recursive_changeset
-        self.assertDictEqual(changeset, {})
+    message.reset_changes(client.printer)
+
+    changeset = client.printer.model_recursive_changeset
+    assert changeset == {}

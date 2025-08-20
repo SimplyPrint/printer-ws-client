@@ -40,7 +40,7 @@ class CameraController(SyncStoppable, Synchronized):
         self.stop()
 
     def poll(self):
-        if self.protocol.polling_mode() == CameraProtocolPollingMode.ON_DEMAND:
+        if self.protocol.polling_mode == CameraProtocolPollingMode.ON_DEMAND:
             self._exception_handler(self._read_frame)
             return
 
@@ -48,7 +48,7 @@ class CameraController(SyncStoppable, Synchronized):
         self.start()
 
     def start(self):
-        if self.protocol.polling_mode() != CameraProtocolPollingMode.CONTINUOUS:
+        if self.protocol.polling_mode != CameraProtocolPollingMode.CONTINUOUS:
             return
 
         if self._main_thread is not None and self._main_thread.is_alive():
@@ -73,7 +73,7 @@ class CameraController(SyncStoppable, Synchronized):
             self._pause_timer = None
 
     def _refresh_timer(self):
-        if self.protocol.polling_mode() != CameraProtocolPollingMode.CONTINUOUS:
+        if self.protocol.polling_mode != CameraProtocolPollingMode.CONTINUOUS:
             return
 
         if self._pause_timer:
@@ -86,7 +86,7 @@ class CameraController(SyncStoppable, Synchronized):
             self._pause_timer.start()
 
     def _read_frame(self):
-        """Read single frame"""
+        """Read a single frame"""
         for frame in self.protocol:
             self._frame_cb(frame)
             break
