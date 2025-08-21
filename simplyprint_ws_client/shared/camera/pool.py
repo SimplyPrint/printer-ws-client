@@ -223,22 +223,23 @@ class CameraPool(ProcessStoppable, Synchronized):
             process.thread.start()
 
     def _next_process_idx(self):
-        with self:
-            pool_size = self._pool_size()
+        # Requires ownership of self to call this function.
 
-            idx = self.__cur_idx
+        pool_size = self._pool_size()
 
-            if idx >= pool_size:
-                idx = 0
+        idx = self.__cur_idx
 
-            cur_process = self.processes[idx]
+        if idx >= pool_size:
+            idx = 0
 
-            # Keep allocating to the same process until it reaches the limit
-            if cur_process.count.value < _INSTANCES_PER_PROCESS:
-                return idx
+        cur_process = self.processes[idx]
 
-            self.__cur_idx = (self.__cur_idx + 1) % pool_size
+        # Keep allocating to the same process until it reaches the limit
+        if cur_process.count.value < _INSTANCES_PER_PROCESS:
             return idx
+
+        self.__cur_idx = (self.__cur_idx + 1) % pool_size
+        return idx
 
     def submit_request(self, req: Request):
         if req.id not in self.allocations:
@@ -285,13 +286,12 @@ class CameraPool(ProcessStoppable, Synchronized):
         if protocol is None:
             raise ValueError("No protocol found for URI")
 
-        # Allocate camera handle
+        # Allocate a camera handle
         with self:
             next_id = max(self.allocations.keys(), default=0) + 1
+            handle = CameraHandle(self, next_id)
+            self.allocations[next_id] = self._next_process_idx(), handle
 
-        handle = CameraHandle(self, next_id)
-
-        self.allocations[next_id] = self._next_process_idx(), handle
         self.submit_request(CreateCamera(next_id, protocol, **kwargs))
 
         return handle
