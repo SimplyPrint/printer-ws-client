@@ -295,6 +295,22 @@ class MaterialEntry(StateModel):
     hex: Optional[str] = None  # Material color hex code, e.g. "#FF0000"
     raw: Optional[dict] = None  # Vendor specific data
 
+    @property
+    def empty(self) -> bool:
+        """Check if the material entry is empty."""
+        return (
+            self.type is None
+            and self.color is None
+            and self.hex is None
+            and self.raw is None
+        )
+
+    def clear(self):
+        self.type = None
+        self.color = None
+        self.hex = None
+        self.raw = None
+
 
 class BedState(StateModel):
     type: Optional[str] = None
