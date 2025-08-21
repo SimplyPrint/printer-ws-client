@@ -80,12 +80,12 @@ class EventBusTestHelper:
 
 
 @pytest.fixture
-def event_helper():
+def event_helper() -> EventBusTestHelper:
     return EventBusTestHelper()
 
 
 @pytest.mark.asyncio
-async def test_custom_event_bus(event_helper):
+async def test_custom_event_bus(event_helper: EventBusTestHelper):
     assert len(event_helper.custom_event_bus.listeners[CustomEvent]) == 2
 
     await event_helper.custom_event_bus.emit("test", CustomEvent())
@@ -108,7 +108,7 @@ async def test_custom_event_bus(event_helper):
 
 
 @pytest.mark.asyncio
-async def test_default_event_bus(event_helper):
+async def test_default_event_bus(event_helper: EventBusTestHelper):
     await event_helper.default_event_bus.emit(ClientEvent())
     await event_helper.default_event_bus.emit(ConnectEvent("connected"))
     await event_helper.default_event_bus.emit(CustomEvent())

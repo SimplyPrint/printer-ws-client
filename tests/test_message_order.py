@@ -1,23 +1,12 @@
-import pytest
-
 from simplyprint_ws_client import (
     Client,
-    PrinterConfig,
     PrinterStatus,
     JobInfoMsg,
     StateChangeMsg,
 )
 
 
-@pytest.fixture
-def client():
-    client = Client(PrinterConfig.get_new())
-    client.config.id = 1
-    client.config.in_setup = False
-    return client
-
-
-def test_message_order_simple(client):
+def test_message_order_simple(client: Client):
     msgs, _ = client.consume()
     assert len(msgs) == 0
 

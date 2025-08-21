@@ -24,17 +24,18 @@ def build_job_state_msg(state: PrinterState) -> JobInfoMsg:
 
 
 @pytest.fixture
-def client():
+def job_client() -> Client:
+    """Client fixture specific to job info tests (without id/in_setup setup)."""
     client = Client(PrinterConfig.get_new())
     return client
 
 
 @pytest.fixture
-def ctx(client):
-    return weakref.ref(client)
+def ctx(job_client: Client):
+    return weakref.ref(job_client)
 
 
-def test_exclusivity(client, ctx):
+def test_exclusivity(job_client: Client, ctx):
     state = JobInfoState()
     state.provide_context(ctx)
 
@@ -60,8 +61,8 @@ def test_exclusivity(client, ctx):
     assert state.model_changed_fields == set()
 
 
-def test_generated_message(client, ctx):
-    printer = PrinterState(config=client.config)
+def test_generated_message(job_client: Client, ctx):
+    printer = PrinterState(config=job_client.config)
     printer.provide_context(ctx)
     state = printer.job_info
 

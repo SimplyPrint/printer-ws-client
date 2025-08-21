@@ -4,17 +4,9 @@ from itertools import chain
 
 import pytest
 
-from simplyprint_ws_client import Client, PrinterConfig, MaterialDataMsg
+from simplyprint_ws_client import Client, MaterialDataMsg
 from simplyprint_ws_client.core.state import MaterialLayoutEntry
 from simplyprint_ws_client.core.state.models import VolumeType, NozzleType
-
-
-@pytest.fixture
-def client():
-    client = Client(PrinterConfig.get_new())
-    client.config.id = 1
-    client.config.in_setup = False
-    return client
 
 
 @pytest.mark.parametrize(
@@ -25,7 +17,7 @@ def client():
         ("tools.*.type", NozzleType.HARDENED_STEEL, "nozzles"),
     ],
 )
-def test_producer_triggers(client, field, value, expected_data_key):
+def test_producer_triggers(client: Client, field, value, expected_data_key):
     """Test that producer-configured fields trigger MaterialDataMsg."""
     changeset = client.printer.model_recursive_changeset
     assert changeset == {}
@@ -56,7 +48,7 @@ def test_producer_vs_fields_inconsistency():
     assert MaterialDataMsg._BED_FIELDS == {"type"}
 
 
-def test_materials_chain_iterator_bug(client):
+def test_materials_chain_iterator_bug(client: Client):
     """Test the bug fix: materials iterator consumption in chain.from_iterable."""
     # Set up multiple tools
     client.printer.tool_count = 2
@@ -85,7 +77,7 @@ def test_materials_chain_iterator_bug(client):
     assert changeset == {}
 
 
-def test_mms_layout_changes(client):
+def test_mms_layout_changes(client: Client):
     """Test mms_layout changes trigger MaterialDataMsg."""
     client.printer.update_mms_layout([MaterialLayoutEntry(nozzle=0, size=4)])
 
@@ -100,7 +92,7 @@ def test_mms_layout_changes(client):
     assert changeset == {}
 
 
-def test_refresh_mode_includes_all_sections(client):
+def test_refresh_mode_includes_all_sections(client: Client):
     """Test is_refresh=True includes all message sections."""
     msg = MaterialDataMsg(
         data=dict(MaterialDataMsg.build(client.printer, is_refresh=True))
@@ -114,7 +106,7 @@ def test_refresh_mode_includes_all_sections(client):
     assert "materials" in msg.data
 
 
-def test_reset_changes_mirrors_producer_fields(client):
+def test_reset_changes_mirrors_producer_fields(client: Client):
     """Test that reset_changes clears exactly the fields that producer watches."""
     # Make changes to all producer-watched fields
     client.printer.bed.type = "PLA"

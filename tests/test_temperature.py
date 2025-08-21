@@ -1,19 +1,9 @@
 """Test Temperature state + index based state producer rules with * as index."""
 
-import pytest
-
-from simplyprint_ws_client import PrinterConfig, Client, TemperatureMsg
+from simplyprint_ws_client import Client, TemperatureMsg
 
 
-@pytest.fixture
-def client():
-    client = Client(PrinterConfig.get_new())
-    client.config.id = 1
-    client.config.in_setup = False
-    return client
-
-
-def test_tool0_temperature(client):
+def test_tool0_temperature(client: Client):
     tool0 = client.printer.tool0
 
     changeset = client.printer.model_recursive_changeset
@@ -57,7 +47,7 @@ def test_tool0_temperature(client):
     assert changeset == {}
 
 
-def test_multiple_tools_temperatures(client):
+def test_multiple_tools_temperatures(client: Client):
     client.printer.tool_count = 2
     tool0 = client.printer.tools[0]
     tool1 = client.printer.tools[1]

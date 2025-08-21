@@ -1,4 +1,5 @@
 import time
+from typing import List
 
 import pytest
 
@@ -6,12 +7,12 @@ from simplyprint_ws_client.shared.files.file_manager import File, FileManager
 
 
 @pytest.fixture
-def test_time():
+def test_time() -> int:
     return int(time.time())
 
 
 @pytest.fixture
-def test_files(test_time):
+def test_files(test_time: int) -> List[File]:
     return [
         File("test1.gcode", 100, last_modified=test_time - 1000),
         File("test2.gcode", 200, last_modified=test_time - 2000),
@@ -21,7 +22,7 @@ def test_files(test_time):
     ]
 
 
-def test_file_manager(test_files, test_time):
+def test_file_manager(test_files: List[File], test_time: int):
     fm = FileManager(
         max_age=1001,
         max_count=2,
@@ -39,7 +40,7 @@ def test_file_manager(test_files, test_time):
     ]
 
 
-def test_file_manager_max_age(test_files, test_time):
+def test_file_manager_max_age(test_files: List[File], test_time: int):
     fm = FileManager(
         max_age=1001, max_count=0, max_size=0, least_remaining_space_percentage=0
     )
@@ -53,7 +54,7 @@ def test_file_manager_max_age(test_files, test_time):
     ]
 
 
-def test_file_manager_max_count(test_files, test_time):
+def test_file_manager_max_count(test_files: List[File], test_time: int):
     fm = FileManager(
         max_age=0, max_count=2, max_size=0, least_remaining_space_percentage=0
     )
@@ -67,7 +68,7 @@ def test_file_manager_max_count(test_files, test_time):
     ]
 
 
-def test_file_manager_max_size(test_files, test_time):
+def test_file_manager_max_size(test_files: List[File], test_time: int):
     fm = FileManager(
         max_age=0, max_count=0, max_size=250, least_remaining_space_percentage=0
     )
@@ -81,7 +82,9 @@ def test_file_manager_max_size(test_files, test_time):
     ]
 
 
-def test_file_manager_least_remaining_space_percentage(test_files, test_time):
+def test_file_manager_least_remaining_space_percentage(
+    test_files: List[File], test_time: int
+):
     fm = FileManager(
         max_age=0, max_count=0, max_size=0, least_remaining_space_percentage=1
     )
