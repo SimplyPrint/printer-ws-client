@@ -134,9 +134,6 @@ def test_reset_changes_mirrors_producer_fields(client):
     msg = MaterialDataMsg(data=dict(MaterialDataMsg.build(client.printer)))
     msg.reset_changes(client.printer)
 
-    # Producer-watched fields should be reset
     assert not client.printer.bed.model_has_changes("type")
     assert not client.printer.tool0.model_has_changes("size", "type")
-
-    # Non-producer fields should still have changes (this confirms reset is selective)
-    assert client.printer.tool0.model_has_changes("volume_type")
+    assert not client.printer.tool0.model_has_changes("volume_type")
