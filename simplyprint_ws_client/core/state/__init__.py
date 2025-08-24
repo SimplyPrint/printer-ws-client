@@ -46,7 +46,7 @@ from typing import (
     Any,
 )
 
-from pydantic import Field, PrivateAttr
+from pydantic import Field, PrivateAttr, BaseModel
 
 from .exclusive import Exclusive
 from .models import (
@@ -222,6 +222,10 @@ class JobInfoState(StateModel, validate_assignment=True):
     # Mark a print job as a reprint of a previous (not-cleared) job from the client.
     reprint: Optional[Exclusive[int]] = None
 
+    # List of object ids that have been skipped.
+    # Can be both delta or full list, when set it is sent.
+    skipped_objects: Optional[List[Union[int, str]]] = None
+
     MUTUALLY_EXCLUSIVE_FIELDS: ClassVar[Set[str]] = {
         "started",
         "finished",
@@ -267,6 +271,27 @@ class WebcamSettings(StateModel):
     flipH: bool = False
     flipV: bool = False
     rotate90: bool = False
+
+
+class JobObjectEntry(StateModel):
+    """A skip-able object definition to share with SimplyPrint."""
+
+    class PrintProgressPoint(BaseModel):
+        layer: Optional[int] = None
+        percentage: Optional[float] = None
+
+    id: Optional[Union[int, str]] = None
+    name: Optional[str] = None
+    bbox: Optional[List[float]] = None
+    outline: Optional[List[List[float]]] = None
+    area: Optional[float] = None
+    instance: Optional[int] = None
+    center: Optional[List[float]] = None
+    time: Optional[int] = None
+    layer_height: Optional[float] = None
+    filament_usage: Optional[List[float]] = None
+    prints_from: Optional[PrintProgressPoint] = None
+    prints_to: Optional[PrintProgressPoint] = None
 
 
 class MaterialLayoutEntry(StateModel):

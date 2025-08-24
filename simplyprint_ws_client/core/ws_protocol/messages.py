@@ -177,6 +177,7 @@ class DemandMsgType(StrEnum):
     SET_PRINTER_PROFILE = "set_printer_profile"
     SET_MATERIAL_DATA = "set_material_data"
     REFRESH_MATERIAL_DATA = "refresh_material_data"
+    SKIP_OBJECTS = "skip_objects"
     GET_GCODE_SCRIPT_BACKUPS = "get_gcode_script_backups"
     HAS_GCODE_CHANGES = "has_gcode_changes"
     PSU_KEEPALIVE = "psu_keepalive"
@@ -420,8 +421,9 @@ class FileDemandData(BaseModel):
     file_id: Optional[str] = None
     file_size: Optional[int] = None
     start_options: Dict[str, Union[bool, str]] = Field(default_factory=dict)
-    zip_printable: Optional[str] = None
     mms_map: Optional[List[MMSMapEntry]] = None
+    zip_printable: Optional[str] = None
+    skip_objects: Optional[List[Union[str, int]]] = None
     action_token: Optional[str] = None
 
 
@@ -507,6 +509,11 @@ class RefreshMaterialDataDemandData(BaseModel):
     )
 
 
+class SkipObjectsDemandData(BaseModel):
+    demand: Literal[DemandMsgType.SKIP_OBJECTS] = DemandMsgType.SKIP_OBJECTS
+    objects: List[Union[str, int]] = Field(default_factory=list)
+
+
 class GetGcodeScriptBackupsDemandData(BaseModel):
     demand: Literal[DemandMsgType.GET_GCODE_SCRIPT_BACKUPS] = (
         DemandMsgType.GET_GCODE_SCRIPT_BACKUPS
@@ -588,6 +595,7 @@ DemandMsgKind = Union[
     SetPrinterProfileDemandData,
     SetMaterialDataDemandData,
     RefreshMaterialDataDemandData,
+    SkipObjectsDemandData,
     GetGcodeScriptBackupsDemandData,
     HasGcodeChangesDemandData,
     PsuKeepaliveDemandData,
