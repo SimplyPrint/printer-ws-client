@@ -222,6 +222,8 @@ class JobInfoState(StateModel, validate_assignment=True):
     # Mark a print job as a reprint of a previous (not-cleared) job from the client.
     reprint: Optional[Exclusive[int]] = None
 
+    # Current object being printed, if known (not used currently).
+    object: Optional[Exclusive[Union[int, str]]] = None
     # List of object ids that have been skipped.
     # Can be both delta or full list, when set it is sent.
     skipped_objects: Optional[List[Union[int, str]]] = None
