@@ -14,7 +14,7 @@ keywords = [
 dependencies = [
     "click>=8.1.7,<9",
     "psutil>=6.0.0,<7",
-    "netifaces>=0.11.0,<0.12",
+    "netifaces-plus==0.12.4",
     "sentry-sdk>=2.19.2,<3",
     "platformdirs>=4.3.6,<5",
     "pydantic>=2.10",
