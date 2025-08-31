@@ -40,7 +40,15 @@ class ClientView(Emitter, MutableSet[Client], Hashable):
 
     async def _emit_all(self, event: Union[Hashable, TEvent], *args, **kwargs) -> None:
         for client in self:
-            await client.event_bus.emit(event, *args, **kwargs)
+            try:
+                await client.event_bus.emit(event, *args, **kwargs)
+            except Exception as e:
+                self.logger.error(
+                    "Error when handling event %s for client %s:",
+                    event,
+                    client.unique_id,
+                    exc_info=e,
+                )
 
     async def emit(self, event: Union[Hashable, TEvent], *args, **kwargs) -> None:
         # Only handle connection events when we have at least one client.
@@ -82,7 +90,15 @@ class ClientView(Emitter, MutableSet[Client], Hashable):
             if client_id not in self.clients:
                 return
 
-            await self.client_list[client_id].event_bus.emit(event, *args, **kwargs)
+            try:
+                await self.client_list[client_id].event_bus.emit(event, *args, **kwargs)
+            except Exception as e:
+                self.logger.error(
+                    "Error when handling event %s for client %s:",
+                    event,
+                    client_id,
+                    exc_info=e,
+                )
 
             return
 

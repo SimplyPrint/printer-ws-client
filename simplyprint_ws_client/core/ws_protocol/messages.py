@@ -88,6 +88,7 @@ __all__ = [
     "LogsSentMsg",
     "MaterialDataMsg",
     "NotificationDataMsg",
+    "ObjectsMsg",
 ]
 
 from enum import StrEnum, IntEnum
@@ -228,6 +229,7 @@ class ClientMsgType(StrEnum):
     FILAMENT_SENSOR = "filament_sensor"
     MATERIAL_DATA = "material_data"
     NOTIFICATION = "notification"
+    OBJECTS = "objects"
 
     def when_pending(self) -> bool:
         # Allowed messages for a pending printer connection
@@ -1055,3 +1057,10 @@ class MaterialDataMsg(ClientMsg[Literal[ClientMsgType.MATERIAL_DATA]]):
 class NotificationDataMsg(ClientMsg[Literal[ClientMsgType.NOTIFICATION]]):
     def __init__(self, notification_type: Literal["simple"], contents: dict):
         super().__init__(data={"type": notification_type, "contents": contents})
+
+
+class ObjectsMsg(ClientMsg[Literal[ClientMsgType.OBJECTS]]):
+    """Raw objects data support"""
+
+    def __init__(self, data: dict):
+        super().__init__(data=data)
