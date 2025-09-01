@@ -138,8 +138,8 @@ class AmbientTemperatureState(StateModel):
         now = time.time()
 
         if (
-            self._last_update is not None
-            and now - self._last_update < self._update_interval
+                self._last_update is not None
+                and now - self._last_update < self._update_interval
         ):
             return
 
@@ -322,10 +322,10 @@ class MaterialEntry(StateModel):
     def empty(self) -> bool:
         """Check if the material entry is empty."""
         return (
-            self.type is None
-            and self.color is None
-            and self.hex is None
-            and self.raw is None
+                self.type is None
+                and self.color is None
+                and self.hex is None
+                and self.raw is None
         )
 
     def clear(self):
@@ -406,7 +406,7 @@ class JobObjectEntry(StateModel):
 
 
 class NotificationEvent(StateModel):
-    event_id: uuid.UUID | None = None
+    event_id: Optional[uuid.UUID] = None
     type: NotificationEventType = NotificationEventType.SIMPLE
     severity: NotificationEventSeverity = NotificationEventSeverity.INFO
     title: Optional[str] = None
@@ -448,7 +448,7 @@ class NotificationsState(StateModel):
         return event
 
     def keyed(
-        self, *args, event_id: Never = ..., **kwargs: Unpack[NotificationEvent]
+            self, *args, event_id: Never = ..., **kwargs: Unpack[NotificationEvent]
     ) -> NotificationEvent:
         """Create new managed persistent reference to event, which is tied to some external object state (args)"""
         if not args:
