@@ -10,19 +10,23 @@ __all__ = [
     "BedType",
     "NozzleType",
     "VolumeType",
+    "NotificationEventSeverity",
+    "NotificationEventType",
+    "NotificationEventActionType",
+    "NotificationEventAction",
 ]
 
 import asyncio
 import time
 from enum import IntEnum, StrEnum, Enum
-from typing import Optional, Dict, Any, Literal
+from typing import Optional, Dict, Any, Literal, Generic, TypeVar, Union
 
-from pydantic import BaseModel, PrivateAttr
+from pydantic import BaseModel, PrivateAttr, Field
 
 try:
-    from typing import Self
+    from typing import Self, Annotated
 except ImportError:
-    from typing_extensions import Self
+    from typing_extensions import Self, Annotated
 
 
 class PrinterCpuFlag(IntEnum):
@@ -266,3 +270,42 @@ class NozzleType(Enum):
 class VolumeType(Enum):
     STANDARD = "standard"
     HIGH_FLOW = "high_flow"
+
+
+class NotificationEventSeverity(IntEnum):
+    INFO = 1
+    WARNING = 2
+    ERROR = 3
+
+
+class NotificationEventType(StrEnum):
+    SIMPLE = "simple"
+
+
+class NotificationEventActionType(StrEnum):
+    BUTTON = "button"
+
+
+_ActionType = TypeVar("_ActionType", bound=NotificationEventActionType)
+
+
+class NotificationEventAction(BaseModel, Generic[_ActionType]):
+    type: _ActionType
+
+
+class NotificationEventButtonAction(
+    NotificationEventAction[Literal[NotificationEventActionType.BUTTON]]
+):
+    type: Literal[NotificationEventActionType.BUTTON] = (
+        NotificationEventActionType.BUTTON
+    )
+    label: str
+
+
+NotificationEventActions = Annotated[
+    Union[NotificationEventButtonAction], Field(discriminator="type")
+]
+
+
+class NotificationActionResponse(BaseModel):
+    name: str

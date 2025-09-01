@@ -1,3 +1,5 @@
+import pytest
+
 from simplyprint_ws_client import (
     ClientSettings,
     DefaultClient,
@@ -6,22 +8,38 @@ from simplyprint_ws_client import (
 )
 
 
-def test_virtual_client():
-    client_settings = ClientSettings(
+@pytest.fixture
+def app():
+    settings = ClientSettings(
         DefaultClient,
         PrinterConfig,
         camera_workers=0,
     )
 
+    app = ClientApp(settings)
+    app.run_detached()
+    yield app
+    app.stop()
+
+
+def test_virtual_client(app: ClientApp):
     config = PrinterConfig.get_new()
-
-    client_app = ClientApp(client_settings)
-
-    client = client_app.add(config)
-
-    client_app.run_detached()
-    client_app.wait(2)
-
+    client = app.add(config)
+    app.wait(2)
     assert client.config.short_id is not None
 
-    client_app.stop()
+
+def test_single_connection_active_flag(app: ClientApp):
+    config = PrinterConfig.get_new()
+    client = app.add(config)
+    app.wait(2)
+    assert client.config.short_id is not None
+    assert client.is_added(), "Client should be added after being activated."
+
+    client.active = False
+    app.wait(2)
+    assert not client.is_added(), "Client should be removed after being deactivated."
+
+    client.active = True
+    app.wait(2)
+    assert client.is_added(), "Client should be added after being re-activated."

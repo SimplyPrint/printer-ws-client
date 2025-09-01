@@ -11,20 +11,23 @@ __all__ = [
 import asyncio
 import logging
 import weakref
-from abc import ABC, ABCMeta
+from abc import ABC
 from datetime import timedelta, datetime
 from enum import IntEnum
 from typing import NamedTuple, Optional, Union, Generic, TypeVar, cast
 
-from ._event_instrumentation import (
-    autoconfigure_class_dict,
-    produce,
+try:
+    from typing import Unpack, Never
+except ImportError:
+    from typing_extensions import Unpack, Never
+
+from .autowire import (
     configure,
-    instrument,
-    consume,
+    autowire,
+    AutowireClientMeta,
 )
 from .config import PrinterConfig
-from .state import PrinterState
+from .state import PrinterState, NotificationEvent
 from .ws_protocol.connection import ConnectionMode
 from .ws_protocol.events import (
     ConnectionOutgoingEvent,
@@ -34,6 +37,22 @@ from .ws_protocol.events import (
 )
 from .ws_protocol.messages import (
     SetMaterialDataDemandData,
+    MaterialDataMsg,
+    MultiPrinterRemoveConnectionMsg,
+    MultiPrinterRemovedMsg,
+    MultiPrinterAddedMsg,
+    PingMsg,
+    PrinterSettingsMsg,
+    IntervalChangeMsg,
+    CompleteSetupMsg,
+    NewTokenMsg,
+    ErrorMsg,
+    ConnectedMsg,
+    FileDemandData,
+    WebcamSnapshotDemandData,
+    ClientMsg,
+    ServerMsgKind,
+    MultiPrinterAddConnectionMsg,
     MachineDataMsg,
     WebcamStatusMsg,
     WebcamMsg,
@@ -49,27 +68,16 @@ from .ws_protocol.messages import (
     FilamentSensorMsg,
     PowerControllerMsg,
     CpuInfoMsg,
-    MaterialDataMsg,
-    MultiPrinterRemoveConnectionMsg,
-    ServerMsgType,
-    MultiPrinterRemovedMsg,
-    MultiPrinterAddedMsg,
-    PingMsg,
-    PrinterSettingsMsg,
-    IntervalChangeMsg,
-    CompleteSetupMsg,
-    NewTokenMsg,
-    ErrorMsg,
-    ConnectedMsg,
-    DemandMsgType,
-    FileDemandData,
-    WebcamSnapshotDemandData,
-    ClientMsg,
-    DispatchMode,
-    ClientMsgType,
-    ServerMsgKind,
-    MultiPrinterAddConnectionMsg,
+    NotificationMsg,
+    NotificationActionDemandData,
 )
+from .ws_protocol.models import (
+    ServerMsgType,
+    ClientMsgType,
+    DispatchMode,
+    DemandMsgType,
+)
+
 from ..events import EventBus, Event
 from ..events.event import sync_only
 from ..shared.asyncio.event_loop_provider import EventLoopProvider
@@ -78,44 +86,10 @@ from ..shared.logging import ClientName
 from ..shared.sp.simplyprint_api import SimplyPrintApi
 from ..shared.utils.backoff import Backoff, ExponentialBackoff
 
-# Map message producers
-produce(MachineDataMsg, "info")
-produce(WebcamStatusMsg, "webcam_info.connected")
-produce(WebcamMsg, "webcam_settings")
-produce(FirmwareMsg, "firmware")
-produce(FirmwareWarningMsg, "firmware_warning")
-produce(ToolMsg, "active_tool", "tools.*.active_material")
-produce(TemperatureMsg, "bed.temperature", "tools.*.temperature")
-produce(AmbientTemperatureMsg, "ambient_temperature.ambient")
-produce(StateChangeMsg, "status")
-produce(JobInfoMsg, "job_info")
-produce(LatencyMsg, "latency.pong")
-produce(FileProgressMsg, "file_progress")
-produce(FilamentSensorMsg, "filament_sensor")
-produce(PowerControllerMsg, "psu_info")
-produce(CpuInfoMsg, "cpu_info")
-produce(
-    MaterialDataMsg,
-    "tools.*.materials",
-    "tools.*.size",
-    "tools.*.type",
-    "tools.*.volume_type",
-    "bed.type",
-    "mms_layout",
-)
-
-
-class InstrumentClientMeta(ABCMeta):
-    """On type creation, autoconfigure the class dictionary."""
-
-    def __new__(cls, name, bases, class_dict, **kwargs):
-        autoconfigure_class_dict(class_dict)
-        return super().__new__(cls, name, bases, class_dict, **kwargs)
-
 
 class ClientState(IntEnum):
     """
-    CONNECTING -> Connection not established, pending establishment.
+    CONNECTING -> Connection not established, pending establishing.
     NOT_CONNECTED -> Connection established, not connected.
     PENDING_ADDED -> Connection established, pending add request.
     PENDING_REMOVE -> Connection established, pending remove request.
@@ -145,12 +119,45 @@ class ClientStateChangeEvent(Event): ...
 
 TConfig = TypeVar("TConfig", bound=PrinterConfig)
 
+# Map message producers
+
+_CLIENT_MSG_PRODUCERS = {
+    MachineDataMsg: ["info"],
+    WebcamStatusMsg: ["webcam_info.connected"],
+    WebcamMsg: ["webcam_settings"],
+    FirmwareMsg: ["firmware"],
+    FirmwareWarningMsg: ["firmware_warning"],
+    ToolMsg: ["active_tool", "tools.*.active_material"],
+    TemperatureMsg: ["bed.temperature", "tools.*.temperature"],
+    AmbientTemperatureMsg: ["ambient_temperature.ambient"],
+    StateChangeMsg: ["status"],
+    JobInfoMsg: ["job_info"],
+    LatencyMsg: ["latency.pong"],
+    FileProgressMsg: ["file_progress"],
+    FilamentSensorMsg: ["filament_sensor"],
+    PowerControllerMsg: ["psu_info"],
+    CpuInfoMsg: ["cpu_info"],
+    MaterialDataMsg: [
+        "tools.*.materials",
+        "tools.*.size",
+        "tools.*.type",
+        "tools.*.volume_type",
+        "bed.type",
+        "mms_layout",
+    ],
+    NotificationMsg: [
+        "notifications.notifications",
+    ],
+}
+
+_CLIENT_MSG_MAP = {k: v for v, keys in _CLIENT_MSG_PRODUCERS.items() for k in keys}
+
 
 class Client(
     ABC,
     Generic[TConfig],
     EventLoopProvider[asyncio.AbstractEventLoop],
-    metaclass=InstrumentClientMeta,
+    metaclass=AutowireClientMeta,
 ):
     """A scheduling unit.
 
@@ -167,7 +174,7 @@ class Client(
         _pending_action_backoff: Backoff for pending actions
         _pending_action_delay: Delay for pending actions
         _pending_action_ts: Timestamp of last pending action
-        _pending_action_log_ts: Timestamp of last pending action log, so to limit log spam
+        _pending_action_log_ts: Timestamp of the last pending action log, so to limit log spam
     """
 
     v: int = -1
@@ -201,7 +208,7 @@ class Client(
         self.printer = PrinterState(config=config)
         self.printer.provide_context(weakref.ref(self))
         self.logger = logging.getLogger(ClientName(self))
-        instrument(self)
+        autowire(self)
 
     @property
     def unique_id(self) -> Union[str, int]:
@@ -268,12 +275,13 @@ class Client(
     async def ensure_removed(self, mode: ConnectionMode) -> bool:
         """Ensure that the client is removed from the multi printer.
         Here the goal is different based on the connection mode.
-        For single mode the goal is to be disconnected.
+        For single mode we can always disconnect the connection, so we just return true.
         For multi-printer mode the goal is to be removed.
         """
 
+        # In single mode we do not need to do anything here.
         if mode == ConnectionMode.SINGLE:
-            return self.state == ClientState.CONNECTING
+            return True
 
         if self.state == ClientState.CONNECTED and self._can_do_pending():
             self.state = ClientState.PENDING_REMOVED
@@ -309,9 +317,54 @@ class Client(
         self.event_bus.emit_sync(ClientStateChangeEvent)
 
     def consume(self):
-        """Consume list of pending messages."""
+        """Consume the list of pending messages."""
         self.last_msg_id = self.msg_id
-        return consume(self.printer)
+
+        changes = self.printer.model_recursive_changeset
+        msg_kinds = {}
+
+        # Build a unique map of message kinds together with their highest version.
+        for k, v in changes.items():
+            if k not in _CLIENT_MSG_MAP:
+                continue
+
+            msg_kind = _CLIENT_MSG_MAP.get(k)
+            current = msg_kinds.get(msg_kind)
+
+            if current is None:
+                msg_kinds[msg_kind] = (v, v)
+                continue
+
+            lowest, highest = current
+            msg_kinds[msg_kind] = (min(lowest, v), max(highest, v))
+
+        is_pending = self.printer.config.is_pending()
+
+        msgs = []
+
+        # Sort by the lowest version.
+        for msg_kind, (lowest, highest) in sorted(
+            msg_kinds.items(), key=lambda item: item[1][0]
+        ):
+            # Skip over messages that are not allowed to be sent when pending.
+            if is_pending and not msg_kind.msg_type().when_pending():
+                continue
+
+            data = dict(msg_kind.build(self.printer))
+
+            if not data:
+                continue
+
+            msg = msg_kind(data)
+
+            # Skip over messages that are not supposed to be sent.
+            if msg.dispatch_mode(self.printer) != DispatchMode.DISPATCH:
+                continue
+
+            msgs.append(msg)
+            msg.reset_changes(self.printer, v=highest)
+
+        return msgs, -1  # max(v for _, v in msg_kinds)
 
     # internal methods
 
@@ -455,6 +508,15 @@ class DefaultClient(Client[TConfig], ABC):
         except Exception as e:
             self.logger.warning("Failed to start next print: %s", e)
 
+    async def push_notification(
+        self, event_id: Never = ..., **kwargs: Unpack[NotificationEvent]
+    ):
+        """
+        Push unmanaged notification, no response available, no event_id available.
+        Alternatively use the notification state to manage persistent notifications.
+        """
+        await self.send(NotificationMsg(data={"events": [NotificationEvent(**kwargs)]}))
+
     # Default event handling.
 
     @configure(ServerMsgType.ERROR, priority=1)
@@ -534,6 +596,13 @@ class DefaultClient(Client[TConfig], ABC):
                 data=dict(MaterialDataMsg.build(self.printer, is_refresh=True))
             )
         )
+
+    @configure(DemandMsgType.NOTIFICATION_ACTION, priority=1)
+    async def _on_notification_action(self, data: NotificationActionDemandData):
+        event = self.printer.notifications.notifications.get(data.event_id)
+
+        if data.action.name == "resolve":
+            event.resolve()
 
 
 class PhysicalClient(DefaultClient[TConfig], ABC):

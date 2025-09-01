@@ -8,32 +8,191 @@ Supports two functionalities.
 
 """
 
-__all__ = ["ClientConnectionManager"]
+__all__ = ["ClientConnectionManager", "ClientList", "ClientView"]
 
 import asyncio
 import functools
 import logging
 from datetime import timedelta
-from typing import final, Dict, Optional, Set, cast, Iterable
+from typing import Union, Dict, Mapping
+from typing import final, Optional, Set, cast, Iterable, MutableSet, Hashable
 
-from .client import Client, ClientState
-from .client_list import ClientList, TUniqueId
-from .client_view import ClientView
+from .client import Client
+from .client import ClientState
 from .config import PrinterConfig
-from .ws_protocol.connection import ConnectionMode, Connection, ConnectionHint
+from .ws_protocol.connection import ConnectionHint
+from .ws_protocol.connection import ConnectionMode, Connection
+from .ws_protocol.events import ConnectionIncomingEvent, ConnectionEstablishedEvent
 from .ws_protocol.events import (
     ConnectionOutgoingEvent,
-    ConnectionIncomingEvent,
-    ConnectionEstablishedEvent,
     ConnectionLostEvent,
     ConnectionSuspectEvent,
 )
 from .ws_protocol.messages import ClientMsg
+from .ws_protocol.messages import (
+    MultiPrinterAddedMsg,
+    MultiPrinterRemovedMsg,
+    Msg,
+    ConnectedMsg,
+)
 from ..const import APP_DIRS
+from ..events.emitter import Emitter, TEvent
 from ..events.event_bus_listeners import ListenerUniqueness
 from ..shared.asyncio.event_loop_provider import EventLoopProvider
 from ..shared.debug.connectivity import ConnectivityReport
 from ..shared.utils.stoppable import AsyncStoppable
+
+TUniqueId = Union[str, int]
+
+
+class ClientList(Mapping[Union[TUniqueId, Client, PrinterConfig], Client]):
+    clients: Dict[TUniqueId, Client]
+
+    def __init__(self):
+        self.clients = {}
+
+    def add(self, client: Client):
+        self.clients[client.unique_id] = client
+
+    def remove(self, client: Client):
+        del self.clients[client.unique_id]
+
+    def __contains__(self, key):
+        if isinstance(key, (Client, PrinterConfig)):
+            key = key.unique_id
+
+        return key in self.clients
+
+    def __getitem__(self, key, /):
+        if isinstance(key, (Client, PrinterConfig)):
+            key = key.unique_id
+
+        return self.clients[key]
+
+    def __len__(self):
+        return len(self.clients)
+
+    def __iter__(self):
+        return iter(self.clients)
+
+
+class ClientView(Emitter, MutableSet[Client], Hashable):
+    """View over a set of clients, deals with connection message routing."""
+
+    mode: ConnectionMode
+    connection: Connection
+    client_list: ClientList
+    clients: Set[TUniqueId]
+    logger: logging.Logger
+
+    def __init__(
+        self,
+        mode: ConnectionMode,
+        connection: Connection,
+        client_list: ClientList,
+        logger=logging.getLogger(__name__),
+    ):
+        self.mode = mode
+        self.connection = connection
+        self.client_list = client_list
+        self.clients = set()
+        self.logger = logger
+
+    async def _emit_all(self, event: Union[Hashable, TEvent], *args, **kwargs) -> None:
+        for client in self:
+            try:
+                await client.event_bus.emit(event, *args, **kwargs)
+            except Exception as e:
+                self.logger.error(
+                    "Error when handling event %s for client %s:",
+                    event,
+                    client.unique_id,
+                    exc_info=e,
+                )
+
+    async def emit(self, event: Union[Hashable, TEvent], *args, **kwargs) -> None:
+        # Only handle connection events when we have at least one client.
+        if len(self) == 0:
+            return
+
+        is_multi_mode = self.mode == ConnectionMode.MULTI
+
+        # Custom handling for incoming messages
+        # when we have multiple clients.
+        if is_multi_mode and event == ConnectionIncomingEvent:
+            if len(args) != 2:
+                return
+
+            msg, v = args
+
+            if not isinstance(msg, Msg):
+                return
+
+            # For multi-printer connections the `connected` message is the `established` message.
+            if isinstance(msg, ConnectedMsg) and msg.for_client is None:
+                self.logger.debug(
+                    "Converted base ConnectedMsg to ConnectionEstablishedEvent with v: %d.",
+                    v,
+                )
+                await self._emit_all(ConnectionEstablishedEvent(v))
+                return
+
+            # We can get a routing hint from the message directly.
+            client_id = msg.for_client
+
+            # Some messages are targeting the top level connection,
+            # but we can further route them to the correct client.
+            if client_id is None and isinstance(
+                msg, (MultiPrinterAddedMsg, MultiPrinterRemovedMsg)
+            ):
+                client_id = msg.data.unique_id
+
+            if client_id not in self.clients:
+                return
+
+            try:
+                await self.client_list[client_id].event_bus.emit(event, *args, **kwargs)
+            except Exception as e:
+                self.logger.error(
+                    "Error when handling event %s for client %s:",
+                    event,
+                    client_id,
+                    exc_info=e,
+                )
+
+            return
+
+        if is_multi_mode and isinstance(event, ConnectionEstablishedEvent):
+            self.logger.debug(
+                "Dropped ConnectionEstablishedEvent for multi-mode connection with v: %d in favor of ConnectedMsg",
+                event.v,
+            )
+            return
+
+        # Default handling for all other events.
+        await self._emit_all(event, *args, **kwargs)
+
+    def emit_sync(self, event: Union[Hashable, TEvent], *args, **kwargs) -> None:
+        raise NotImplementedError("Use emit() instead.")
+
+    def add(self, value: Client):
+        self.clients.add(value.unique_id)
+
+    def discard(self, value: Client):
+        self.clients.discard(value.unique_id)
+
+    def __contains__(self, x: Client):
+        return x.unique_id in self.clients
+
+    def __len__(self):
+        return len(self.clients)
+
+    def __iter__(self):
+        for client in self.clients:
+            yield self.client_list[client]
+
+    def __hash__(self):
+        return hash(id(self))
 
 
 @final
@@ -220,6 +379,9 @@ class ClientConnectionManager(
         client_view = self.client_views.pop(client.unique_id)
         client_view.discard(client)
         client.event_bus.clear(ConnectionOutgoingEvent)
+
+        # Tell removed the client it has lost its connection, since it no longer receives messages.
+        _ = client.event_bus.emit_task(ConnectionLostEvent(client.v))
 
         # Disconnect the connection if no clients are left.
         if len(client_view) == 0:

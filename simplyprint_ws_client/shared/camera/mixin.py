@@ -9,9 +9,13 @@ from .handle import CameraHandle
 from .pool import CameraPool
 from ..asyncio.cancelable_lock import CancelableLock
 from ..sp.simplyprint_api import SimplyPrintApi
-from ... import configure, DemandMsgType, PrinterConfig
-from ...core.client import Client
-from ...core.ws_protocol.messages import WebcamSnapshotDemandData, StreamMsg
+from ... import DemandMsgType
+from ...core.client import Client, configure
+from ...core.config import PrinterConfig
+from ...core.ws_protocol.messages import (
+    WebcamSnapshotDemandData,
+    StreamMsg,
+)
 
 _T = TypeVar("_T", bound=PrinterConfig)
 

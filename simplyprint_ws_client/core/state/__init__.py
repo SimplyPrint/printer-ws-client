@@ -29,22 +29,34 @@ __all__ = [
     "NozzleType",
     "BedType",
     "VolumeType",
+    "JobObjectEntry",
+    "NotificationEventSeverity",
+    "NotificationEventType",
+    "NotificationEvent",
 ]
 
+import datetime
 import threading
 import time
+import uuid
 from typing import (
-    Optional,
     Literal,
     no_type_check,
-    Union,
     List,
     Set,
     ClassVar,
-    TypeVar,
     Dict,
     Any,
 )
+
+from more_itertools import partition
+
+from ..config import PrinterConfig
+
+try:
+    from typing import Unpack, Never
+except ImportError:
+    from typing_extensions import Unpack, Never
 
 from pydantic import Field, PrivateAttr, BaseModel
 
@@ -61,13 +73,18 @@ from .models import (
     BedType,
     NozzleType,
     VolumeType,
+    NotificationEventType,
+    NotificationEventSeverity,
+    NotificationEventAction,
 )
 from .state_model import StateModel
 from .utils import _resize_state_inplace
-from ..config import PrinterConfig
 from ...const import VERSION
-from ...shared.hardware.physical_machine import PhysicalMachine
 from ...shared.sp.ambient_check import AmbientCheck
+
+from typing import Optional, Union
+
+from ...shared.hardware.physical_machine import PhysicalMachine
 
 
 class TemperatureState(StateModel):
@@ -275,27 +292,6 @@ class WebcamSettings(StateModel):
     rotate90: bool = False
 
 
-class JobObjectEntry(StateModel):
-    """A skip-able object definition to share with SimplyPrint."""
-
-    class PrintProgressPoint(BaseModel):
-        layer: Optional[int] = None
-        percentage: Optional[float] = None
-
-    id: Optional[Union[int, str]] = None
-    name: Optional[str] = None
-    bbox: Optional[List[float]] = None
-    outline: Optional[List[List[float]]] = None
-    area: Optional[float] = None
-    instance: Optional[int] = None
-    center: Optional[List[float]] = None
-    time: Optional[int] = None
-    layer_height: Optional[float] = None
-    filament_usage: Optional[List[float]] = None
-    prints_from: Optional[PrintProgressPoint] = None
-    prints_to: Optional[PrintProgressPoint] = None
-
-
 class MaterialLayoutEntry(StateModel):
     nozzle: int = 0
     mms: Optional[MultiMaterialSolution] = None
@@ -388,33 +384,179 @@ class ToolState(StateModel):
             )
 
 
-_T = TypeVar("_T", bound=StateModel)
+class JobObjectEntry(StateModel):
+    """A skip-able object definition to share with SimplyPrint."""
+
+    class PrintProgressPoint(BaseModel):
+        layer: Optional[int] = None
+        percentage: Optional[float] = None
+
+    id: Optional[Union[int, str]] = None
+    name: Optional[str] = None
+    bbox: Optional[List[float]] = None
+    outline: Optional[List[List[float]]] = None
+    area: Optional[float] = None
+    instance: Optional[int] = None
+    center: Optional[List[float]] = None
+    time: Optional[int] = None
+    layer_height: Optional[float] = None
+    filament_usage: Optional[List[float]] = None
+    prints_from: Optional[PrintProgressPoint] = None
+    prints_to: Optional[PrintProgressPoint] = None
+
+
+class NotificationEvent(StateModel):
+    event_id: uuid.UUID | None = None
+    type: NotificationEventType = NotificationEventType.SIMPLE
+    severity: NotificationEventSeverity = NotificationEventSeverity.INFO
+    title: Optional[str] = None
+    message: Optional[str] = None
+    url: Optional[str] = None
+    image_url: Optional[str] = None
+    actions: Optional[Dict[str, NotificationEventAction]] = None  # action_id -> action
+    data: Optional[dict] = None  # any data to attach to the event
+    issued_at: datetime.datetime = Field(
+        default_factory=lambda: datetime.datetime.now(datetime.UTC)
+    )
+    resolved_at: Optional[datetime.datetime] = None
+
+    def resolve(self, when: Optional[datetime.datetime] = None):
+        """Mark the event as resolved."""
+        self.resolved_at = when or datetime.datetime.now(datetime.UTC)
+
+
+class NotificationsState(StateModel):
+    """Notification and event center for printer, relayed to SimplyPrint"""
+
+    notifications: Dict[uuid.UUID, NotificationEvent] = Field(default_factory=dict)
+
+    # Map hashable objects to an event for persistent references.
+    __keys: Dict[Any, uuid.UUID] = PrivateAttr(default_factory=dict)
+    __keys_lock: threading.Lock = PrivateAttr(default_factory=threading.Lock)
+
+    def new(self, **kwargs: Unpack[NotificationEvent]) -> NotificationEvent:
+        """Create new unmanaged persistent (with event_id) notification event which can be updated and resolved async"""
+
+        if "event_id" not in kwargs:
+            kwargs["event_id"] = uuid.uuid4()
+        event = NotificationEvent(**kwargs)
+        event.provide_context(self)
+        event.model_set_changed(
+            "issued_at"
+        )  # mark as changed when we create the event.
+        self.notifications[event.event_id] = event
+        return event
+
+    def keyed(
+        self, *args, event_id: Never = ..., **kwargs: Unpack[NotificationEvent]
+    ) -> NotificationEvent:
+        """Create new managed persistent reference to event, which is tied to some external object state (args)"""
+        if not args:
+            args = (kwargs.get("type"), kwargs.get("title"), kwargs.get("message"))
+
+        with self.__keys_lock:
+            if (key := self.__keys.get(args)) and key in self.notifications:
+                return self.notifications[key]
+            event = self.new(**kwargs)
+            self.__keys[args] = event.event_id
+            return event
+
+    def retain(self, *keys: Any, remove_immediately=False):
+        """Retain only the notifications with the given keys, remove all others.
+        Useful when downstream APIs mark resolved events as no longer appearing.
+        """
+        # Split keys into uuid a non-uuid list
+        keys, uuids = list(
+            map(lambda x: list(x), partition(lambda x: isinstance(x, uuid.UUID), keys))
+        )
+
+        # Cleanup keyed-entries.
+        for key, ref in list(self.__keys.items()):
+            if key in keys:
+                continue
+
+            if remove_immediately:
+                self.remove(key)
+                continue
+
+            if ref in self.notifications:
+                self.notifications[ref].resolve()
+
+        # Cleanup uuid-only entries.
+        for key in list(self.notifications.keys()):
+            if key in uuids:
+                continue
+            if remove_immediately:
+                self.remove(key)
+                continue
+            if key in self.notifications:
+                self.notifications[key].resolve()
+
+    def clear(self, remove_immediately=False):
+        """Reset all notifications"""
+        for event_id, notification in self.notifications.items():
+            if remove_immediately:
+                self.remove(event_id)
+                continue
+
+            notification.resolve()
+
+    def remove(self, key: Any):
+        """Remove the notification with the given key."""
+        if not isinstance(key, uuid.UUID):
+            with self.__keys_lock:
+                key = self.__keys.get(key)
+                if key is None:
+                    return
+                del self.__keys[key]
+
+        if key not in self.notifications:
+            return
+
+        del self.notifications[key]
+
+    def __contains__(self, item) -> bool:
+        if isinstance(item, NotificationEvent):
+            return item in self.notifications.values()
+
+        if isinstance(item, bytes):
+            item = item.hex()
+
+        return item in self.notifications.keys()
 
 
 class PrinterState(StateModel):
     config: PrinterConfig
-    intervals: Intervals = Field(default_factory=Intervals)
 
+    # General state.
     status: Optional[PrinterStatus] = None
-    info: PrinterInfoState = Field(default_factory=PrinterInfoState)
-    cpu_info: CpuInfoState = Field(default_factory=CpuInfoState)
+    bed: BedState = Field(default_factory=BedState)
+    tools: List[ToolState] = Field(default_factory=lambda: [ToolState(nozzle=0)])
+    active_tool: Optional[int] = (
+        None  # TODO: Deprecate in favor of nozzle-based active tool.
+    )
+    mms_layout: List[MaterialLayoutEntry] = Field(default_factory=list)
+
+    # Job state.
     job_info: JobInfoState = Field(default_factory=JobInfoState)
-    psu_info: PSUState = Field(default_factory=PSUState)
-    webcam_info: WebcamState = Field(default_factory=WebcamState)
-
     file_progress: FileProgressState = Field(default_factory=FileProgressState)
-    latency: PingPongState = Field(default_factory=PingPongState)
 
+    # Misc.
+    intervals: Intervals = Field(default_factory=Intervals)
+    settings: PrinterSettings = Field(default_factory=PrinterSettings)
+    latency: PingPongState = Field(default_factory=PingPongState)
+    notifications: NotificationsState = Field(default_factory=NotificationsState)
+
+    # Static information
+    info: PrinterInfoState = Field(default_factory=PrinterInfoState)
     firmware: PrinterFirmwareState = Field(default_factory=PrinterFirmwareState)
     firmware_warning: PrinterFirmwareWarning = Field(
         default_factory=PrinterFirmwareWarning
     )
 
-    active_tool: Optional[int] = None
-    bed: BedState = Field(default_factory=BedState)
-    tools: List[ToolState] = Field(default_factory=lambda: [ToolState(nozzle=0)])
-    mms_layout: List[MaterialLayoutEntry] = Field(default_factory=list)
-
+    # Sensors
+    cpu_info: CpuInfoState = Field(default_factory=CpuInfoState)
+    psu_info: PSUState = Field(default_factory=PSUState)
     filament_sensor: PrinterFilamentSensorState = Field(
         default_factory=PrinterFilamentSensorState
     )
@@ -422,7 +564,8 @@ class PrinterState(StateModel):
         default_factory=AmbientTemperatureState
     )
 
-    settings: PrinterSettings = Field(default_factory=PrinterSettings)
+    # Webcam
+    webcam_info: WebcamState = Field(default_factory=WebcamState)
     webcam_settings: WebcamSettings = Field(default_factory=WebcamSettings)
 
     # Locks for complex assignment manipulation

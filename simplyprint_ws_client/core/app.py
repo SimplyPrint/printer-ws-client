@@ -8,8 +8,8 @@ import threading
 from typing import Optional, cast
 
 from .client import Client, ClientConfigChangedEvent, ClientStateChangeEvent
-from .client_list import ClientList
 from .config import ConfigManager, PrinterConfig
+from .connection_manager import ClientList
 from .scheduler import Scheduler
 from .settings import ClientSettings
 from ..shared.asyncio.event_loop_runner import Runner

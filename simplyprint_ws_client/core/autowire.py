@@ -1,6 +1,16 @@
+__all__ = [
+    "configure",
+    "autoconfigure",
+    "autoconfigure_class_dict",
+    "debug",
+    "autowire",
+    "AutowireClientMeta",
+]
+
 import asyncio
 import functools
 import inspect
+from abc import ABCMeta
 from functools import partial
 from typing import (
     Type,
@@ -10,33 +20,24 @@ from typing import (
     Optional,
     get_args,
     Literal,
-    Tuple,
-    List,
     TYPE_CHECKING,
+    Callable,
 )
 
 from pydantic import BaseModel
 
-from .state import PrinterState
-from .ws_protocol.messages import (
-    ClientMsg,
-    DemandMsgType,
-    DispatchMode,
-    ServerMsgType,
-    ServerMsgKind,
-    DemandMsgKind,
-)
+from .ws_protocol.messages import ServerMsgKind, DemandMsgKind
+from .ws_protocol.models import ServerMsgType, DemandMsgType
 from ..events.event_bus_listeners import EventBusListenerOptions
 
 if TYPE_CHECKING:
     from .client import Client  # noqa: F401
+    from .state import PrinterState  # noqa: F401
 
 try:
     from typing import Unpack
 except ImportError:
     from typing_extensions import Unpack
-
-_client_msg_map: Dict[str, Type[ClientMsg]] = {}
 
 
 def configure(
@@ -62,7 +63,7 @@ def configure(
     return decorator
 
 
-def autoconfigure(attr: callable):
+def autoconfigure(attr: Callable):
     """Automatically configure a function based on its signature."""
     if isinstance(attr, partial) or isinstance(attr, functools.partialmethod):
         attr = attr.func
@@ -186,7 +187,7 @@ def debug(cls: Type["Client"]):
             print(f"{name} => {getattr(attr, '_event_bus_event')}")
 
 
-def instrument(client: "Client"):
+def autowire(client: "Client"):
     """Instrument and instance of a client based on its methods."""
     for name in dir(client.__class__):
         attr = getattr(client.__class__, name)
@@ -218,57 +219,9 @@ def instrument(client: "Client"):
         client.event_bus.on(e, func, **kwargs)
 
 
-def produce(msg_cls, *when_key_changes: str):
-    """Map a message to a key"""
-    for key in when_key_changes:
-        _client_msg_map[key] = msg_cls
+class AutowireClientMeta(ABCMeta):
+    """On type creation, autoconfigure the class dictionary."""
 
-
-def consume(state: PrinterState) -> Tuple[List[ClientMsg], int]:
-    """Consume state from mappings"""
-    changes = state.model_recursive_changeset
-
-    msg_kinds = {}
-
-    # Build unique map of message kinds together with their highest version.
-    for k, v in changes.items():
-        if k not in _client_msg_map:
-            continue
-
-        msg_kind = _client_msg_map.get(k)
-        current = msg_kinds.get(msg_kind)
-
-        if current is None:
-            msg_kinds[msg_kind] = (v, v)
-            continue
-
-        lowest, highest = current
-        msg_kinds[msg_kind] = (min(lowest, v), max(highest, v))
-
-    is_pending = state.config.is_pending()
-
-    msgs = []
-
-    # Sort by lowest version.
-    for msg_kind, (lowest, highest) in sorted(
-        msg_kinds.items(), key=lambda item: item[1][0]
-    ):
-        # Skip over messages that are not allowed to be sent when pending.
-        if is_pending and not msg_kind.msg_type().when_pending():
-            continue
-
-        data = dict(msg_kind.build(state))
-
-        if not data:
-            continue
-
-        msg = msg_kind(data)
-
-        # Skip over messages that are not supposed to be sent.
-        if msg.dispatch_mode(state) != DispatchMode.DISPATCH:
-            continue
-
-        msgs.append(msg)
-        msg.reset_changes(state, v=highest)
-
-    return msgs, -1  # max(v for _, v in msg_kinds)
+    def __new__(cls, name, bases, class_dict, **kwargs):
+        autoconfigure_class_dict(class_dict)
+        return super().__new__(cls, name, bases, class_dict, **kwargs)

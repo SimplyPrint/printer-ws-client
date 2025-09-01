@@ -199,6 +199,7 @@ class Connection(
         if self.connected:
             await self.ws.close()
             self.ws = None
+            self.logger.debug("Emitting ConnectionLostEvent due to manual close.")
             _ = self.event_bus.emit_task(ConnectionLostEvent(self.v))
             self.v += 1
             self.logger.info("Manually closed connection.")

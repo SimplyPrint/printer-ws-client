@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 from typing import Dict, Set
 
 from .client import Client, ClientState
-from .client_connection_manager import ClientConnectionManager, ClientList
+from .connection_manager import ClientConnectionManager, ClientList
 from .settings import ClientSettings
 from ..shared.asyncio.async_task_scope import AsyncTaskScope
 from ..shared.asyncio.continuous_task import ContinuousTask

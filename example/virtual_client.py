@@ -1,5 +1,6 @@
 import asyncio
 import base64
+import datetime
 import math
 import random
 import time
@@ -15,6 +16,8 @@ from simplyprint_ws_client import (
     FileDemandData,
     FileProgressStateEnum,
     MaterialDataMsg,
+    NotificationEventType,
+    NotificationEventSeverity,
 )
 from simplyprint_ws_client.shared.camera.base import (
     BaseCameraProtocol,
@@ -187,6 +190,22 @@ class VirtualClient(DefaultClient[VirtualConfig], ClientCameraMixin):
         self.printer.status = PrinterStatus.OPERATIONAL
 
     async def tick(self, _):
+        event = self.printer.notifications.keyed(
+            "important!",
+            type=NotificationEventType.SIMPLE,
+            severity=NotificationEventSeverity.WARNING,
+            title="COol title",
+            message="Just a test message",
+            data={"content": "This is a very important notification!"},
+        )
+
+        if datetime.datetime.now(datetime.UTC) - event.issued_at > datetime.timedelta(
+            seconds=5
+        ):
+            event.resolve()
+
+        print(self.printer.model_recursive_changeset)
+
         await self.send_ping()
 
         # Update temperatures, printer status and so on with smoothing function
