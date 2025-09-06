@@ -1,4 +1,4 @@
-__all__ = ["StateModel"]
+__all__ = ["StateModel", "Exclusive", "Untracked"]
 
 import datetime
 import decimal
@@ -23,16 +23,38 @@ from typing import (
     Union,
     no_type_check,
     cast,
+    Annotated,
 )
 
 from pydantic import BaseModel, PrivateAttr
+from pydantic.fields import FieldInfo
 
-from .exclusive import Exclusive
+from simplyprint_ws_client.shared.utils.synchronized import Synchronized
+
+_ExclusiveSentinel = object()
+_TExclusive = TypeVar("_TExclusive")
+Exclusive = Annotated[_TExclusive, _ExclusiveSentinel]
+
+
+@functools.lru_cache
+def _is_exclusive(field_info: FieldInfo) -> bool:
+    return any(v is _ExclusiveSentinel for v in field_info.metadata)
+
+
+_UntrackedSentinel = object()
+_TUntracked = TypeVar("_TUntracked")
+Untracked = Annotated[_TUntracked, _UntrackedSentinel]
+
+
+@functools.lru_cache
+def _is_untracked(field_info: FieldInfo) -> bool:
+    return any(v is _UntrackedSentinel for v in field_info.metadata)
+
 
 TStateModel = TypeVar("TStateModel", bound="StateModel")
 
 
-class StateModel(BaseModel):
+class StateModel(BaseModel, Synchronized):
     """
     Adapted from pydantic-changetracker (ChangeDetectionMixin).
     MIT License
@@ -44,7 +66,6 @@ class StateModel(BaseModel):
         int,
         float,
         bool,
-        Exclusive,
         enum.Enum,
         decimal.Decimal,
         datetime.datetime,
@@ -56,10 +77,17 @@ class StateModel(BaseModel):
 
     @classmethod
     @functools.lru_cache
-    def is_pydantic_change_detect_annotation(cls, annotation: Type[Any]) -> bool:
+    def is_pydantic_change_detect_annotation(
+        cls, annotation: Type[Any] = None, field_info: Optional[FieldInfo] = None
+    ) -> bool:
         """
         Return True if the given annotation is a ChangeDetectionMixin annotation.
         """
+        if field_info:
+            if _is_untracked(field_info):
+                return False
+
+            annotation = field_info.annotation
 
         # if annotation is an ChangeDetectionMixin everything is easy
         if (
@@ -100,7 +128,8 @@ class StateModel(BaseModel):
     __slots__ = ("model_self_changed_fields", "ctx")
 
     def __init__(self, ctx=lambda: None, **kwargs: Any) -> None:
-        super().__init__(**kwargs)
+        BaseModel.__init__(self, **kwargs)
+        Synchronized.__init__(self)
         # Default to static no-context to prevent unnecessary errors
         object.__setattr__(self, "ctx", ctx)
         self.model_reset_changed()
@@ -164,7 +193,7 @@ class StateModel(BaseModel):
                 changed_fields.add(field_name)
 
             if field_value and self.is_pydantic_change_detect_annotation(
-                model_field.annotation
+                field_info=model_field
             ):
                 if isinstance(field_value, (list, tuple)):
                     field_value_list = list(enumerate(field_value))
@@ -201,7 +230,7 @@ class StateModel(BaseModel):
                 continue
 
             if field_value and self.is_pydantic_change_detect_annotation(
-                model_field.annotation
+                field_info=model_field
             ):
                 if isinstance(field_value, list):
                     field_values = zip(
@@ -298,13 +327,16 @@ class StateModel(BaseModel):
 
     @no_type_check
     def __setattr__(self, name, value) -> None:  # noqa: ANN001
-        contains_field = name in self.__class__.model_fields
+        field_info = self.__class__.model_fields.get(name)
 
         # Private attributes do not need to be handled
-        # Same for non-model fields.
-        if not contains_field or (
-            self.__private_attributes__  # may be None
-            and name in self.__private_attributes__
+        # Same for non-model fields, or untracked fields.
+        if (
+            field_info is None
+            or _is_untracked(field_info)
+            or (
+                self.__private_attributes__ and name in self.__private_attributes__
+            )  # can be None
         ):
             super().__setattr__(name, value)
             return
@@ -324,7 +356,8 @@ class StateModel(BaseModel):
         current_value = self.__dict__[name]
 
         if (
-            self._model_value_is_comparable_type(original_value)
+            not _is_exclusive(field_info)
+            and self._model_value_is_comparable_type(original_value)
             and self._model_value_is_comparable_type(current_value)
             and self._model_value_is_actually_unchanged(original_value, current_value)
         ):

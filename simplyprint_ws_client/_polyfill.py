@@ -3,11 +3,17 @@
 import sys
 
 # Provide asyncio.timeout for Python 3.10 and below.
+# Provide StrEnum and IntEnum for Python 3.10 and below.
 if sys.version_info < (3, 11):
+    import enum  # noqa
     import asyncio  # noqa
     from async_timeout import timeout  # noqa
 
     asyncio.timeout = timeout  # noqa
+    if not hasattr(enum, "StrEnum"):  # noqa
+        from strenum import StrEnum  # noqa
+
+        enum.StrEnum = StrEnum  # noqa
 
 # Implements https://github.com/python/cpython/pull/118960
 # Without needing to modify the source code of the library.
@@ -28,12 +34,3 @@ if sys.version_info < (3, 12, 8) or (
         return self._closed or self._ssl_protocol._is_transport_closing()
 
     _SSLProtocolTransport.is_closing = is_closing
-
-# Provide StrEnum and IntEnum for Python 3.9 and below.
-if sys.version_info < (3, 11):
-    import enum  # noqa
-
-    if not hasattr(enum, "StrEnum"):  # noqa
-        from strenum import StrEnum  # noqa
-
-        enum.StrEnum = StrEnum  # noqa

@@ -13,20 +13,24 @@ __all__ = [
     "NotificationEventSeverity",
     "NotificationEventType",
     "NotificationEventActionType",
-    "NotificationEventAction",
+    "NotificationEventActions",
+    "NotificationEventEffect",
+    "NotificationActionResponses",
 ]
 
 import asyncio
 import time
 from enum import IntEnum, StrEnum, Enum
-from typing import Optional, Dict, Any, Literal, Generic, TypeVar, Union
+from typing import Optional, Dict, Any, Literal, Generic, TypeVar, Union, Annotated
 
 from pydantic import BaseModel, PrivateAttr, Field
 
+from ..ws_protocol.models import DispatchMode
+
 try:
-    from typing import Self, Annotated
+    from typing import Self
 except ImportError:
-    from typing_extensions import Self, Annotated
+    from typing_extensions import Self
 
 
 class PrinterCpuFlag(IntEnum):
@@ -87,6 +91,7 @@ IntervalT = Literal[
     "ready_message",
     "ping",
     "webcam",
+    "notification",
 ]
 
 
@@ -100,6 +105,7 @@ class Intervals(BaseModel):
     ready_message: int = 60000
     ping: int = 20000
     webcam: int = 1000
+    notification: int = 1000
 
     _usages: Dict[str, Optional[int]] = PrivateAttr(...)
 
@@ -123,8 +129,6 @@ class Intervals(BaseModel):
         return self.now() - self._usages[t] >= getattr(self, t)
 
     def dispatch_mode(self, t: IntervalT):
-        from ..ws_protocol.messages import DispatchMode
-
         if not self.use(t):
             return DispatchMode.RATELIMIT
 
@@ -273,13 +277,19 @@ class VolumeType(Enum):
 
 
 class NotificationEventSeverity(IntEnum):
-    INFO = 1
-    WARNING = 2
-    ERROR = 3
+    INFO = 0
+    WARNING = 1
+    ERROR = 2
 
 
 class NotificationEventType(StrEnum):
-    SIMPLE = "simple"
+    GENERIC = "generic"
+    STACKED = "stacked"
+
+
+class NotificationEventEffect(StrEnum):
+    PRINT_PAUSE = "pause"
+    PRINT_CANCEL = "cancel"
 
 
 class NotificationEventActionType(StrEnum):
@@ -289,12 +299,12 @@ class NotificationEventActionType(StrEnum):
 _ActionType = TypeVar("_ActionType", bound=NotificationEventActionType)
 
 
-class NotificationEventAction(BaseModel, Generic[_ActionType]):
+class _NotificationEventAction(BaseModel, Generic[_ActionType]):
     type: _ActionType
 
 
 class NotificationEventButtonAction(
-    NotificationEventAction[Literal[NotificationEventActionType.BUTTON]]
+    _NotificationEventAction[Literal[NotificationEventActionType.BUTTON]]
 ):
     type: Literal[NotificationEventActionType.BUTTON] = (
         NotificationEventActionType.BUTTON
@@ -307,5 +317,18 @@ NotificationEventActions = Annotated[
 ]
 
 
-class NotificationActionResponse(BaseModel):
-    name: str
+class _NotificationActionResponse(BaseModel, Generic[_ActionType]):
+    type: _ActionType
+
+
+class NotificationEventButtonActionResponse(
+    _NotificationActionResponse[Literal[NotificationEventActionType.BUTTON]]
+):
+    type: Literal[NotificationEventActionType.BUTTON] = (
+        NotificationEventActionType.BUTTON
+    )
+
+
+NotificationActionResponses = Annotated[
+    Union[NotificationEventButtonActionResponse], Field(discriminator="type")
+]

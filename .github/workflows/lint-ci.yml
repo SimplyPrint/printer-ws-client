@@ -11,5 +11,5 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: astral-sh/ruff-action@v3
-      - run: ruff check --target-version py38
+      - run: ruff check --target-version py39
       - run: ruff format --check

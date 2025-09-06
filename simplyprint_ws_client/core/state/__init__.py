@@ -32,11 +32,13 @@ __all__ = [
     "JobObjectEntry",
     "NotificationEventSeverity",
     "NotificationEventType",
+    "NotificationEventEffect",
+    "NotificationEventPayload",
     "NotificationEvent",
 ]
 
+import asyncio
 import datetime
-import threading
 import time
 import uuid
 from typing import (
@@ -47,20 +49,15 @@ from typing import (
     ClassVar,
     Dict,
     Any,
+    Callable,
+    Hashable,
+    Optional,
+    Union,
+    TYPE_CHECKING,
 )
-
-from more_itertools import partition
-
-from ..config import PrinterConfig
-
-try:
-    from typing import Unpack, Never
-except ImportError:
-    from typing_extensions import Unpack, Never
 
 from pydantic import Field, PrivateAttr, BaseModel
 
-from .exclusive import Exclusive
 from .models import (
     PrinterCpuFlag,
     PrinterStatus,
@@ -75,16 +72,24 @@ from .models import (
     VolumeType,
     NotificationEventType,
     NotificationEventSeverity,
-    NotificationEventAction,
+    NotificationEventActions,
+    NotificationEventEffect,
 )
-from .state_model import StateModel
+from .state_model import StateModel, Exclusive, Untracked
 from .utils import _resize_state_inplace
+from ..config import PrinterConfig
 from ...const import VERSION
+from ...shared.asyncio.event_loop_provider import EventLoopProvider
+from ...shared.hardware.physical_machine import PhysicalMachine
 from ...shared.sp.ambient_check import AmbientCheck
 
-from typing import Optional, Union
+if TYPE_CHECKING:
+    from ..ws_protocol.messages import ResolveNotificationDemandData
 
-from ...shared.hardware.physical_machine import PhysicalMachine
+try:
+    from typing import Unpack, Never
+except ImportError:
+    from typing_extensions import Unpack, Never
 
 
 class TemperatureState(StateModel):
@@ -138,8 +143,8 @@ class AmbientTemperatureState(StateModel):
         now = time.time()
 
         if (
-                self._last_update is not None
-                and now - self._last_update < self._update_interval
+            self._last_update is not None
+            and now - self._last_update < self._update_interval
         ):
             return
 
@@ -225,22 +230,22 @@ class JobInfoState(StateModel, validate_assignment=True):
     layer: Optional[int] = None
     time: Optional[float] = None
     filament: Optional[float] = None
-    filename: Optional[Exclusive[str]] = None
+    filename: Exclusive[Optional[str]] = None
     delay: Optional[float] = None
     # Deprecated.
     # ai: List[int]
 
     # These needs to always trigger a reset.
-    started: Exclusive[bool] = Field(default_factory=lambda: Exclusive[bool](False))
-    finished: Exclusive[bool] = Field(default_factory=lambda: Exclusive[bool](False))
-    cancelled: Exclusive[bool] = Field(default_factory=lambda: Exclusive[bool](False))
-    failed: Exclusive[bool] = Field(default_factory=lambda: Exclusive[bool](False))
+    started: Exclusive[bool] = False
+    finished: Exclusive[bool] = False
+    cancelled: Exclusive[bool] = False
+    failed: Exclusive[bool] = False
 
     # Mark a print job as a reprint of a previous (not-cleared) job from the client.
-    reprint: Optional[Exclusive[int]] = None
+    reprint: Exclusive[Optional[int]] = None
 
     # Current object being printed, if known (not used currently).
-    object: Optional[Exclusive[Union[int, str]]] = None
+    object: Exclusive[Optional[Union[int, str]]] = None
     # List of object ids that have been skipped.
     # Can be both delta or full list, when set it is sent.
     skipped_objects: Optional[List[Union[int, str]]] = None
@@ -322,10 +327,10 @@ class MaterialEntry(StateModel):
     def empty(self) -> bool:
         """Check if the material entry is empty."""
         return (
-                self.type is None
-                and self.color is None
-                and self.hex is None
-                and self.raw is None
+            self.type is None
+            and self.color is None
+            and self.hex is None
+            and self.raw is None
         )
 
     def clear(self):
@@ -353,8 +358,6 @@ class ToolState(StateModel):
     active_material: Optional[int] = None
     materials: List[MaterialEntry] = Field(default_factory=list)
 
-    __resize_lock: threading.Lock = PrivateAttr(default_factory=threading.Lock)
-
     def model_post_init(self, __context: Any) -> None:
         """Initialize the tool state with a default material if none are provided."""
         if not self.materials:
@@ -375,7 +378,7 @@ class ToolState(StateModel):
         if count < 1:
             raise ValueError("Material count must be at least 1")
 
-        with self.__resize_lock:
+        with self:
             _resize_state_inplace(
                 self,
                 self.materials,
@@ -405,24 +408,56 @@ class JobObjectEntry(StateModel):
     prints_to: Optional[PrintProgressPoint] = None
 
 
-class NotificationEvent(StateModel):
-    event_id: Optional[uuid.UUID] = None
-    type: NotificationEventType = NotificationEventType.SIMPLE
-    severity: NotificationEventSeverity = NotificationEventSeverity.INFO
+class NotificationEventPayload(StateModel):
     title: Optional[str] = None
     message: Optional[str] = None
     url: Optional[str] = None
     image_url: Optional[str] = None
-    actions: Optional[Dict[str, NotificationEventAction]] = None  # action_id -> action
+    effect: Optional[NotificationEventEffect] = None
+    actions: Optional[Dict[str, NotificationEventActions]] = None  # action_id -> action
     data: Optional[dict] = None  # any data to attach to the event
+
+
+class NotificationEvent(StateModel):
+    event_id: Optional[uuid.UUID] = None
+    type: NotificationEventType = NotificationEventType.GENERIC
+    severity: NotificationEventSeverity = NotificationEventSeverity.INFO
+    payload: NotificationEventPayload = Field(default_factory=NotificationEventPayload)
     issued_at: datetime.datetime = Field(
         default_factory=lambda: datetime.datetime.now(datetime.UTC)
     )
     resolved_at: Optional[datetime.datetime] = None
 
+    # Integrated response handler, as an alternative pattern to implementing
+    # a large on_resolve_notification handler.
+    _response_future: Optional[asyncio.Future] = PrivateAttr(None)
+
+    def __await__(self):
+        return self.wait_for_response().__await__()
+
+    async def wait_for_response(
+        self, timeout: Optional[float] = None
+    ) -> Optional["ResolveNotificationDemandData"]:
+        ctx = self.ctx()
+        if not ctx or not isinstance(ctx, EventLoopProvider):
+            raise RuntimeError("NotificationEvent is not bound to a Client context.")
+        self._response_future = ctx.event_loop.create_future()
+        try:
+            return await asyncio.wait_for(self._response_future, timeout)
+        except asyncio.TimeoutError:
+            return None
+
     def resolve(self, when: Optional[datetime.datetime] = None):
         """Mark the event as resolved."""
         self.resolved_at = when or datetime.datetime.now(datetime.UTC)
+
+    def respond(self, data: Optional["ResolveNotificationDemandData"]):
+        if not self._response_future or self._response_future.done():
+            return
+        ctx = self.ctx()
+        if not ctx or not isinstance(ctx, EventLoopProvider):
+            raise RuntimeError("NotificationEvent is not bound to a Client context.")
+        ctx.event_loop.call_soon(self._response_future.set_result, data)
 
 
 class NotificationsState(StateModel):
@@ -431,12 +466,10 @@ class NotificationsState(StateModel):
     notifications: Dict[uuid.UUID, NotificationEvent] = Field(default_factory=dict)
 
     # Map hashable objects to an event for persistent references.
-    __keys: Dict[Any, uuid.UUID] = PrivateAttr(default_factory=dict)
-    __keys_lock: threading.Lock = PrivateAttr(default_factory=threading.Lock)
+    __idempotency_keys: Dict[Hashable, uuid.UUID] = PrivateAttr(default_factory=dict)
 
     def new(self, **kwargs: Unpack[NotificationEvent]) -> NotificationEvent:
-        """Create new unmanaged persistent (with event_id) notification event which can be updated and resolved async"""
-
+        """Create a new unmanaged persistent (with event_id) notification event which can be updated and resolved async"""
         if "event_id" not in kwargs:
             kwargs["event_id"] = uuid.uuid4()
         event = NotificationEvent(**kwargs)
@@ -448,41 +481,37 @@ class NotificationsState(StateModel):
         return event
 
     def keyed(
-            self, *args, event_id: Never = ..., **kwargs: Unpack[NotificationEvent]
+        self,
+        idempotency_key: Hashable,
+        event_id: Never = ...,
+        **kwargs: Unpack[NotificationEvent],
     ) -> NotificationEvent:
         """Create new managed persistent reference to event, which is tied to some external object state (args)"""
-        if not args:
-            args = (kwargs.get("type"), kwargs.get("title"), kwargs.get("message"))
+        with self:
+            if (
+                event_id := self.__idempotency_keys.get(idempotency_key)
+            ) and event_id in self.notifications:
+                event = self.notifications[event_id]
+                if event.resolved_at is None:
+                    return event
 
-        with self.__keys_lock:
-            if (key := self.__keys.get(args)) and key in self.notifications:
-                return self.notifications[key]
             event = self.new(**kwargs)
-            self.__keys[args] = event.event_id
+            self.__idempotency_keys[idempotency_key] = event.event_id
             return event
 
-    def retain(self, *keys: Any, remove_immediately=False):
-        """Retain only the notifications with the given keys, remove all others.
-        Useful when downstream APIs mark resolved events as no longer appearing.
-        """
-        # Split keys into uuid a non-uuid list
-        keys, uuids = list(
-            map(lambda x: list(x), partition(lambda x: isinstance(x, uuid.UUID), keys))
-        )
+    def rekey(self, idempotency_key: Hashable, event_id: uuid.UUID):
+        if event_id not in self.notifications:
+            return
+        with self:
+            self.__idempotency_keys[idempotency_key] = event_id
 
-        # Cleanup keyed-entries.
-        for key, ref in list(self.__keys.items()):
-            if key in keys:
-                continue
+    def keys(self) -> List[Hashable]:
+        """Return a (copied) list of all keys currently in use."""
+        with self:
+            return list(self.__idempotency_keys.keys())
 
-            if remove_immediately:
-                self.remove(key)
-                continue
-
-            if ref in self.notifications:
-                self.notifications[ref].resolve()
-
-        # Cleanup uuid-only entries.
+    def retain(self, *uuids: uuid.UUID, remove_immediately=False):
+        """Clean up all events except the ones provided."""
         for key in list(self.notifications.keys()):
             if key in uuids:
                 continue
@@ -492,28 +521,67 @@ class NotificationsState(StateModel):
             if key in self.notifications:
                 self.notifications[key].resolve()
 
+    def retain_keys(self, *keys: Hashable, remove_immediately=False):
+        """
+        Retain only the notifications with the given keys, remove all others.
+        Useful when downstream APIs mark resolved events as no longer appearing.
+        """
+        for key in self.keys():
+            if key in keys:
+                continue
+            if remove_immediately:
+                self.remove(key)
+                continue
+            with self:
+                uuid_key = self.__idempotency_keys.get(key)
+            if uuid_key and uuid_key in self.notifications:
+                self.notifications[uuid_key].resolve()
+
+    def filter_retain_keys(
+        self,
+        func: Callable[[Hashable], bool],
+        *keys: Hashable,
+        remove_immediately=False,
+    ):
+        """
+        Retain all keys, except for the subset of keys where func(key) is True - your kept keys.
+        Useful when having multiple basis types for keys and wanting to retain only a subset.
+        """
+        all_keys = self.keys()
+        all_keys_without_subset = set(all_keys) - set(k for k in all_keys if func(k))
+        all_keys_without_subset = all_keys_without_subset.union(
+            set(keys)
+        )  # Add the explicit keys to retain
+        self.retain_keys(
+            *all_keys_without_subset, remove_immediately=remove_immediately
+        )
+
     def clear(self, remove_immediately=False):
         """Reset all notifications"""
-        for event_id, notification in self.notifications.items():
-            if remove_immediately:
-                self.remove(event_id)
-                continue
+        self.retain(remove_immediately=remove_immediately)
 
-            notification.resolve()
+    def get(self, key: Union[Hashable, uuid.UUID]) -> Optional[NotificationEvent]:
+        """Get the notification with the given key."""
+        if not isinstance(key, uuid.UUID):
+            with self:
+                key = self.__idempotency_keys.get(key)
 
-    def remove(self, key: Any):
+        return self.notifications.get(key)
+
+    def remove(self, key: Union[Hashable, uuid.UUID]):
         """Remove the notification with the given key."""
         if not isinstance(key, uuid.UUID):
-            with self.__keys_lock:
-                key = self.__keys.get(key)
-                if key is None:
-                    return
-                del self.__keys[key]
+            with self:
+                key = self.__idempotency_keys.pop(key, None)
+        else:
+            # If we are removing an uuid, also remove all keys pointing to it.
+            with self:
+                for k, v in list(self.__idempotency_keys.items()):
+                    if v != key:
+                        continue
+                    self.__idempotency_keys.pop(k, None)
 
-        if key not in self.notifications:
-            return
-
-        del self.notifications[key]
+        self.notifications.pop(key, None)
 
     def __contains__(self, item) -> bool:
         if isinstance(item, NotificationEvent):
@@ -526,7 +594,11 @@ class NotificationsState(StateModel):
 
 
 class PrinterState(StateModel):
-    config: PrinterConfig
+    # Non-tracked configuration/state.
+    config: Untracked[PrinterConfig]
+    have_cleared_bed: Untracked[bool] = False
+    current_job_id: Untracked[Optional[int]] = None
+    file_action_token: Untracked[Optional[str]] = None
 
     # General state.
     status: Optional[PrinterStatus] = None
@@ -568,11 +640,6 @@ class PrinterState(StateModel):
     webcam_info: WebcamState = Field(default_factory=WebcamState)
     webcam_settings: WebcamSettings = Field(default_factory=WebcamSettings)
 
-    # Locks for complex assignment manipulation
-    # this object must be threadsafe to fulfill its api
-    # XXX: Consider a better approach.
-    __resize_lock: threading.Lock = PrivateAttr(default_factory=threading.Lock)
-
     def set_info(self, name, version="0.0.1"):
         """Set the same info for all fields, both for UI / API and the client."""
         self.set_api_info(name, version)
@@ -610,7 +677,7 @@ class PrinterState(StateModel):
         if count < 1:
             raise ValueError("Nozzle count must be at least 1")
 
-        with self.__resize_lock:
+        with self:
             _resize_state_inplace(
                 self, self.tools, count, lambda i: ToolState(nozzle=i)
             )
@@ -637,7 +704,7 @@ class PrinterState(StateModel):
         It does not change the tool count, this needs to be done separately.
         """
 
-        with self.__resize_lock:
+        with self:
             # compare the new layout with the current one
             if len(self.mms_layout) == len(mms_layout):
                 for a, b in zip(self.mms_layout, mms_layout):

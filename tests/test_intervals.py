@@ -1,8 +1,10 @@
+from typing import ClassVar
+
 from simplyprint_ws_client import Intervals
 
 
 class TimeControlledIntervals(Intervals):
-    ms_time: float = 30000.0
+    ms_time: ClassVar[float] = 30000.0
 
     @classmethod
     def set_time(cls, ms: float) -> None:

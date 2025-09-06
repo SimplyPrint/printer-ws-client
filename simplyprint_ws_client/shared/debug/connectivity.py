@@ -12,13 +12,8 @@ from typing import List, Optional, Dict
 import aiohttp
 import netifaces
 import psutil
+from aiohttp import ClientWSTimeout
 from pydantic import BaseModel, Field
-
-try:
-    from aiohttp import ClientWSTimeout
-except ImportError:
-    # aiohttp < 3.8.0 does not have ClientWSTimeout
-    ClientWSTimeout = None
 
 from ..sp.url_builder import SimplyPrintBackend
 

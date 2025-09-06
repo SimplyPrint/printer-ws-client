@@ -9,7 +9,6 @@ from simplyprint_ws_client import (
     PrinterState,
     JobInfoMsg,
 )
-from simplyprint_ws_client.core.state import Exclusive
 
 
 def job_state_consistent(state: JobInfoState):
@@ -114,11 +113,3 @@ def test_generated_message(job_client: Client, ctx):
 
     msg.reset_changes(printer)
     assert state.model_changed_fields == set()
-
-
-def test_exclusive_field_auto_conv():
-    s = JobInfoState()
-    s.filename = "Hello"
-
-    assert isinstance(s.filename, Exclusive)
-    assert s.filename.root == "Hello"

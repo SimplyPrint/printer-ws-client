@@ -69,7 +69,7 @@ from .ws_protocol.messages import (
     PowerControllerMsg,
     CpuInfoMsg,
     NotificationMsg,
-    NotificationActionDemandData,
+    ResolveNotificationDemandData,
 )
 from .ws_protocol.models import (
     ServerMsgType,
@@ -469,17 +469,13 @@ class DefaultClient(Client[TConfig], ABC):
         _file_action_token: File action token
     """
 
-    _have_cleared_bed: bool = False
-    _current_job_id: Optional[int] = None
-    _file_action_token: Optional[str] = None
-
     @property
     def current_job_id(self):
-        return self._current_job_id
+        return self.printer.current_job_id
 
     @property
     def file_action_token(self):
-        return self._file_action_token
+        return self.printer.file_action_token
 
     async def send_ping(self) -> None:
         if not self.printer.intervals.is_ready("ping"):
@@ -489,14 +485,14 @@ class DefaultClient(Client[TConfig], ABC):
         await self.send(PingMsg())
 
     async def clear_bed(self, success: bool = True, rating: Optional[int] = None):
-        if self._have_cleared_bed:
+        if self.printer.have_cleared_bed:
             return
 
         try:
             await SimplyPrintApi.clear_bed(
                 self.config.id, self._file_action_token, success, rating
             )
-            self._have_cleared_bed = True
+            self.printer.have_cleared_bed = True
         except Exception as e:
             self.logger.warning("Failed to clear bed: %s", e)
 
@@ -576,9 +572,9 @@ class DefaultClient(Client[TConfig], ABC):
     @configure(DemandMsgType.FILE, priority=1)
     def _on_file_demand(self, data: FileDemandData):
         """Store file action_token for later use."""
-        self._current_job_id = data.job_id
-        self._file_action_token = data.action_token
-        self._have_cleared_bed = False
+        self.printer.current_job_id = data.job_id
+        self.printer.file_action_token = data.action_token
+        self.printer.have_cleared_bed = False
 
     @configure(DemandMsgType.SET_MATERIAL_DATA, priority=1)
     def _on_set_material_data(self, data: SetMaterialDataDemandData):
@@ -597,12 +593,16 @@ class DefaultClient(Client[TConfig], ABC):
             )
         )
 
-    @configure(DemandMsgType.NOTIFICATION_ACTION, priority=1)
-    async def _on_notification_action(self, data: NotificationActionDemandData):
+    @configure(DemandMsgType.RESOLVE_NOTIFICATION, priority=1)
+    async def _on_resolve_notification(self, data: ResolveNotificationDemandData):
         event = self.printer.notifications.notifications.get(data.event_id)
 
-        if data.action.name == "resolve":
+        # The default action is to resolve the event client side.
+        if data.action is None:
             event.resolve()
+
+        # Give the event the response data directly, otherwise users can handle this event manually.
+        event.respond(data)
 
 
 class PhysicalClient(DefaultClient[TConfig], ABC):

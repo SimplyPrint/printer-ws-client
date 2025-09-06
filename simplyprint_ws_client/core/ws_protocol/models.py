@@ -57,7 +57,7 @@ class DemandMsgType(StrEnum):
     GOTO_WS_PROD = "goto_ws_prod"
     GOTO_WS_TEST = "goto_ws_test"
     SEND_LOGS = "send_logs"
-    NOTIFICATION_ACTION = "notification_action"
+    RESOLVE_NOTIFICATION = "resolve_notification"
 
 
 class ClientMsgType(StrEnum):

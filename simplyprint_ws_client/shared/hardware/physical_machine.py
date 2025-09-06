@@ -6,14 +6,10 @@ import socket
 import subprocess
 from typing import Optional
 
+import netifaces
 import psutil
 
 from ..utils.exception_as_value import exception_as_value
-
-try:
-    import netifaces
-except ImportError:
-    netifaces = None
 
 
 def callonce(func):

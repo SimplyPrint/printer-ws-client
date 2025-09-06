@@ -12,6 +12,7 @@ from aiohttp import (
     ClientError,
     WebSocketError,
     ClientTimeout,
+    ClientWSTimeout,
 )
 from pydantic import ValidationError
 from pydantic_core import PydanticSerializationError
@@ -93,16 +94,8 @@ WsParams = {
     "autoping": True,
     "heartbeat": 30,
     "max_msg_size": 0,
+    "timeout": ClientWSTimeout(ws_receive=None, ws_close=10.0),
 }
-
-try:
-    # Added in aiohttp 3.11 / No python 3.8 support.
-    from aiohttp import ClientWSTimeout  # noqa
-
-    WsConnectionTimeout = ClientWSTimeout(ws_receive=None, ws_close=10.0)
-    WsParams["timeout"] = WsConnectionTimeout
-except ImportError:
-    pass
 
 # Errors we treat as a closed connection.
 WsConnectionErrors = (
@@ -178,6 +171,9 @@ class Connection(
 
     def __hash__(self):
         return hash(id(self))
+
+    def __await__(self):
+        return self._loop_task.task.__await__()
 
     @property
     def url(self) -> URL:

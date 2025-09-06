@@ -1,6 +1,5 @@
 import asyncio
 import base64
-import datetime
 import math
 import random
 import time
@@ -19,6 +18,8 @@ from simplyprint_ws_client import (
     NotificationEventType,
     NotificationEventSeverity,
 )
+from simplyprint_ws_client.core.state import NotificationEventPayload
+from simplyprint_ws_client.core.state.models import NotificationEventButtonAction
 from simplyprint_ws_client.shared.camera.base import (
     BaseCameraProtocol,
     CameraProtocolPollingMode,
@@ -85,6 +86,26 @@ class VirtualClient(DefaultClient[VirtualConfig], ClientCameraMixin):
 
     async def on_gcode(self, data: GcodeDemandData):
         self.logger.info("Gcode: %s", data.list)
+
+        event = self.printer.notifications.new(
+            type=NotificationEventType.GENERIC,
+            severity=NotificationEventSeverity.ERROR,
+            payload=NotificationEventPayload(
+                title="Hey! Are you sure about this?",
+                message=f"Bout to execute very dangerous gcode commands {'; '.join(data.list)}",
+                actions={
+                    "cancel": NotificationEventButtonAction(
+                        label="Cancel gcode command before it's too late!"
+                    )
+                },
+            ),
+        )
+
+        response = await event.wait_for_response(timeout=5)
+
+        if response is not None and response.action == "cancel":
+            self.logger.info("Gcode command cancelled by user.")
+            return
 
         for gcode in data.list:
             if gcode[:4] == "M104":
@@ -190,22 +211,6 @@ class VirtualClient(DefaultClient[VirtualConfig], ClientCameraMixin):
         self.printer.status = PrinterStatus.OPERATIONAL
 
     async def tick(self, _):
-        event = self.printer.notifications.keyed(
-            "important!",
-            type=NotificationEventType.SIMPLE,
-            severity=NotificationEventSeverity.WARNING,
-            title="COol title",
-            message="Just a test message",
-            data={"content": "This is a very important notification!"},
-        )
-
-        if datetime.datetime.now(datetime.UTC) - event.issued_at > datetime.timedelta(
-            seconds=5
-        ):
-            event.resolve()
-
-        print(self.printer.model_recursive_changeset)
-
         await self.send_ping()
 
         # Update temperatures, printer status and so on with smoothing function

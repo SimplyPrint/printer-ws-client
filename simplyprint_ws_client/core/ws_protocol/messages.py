@@ -40,7 +40,7 @@ __all__ = [
     "SetPrinterProfileDemandData",
     "SetMaterialDataDemandData",
     "SkipObjectsDemandData",
-    "NotificationActionDemandData",
+    "ResolveNotificationDemandData",
     "GetGcodeScriptBackupsDemandData",
     "HasGcodeChangesDemandData",
     "PsuKeepaliveDemandData",
@@ -102,6 +102,7 @@ from typing import (
     Any,
     Tuple,
     Generator,
+    Annotated,
     get_args,
     ClassVar,
     Set,
@@ -132,12 +133,7 @@ from ..state import (
     MaterialEntry,
     JobObjectEntry,
 )
-from ..state.models import NotificationActionResponse
-
-try:
-    from typing import Annotated
-except ImportError:
-    from typing_extensions import Annotated
+from ..state.models import NotificationActionResponses
 
 try:
     from types import NoneType
@@ -193,6 +189,7 @@ class ConnectedMsgData(BaseModel):
     reconnect_token: Optional[str] = None
     name: Optional[str] = None
     region: str
+    is_locked: Optional[bool] = None
 
 
 class ConnectedMsg(Msg[Literal[ServerMsgType.CONNECTED], Optional[ConnectedMsgData]]):
@@ -404,12 +401,13 @@ class SkipObjectsDemandData(BaseModel):
     objects: List[Union[str, int]] = Field(default_factory=list)
 
 
-class NotificationActionDemandData(BaseModel):
-    demand: Literal[DemandMsgType.NOTIFICATION_ACTION] = (
-        DemandMsgType.NOTIFICATION_ACTION
+class ResolveNotificationDemandData(BaseModel):
+    demand: Literal[DemandMsgType.RESOLVE_NOTIFICATION] = (
+        DemandMsgType.RESOLVE_NOTIFICATION
     )
     event_id: uuid.UUID
-    action: NotificationActionResponse
+    action: Optional[str]  # dynamic custom name of action or predefined resolve.
+    payload: Optional[NotificationActionResponses] = None
 
 
 class GetGcodeScriptBackupsDemandData(BaseModel):
@@ -494,6 +492,7 @@ DemandMsgKind = Union[
     SetMaterialDataDemandData,
     RefreshMaterialDataDemandData,
     SkipObjectsDemandData,
+    ResolveNotificationDemandData,
     GetGcodeScriptBackupsDemandData,
     HasGcodeChangesDemandData,
     PsuKeepaliveDemandData,
@@ -737,18 +736,15 @@ class StateChangeMsg(ClientMsg[Literal[ClientMsgType.STATUS]]):
 
     def reset_changes(self, state: PrinterState, v: Optional[int] = None) -> None:
         state.model_reset_changed("status")
+        if not state.is_printing():
+            state.current_job_id = None
 
 
 class JobInfoMsg(ClientMsg[Literal[ClientMsgType.JOB_INFO]]):
     @classmethod
     def build(cls, state: PrinterState) -> TClientMsgDataGenerator:
-        ctx = state.ctx()
-
-        # Circular import
-        from ..client import DefaultClient
-
-        if isinstance(ctx, DefaultClient) and ctx.current_job_id is not None:
-            yield "job_id", ctx.current_job_id
+        if state.current_job_id is not None:
+            yield "job_id", state.current_job_id
 
         for key in state.job_info.model_changed_fields:
             value = getattr(state.job_info, key)
@@ -769,6 +765,8 @@ class JobInfoMsg(ClientMsg[Literal[ClientMsgType.JOB_INFO]]):
             yield key, value
 
     def reset_changes(self, state: PrinterState, v: Optional[int] = None) -> None:
+        if state.job_info.model_has_changes("finished", "cancelled", "failed"):
+            state.current_job_id = None
         state.job_info.model_reset_changed()
 
     def dispatch_mode(self, state: PrinterState) -> DispatchMode:
@@ -821,14 +819,8 @@ class FileProgressMsg(ClientMsg[Literal[ClientMsgType.FILE_PROGRESS]]):
 
         yield "state", state.file_progress.state
 
-        # Emit job_id
-        ctx = state.ctx()
-
-        # Circular import
-        from ..client import DefaultClient
-
-        if isinstance(ctx, DefaultClient) and ctx.current_job_id is not None:
-            yield "job_id", ctx.current_job_id
+        if state.current_job_id is not None:
+            yield "job_id", state.current_job_id
 
         if state.file_progress.state == FileProgressStateEnum.ERROR:
             yield "message", state.file_progress.message or "Unknown error"
@@ -964,7 +956,7 @@ class NotificationMsg(ClientMsg[Literal[ClientMsgType.NOTIFICATION]]):
                 continue
 
             # Only send delta.
-            if event.resolved_at:
+            if event.model_has_changes("resolved_at") and event.resolved_at is not None:
                 data = event.model_dump(
                     include={"event_id", "resolved_at", *event.model_changed_fields}
                     - {"issued_at"},
@@ -988,6 +980,9 @@ class NotificationMsg(ClientMsg[Literal[ClientMsgType.NOTIFICATION]]):
             return
 
         yield "events", events
+
+    def dispatch_mode(self, state: PrinterState) -> DispatchMode:
+        return state.intervals.dispatch_mode("notification")
 
     def reset_changes(self, state: PrinterState, v: Optional[int] = None) -> None:
         for event_id, notification in list(state.notifications.notifications.items()):
