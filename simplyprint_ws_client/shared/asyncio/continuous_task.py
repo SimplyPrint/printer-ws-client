@@ -55,7 +55,7 @@ class ContinuousTask(Generic[T], EventLoopProvider[AbstractEventLoop]):
         return self.task.exception()
 
     def cancel(self) -> bool:
-        if self.task is None or self.task.cancelling() or self.task.cancelled():
+        if self.task is None or self.task.cancelled():
             return False
 
         return self.task.cancel()

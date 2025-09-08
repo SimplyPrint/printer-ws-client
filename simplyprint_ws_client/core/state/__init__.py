@@ -424,7 +424,7 @@ class NotificationEvent(StateModel):
     severity: NotificationEventSeverity = NotificationEventSeverity.INFO
     payload: NotificationEventPayload = Field(default_factory=NotificationEventPayload)
     issued_at: datetime.datetime = Field(
-        default_factory=lambda: datetime.datetime.now(datetime.UTC)
+        default_factory=lambda: datetime.datetime.now(datetime.timezone.utc)
     )
     resolved_at: Optional[datetime.datetime] = None
 
@@ -449,7 +449,7 @@ class NotificationEvent(StateModel):
 
     def resolve(self, when: Optional[datetime.datetime] = None):
         """Mark the event as resolved."""
-        self.resolved_at = when or datetime.datetime.now(datetime.UTC)
+        self.resolved_at = when or datetime.datetime.now(datetime.timezone.utc)
 
     def respond(self, data: Optional["ResolveNotificationDemandData"]):
         if not self._response_future or self._response_future.done():

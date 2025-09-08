@@ -409,7 +409,7 @@ def test_notification_event_resolve_method(client: Client):
     # Test resolve with specific time
     import datetime
 
-    specific_time = datetime.datetime.now(datetime.UTC)
+    specific_time = datetime.datetime.now(datetime.timezone.utc)
     event.resolve(specific_time)
 
     assert event.resolved_at == specific_time

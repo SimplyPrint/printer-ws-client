@@ -1444,7 +1444,7 @@ wheels = [
 
 [[package]]
 name = "simplyprint-ws-client"
-version = "1.0.1rc31"
+version = "1.0.1rc32"
 source = { editable = "." }
 dependencies = [
     { name = "aiohttp" },

@@ -32,7 +32,7 @@ from pydantic.fields import FieldInfo
 from simplyprint_ws_client.shared.utils.synchronized import Synchronized
 
 _ExclusiveSentinel = object()
-_TExclusive = TypeVar("_TExclusive")
+_TExclusive = TypeVar("_TExclusive", bound=Any)
 Exclusive = Annotated[_TExclusive, _ExclusiveSentinel]
 
 
@@ -42,7 +42,7 @@ def _is_exclusive(field_info: FieldInfo) -> bool:
 
 
 _UntrackedSentinel = object()
-_TUntracked = TypeVar("_TUntracked")
+_TUntracked = TypeVar("_TUntracked", bound=Any)
 Untracked = Annotated[_TUntracked, _UntrackedSentinel]
 
 
