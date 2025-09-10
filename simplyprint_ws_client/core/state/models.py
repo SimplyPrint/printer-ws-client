@@ -16,6 +16,7 @@ __all__ = [
     "NotificationEventActions",
     "NotificationEventEffect",
     "NotificationActionResponses",
+    "NotificationEventButtonAction",
 ]
 
 import asyncio
