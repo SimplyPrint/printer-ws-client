@@ -1,3 +1,4 @@
+import logging
 import threading
 from typing import final, Optional, Callable
 
@@ -18,6 +19,7 @@ class CameraController(SyncStoppable, Synchronized):
 
     protocol: BaseCameraProtocol
     pause_timeout: Optional[int]
+    logger: logging.Logger
 
     _frame_cb: Callable[[Optional[FrameT]], None]
     _pause_timer: Optional[threading.Timer] = None
@@ -28,12 +30,14 @@ class CameraController(SyncStoppable, Synchronized):
         frame_cb: Callable[[Optional[FrameT]], None],
         protocol: BaseCameraProtocol,
         pause_timeout: Optional[int] = None,
+        logger: logging.Logger = logging.getLogger(__name__),
     ):
         SyncStoppable.__init__(self)
         Synchronized.__init__(self)
 
         self.protocol = protocol
         self.pause_timeout = pause_timeout
+        self.logger = logger
         self._frame_cb = frame_cb
 
     def __del__(self):
@@ -102,11 +106,11 @@ class CameraController(SyncStoppable, Synchronized):
     def _exception_handler(self, f: Callable):
         try:
             f()
-
         except CameraProtocolConnectionError:
             self._frame_cb(None)
         except CameraProtocolInvalidState:
             self._frame_cb(None)
         except Exception as e:
             _ = e
+            self.logger.debug("Failed to read from camera: %s", e)
             self._frame_cb(None)

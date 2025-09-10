@@ -72,7 +72,7 @@ class VirtualClient(DefaultClient[VirtualConfig], ClientCameraMixin):
         self.printer.tool_count = 1
         self.printer.tool().material_count = 4
 
-        self.set_camera_uri(URL("virtual://localhost"))
+        self.camera_uri = URL("virtual://localhost")
         self.printer.webcam_info.connected = True
 
         for i, mat in enumerate(self.printer.materials0):

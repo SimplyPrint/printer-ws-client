@@ -1,11 +1,10 @@
 import functools
 import logging
 import multiprocessing
-import os
-import sys
 import threading
 import time
 from concurrent.futures.thread import ThreadPoolExecutor
+from logging.handlers import RotatingFileHandler
 from typing import final, List, Dict, Tuple, Optional, Type
 
 from yarl import URL
@@ -25,6 +24,7 @@ from .controller import CameraController
 from .handle import CameraHandle
 from ..utils.stoppable import ProcessStoppable, StoppableProcess
 from ..utils.synchronized import Synchronized
+from ...const import APP_DIRS
 
 
 @final
@@ -99,7 +99,7 @@ class CameraWorkerProcess(StoppableProcess, Synchronized):
         try:
             self._run()
         except KeyboardInterrupt:
-            pass
+            logging.info("Exiting on keyboard interrupt")
         except Exception as e:
             logging.error("Error", exc_info=e)
 
@@ -108,13 +108,21 @@ class CameraWorkerProcess(StoppableProcess, Synchronized):
         self.instances = {}
 
         logging.basicConfig(
-            level=logging.DEBUG
-            if os.environ.get("SIMPLYPRINT_DEBUG_CAMERA", False)
-            else logging.INFO,
+            level=logging.DEBUG,
             format="%(asctime)s [%(process)d] %(message)s",
             datefmt="%H:%M:%S",
-            handlers=[logging.StreamHandler(stream=sys.stdout)],
+            handlers=[
+                RotatingFileHandler(
+                    filename=APP_DIRS.user_log_path / "camera_worker.log",
+                    mode="a",
+                    maxBytes=10 * 1024 * 1024,
+                    backupCount=3,
+                )
+            ],
+            force=True,
         )
+
+        logging.debug("Camera worker started")
 
         with ThreadPoolExecutor(thread_name_prefix="CameraWorkerProcess") as tp:
             while not self.is_stopped():

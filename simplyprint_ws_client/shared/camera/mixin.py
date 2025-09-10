@@ -1,6 +1,8 @@
 import asyncio
 import base64
 import datetime
+import logging
+import os
 from typing import Optional, Literal, TypeVar
 
 from yarl import URL
@@ -24,42 +26,72 @@ class ClientCameraMixin(Client[_T]):
     _camera_pool: Optional[CameraPool] = None
     _camera_uri: Optional[URL] = None
     _camera_handle: Optional[CameraHandle] = None
+    _camera_status: Literal["ok", "new", "err"] = "ok"
     _camera_max_cache_age: Optional[datetime.timedelta] = None
     _camera_pause_timeout: Optional[int] = None
     _camera_debug: bool = False
+    _camera_logger: logging.Logger = logging.getLogger(__name__)
     _stream_lock: CancelableLock
     _stream_setup: asyncio.Event
     _request_count: int = 0
 
     def initialize_camera_mixin(
-        self,
-        camera_pool: Optional[CameraPool] = None,
-        pause_timeout: Optional[int] = None,
-        max_cache_age: Optional[datetime.timedelta] = None,
-        camera_debug=False,
-        **_kwargs,
+            self,
+            camera_pool: Optional[CameraPool] = None,
+            pause_timeout: Optional[int] = None,
+            max_cache_age: Optional[datetime.timedelta] = None,
+            camera_debug: Optional[bool] = None,
+            **_kwargs,
     ):
         self._camera_pool = camera_pool
         self._stream_lock = CancelableLock()
         self._stream_setup = asyncio.Event()
         self._camera_pause_timeout = pause_timeout
         self._camera_max_cache_age = max_cache_age
-        self._camera_debug = camera_debug
+        self._camera_debug = (
+            "SIMPLYPRINT_DEBUG_CAMERA" in os.environ
+            if camera_debug is None
+            else camera_debug
+        )
+        self._camera_logger = self.logger.getChild("camera")
+        self._camera_logger.setLevel(logging.DEBUG if self._camera_debug else logging.INFO)
 
-    def set_camera_uri(self, uri: Optional[URL] = None) -> Literal["err", "ok", "new"]:
+    @property
+    def camera_status(self) -> Literal["ok", "new", "err"]:
+        """Get the camera status."""
+        return self._camera_status
+
+    @property
+    def camera_uri(self) -> Optional[URL]:
+        """Get the camera URI."""
+        return self._camera_uri
+
+    @camera_uri.setter
+    def camera_uri(self, uri: Optional[URL] = None):
         """Returns whether it has changed the camera URI"""
         if self._camera_pool is None:
-            return "err"
+            self._camera_status = "err"
+            self._camera_logger.debug(
+                f"Dropped camera URI {uri} because no camera pool is available."
+            )
+            return
 
         # If the camera URI is the same, don't recreate the camera.
         if self._camera_uri == uri and self._camera_handle:
-            return "ok"
+            self._camera_status = "ok"
+            self._camera_logger.debug(
+                f"Camera URI {uri} is the same as the current one, not changing."
+            )
+            return
 
         self._camera_uri = uri
 
-        # Clear out previous camera (if URI is different)
+        # Clear out the previous camera (if URI is different)
         if self._camera_handle:
             self._camera_handle.stop()
+            self._camera_logger.debug(
+                f"Cleared previous camera handle ID {self._camera_handle.id}."
+            )
             self._camera_handle = None
             self.event_loop.call_soon_threadsafe(self._stream_setup.clear)
 
@@ -80,10 +112,13 @@ class ClientCameraMixin(Client[_T]):
         if not self.printer.webcam_info.connected:
             self.printer.webcam_info.connected = True
 
-        return "new"
+        self._camera_status = "new"
+        self._camera_logger.debug(
+            f"Set new camera URI to {uri} with handle ID {self._camera_handle.id}, status is now {self._camera_status}."
+        )
 
     def __del__(self):
-        self.set_camera_uri(None)
+        self.camera_uri = None
 
     async def on_stream_on(self):
         if not self._camera_handle:
@@ -109,10 +144,10 @@ class ClientCameraMixin(Client[_T]):
             self._request_count += 1
 
     async def on_webcam_snapshot(
-        self,
-        data: WebcamSnapshotDemandData = WebcamSnapshotDemandData(),
-        attempt=0,
-        retry_timeout=5,
+            self,
+            data: WebcamSnapshotDemandData = WebcamSnapshotDemandData(),
+            attempt=0,
+            retry_timeout=5,
     ):
         if not self._camera_handle:
             await self._stream_setup.wait()
@@ -130,27 +165,28 @@ class ClientCameraMixin(Client[_T]):
         # Empty frame or none.
         if not frame:
             if attempt <= 3:
-                self.logger.debug(
+                self._camera_logger.debug(
                     f"Failed to get frame, retrying in {retry_timeout} seconds"
                 )
                 await asyncio.sleep(retry_timeout)
                 await self.on_webcam_snapshot(data, attempt + 1, retry_timeout)
             else:
-                self.logger.debug("Failed to get frame, giving up.")
+                self._camera_logger.debug(
+                    f"Failed to get frame, giving up. Used camera handle id {self._camera_handle.id}."
+                )
 
             return
 
-        if self._camera_debug:
-            self.logger.debug(
-                f"Received frame from camera with size {len(frame) if frame else 0} bytes "
-                f"with an fps of {self._camera_handle.fps or 'N/A'} in "
-                f"{datetime.datetime.now() - st}."
-            )
+        self._camera_logger.debug(
+            f"Received frame from camera with size {len(frame) if frame else 0} bytes "
+            f"with an fps of {self._camera_handle.fps or 'N/A'} in "
+            f"{datetime.datetime.now() - st} from camera handle id {self._camera_handle.id}."
+        )
 
         # Capture snapshot events and send them to the API
         if is_snapshot_event:
             await SimplyPrintApi.post_snapshot(data.id, frame, endpoint=data.endpoint)
-            self.logger.debug(f"Posted snapshot to API with id {data.id}")
+            self._camera_logger.debug(f"Posted snapshot to API with id {data.id}")
             return
 
         # Mark the webcam as connected if it's not already.
