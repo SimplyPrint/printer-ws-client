@@ -114,7 +114,7 @@ class ClientCameraMixin(Client[_T]):
 
         self._camera_status = "new"
         self._camera_logger.debug(
-            f"Set new camera URI to {uri} with handle ID {self._camera_handle.id}, status is now {self._camera_status}."
+            f"Set new camera URI to {uri} with handle ID {self._camera_handle.id if self._camera_handle else 'N/A'}, status is now {self._camera_status}."
         )
 
     def __del__(self):
